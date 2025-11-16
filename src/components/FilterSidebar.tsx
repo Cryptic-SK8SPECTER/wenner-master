@@ -1,6 +1,10 @@
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Star } from "lucide-react";
 import { Button } from "./ui/button";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "./ui/collapsible";
 import { Slider } from "./ui/slider";
 
 export interface Filters {
@@ -13,40 +17,60 @@ export interface Filters {
 
 interface FilterSection {
   title: string;
-  key: keyof Omit<Filters, 'priceRange' | 'rating'>;
+  key: keyof Omit<Filters, "priceRange" | "rating">;
   options?: string[];
 }
 
 const filterSections: FilterSection[] = [
   {
-    title: "Gender",
+    title: "Gênero",
     key: "gender",
-    options: ["Men", "Women", "Unisex"]
+    options: ["Masculino", "Feminino", "Unissex"],
   },
   {
-    title: "Categories",
+    title: "Categorias",
     key: "categories",
-    options: ["T-Shirts", "Dresses", "Jackets", "Pants", "Blazers", "Shoes"]
+    options: [
+      "Camisetas",
+      "Vestidos",
+      "Casacos",
+      "Calças",
+      "Blazers",
+      "Sapatos",
+    ],
   },
   {
-    title: "Colors",
+    title: "Cores",
     key: "colors",
-    options: ["Black", "White", "Blue", "Red", "Navy", "Gray", "Beige"]
-  }
+    options: [
+      "Preto",
+      "Branco",
+      "Azul",
+      "Vermelho",
+      "Azul Marinho",
+      "Cinza",
+      "Bege",
+    ],
+  },
 ];
-
 interface FilterSidebarProps {
   filters: Filters;
   onFilterChange: (filters: Filters) => void;
 }
 
-export const FilterSidebar = ({ filters, onFilterChange }: FilterSidebarProps) => {
-  const handleCheckboxChange = (key: keyof Omit<Filters, 'priceRange' | 'rating'>, value: string) => {
+export const FilterSidebar = ({
+  filters,
+  onFilterChange,
+}: FilterSidebarProps) => {
+  const handleCheckboxChange = (
+    key: keyof Omit<Filters, "priceRange" | "rating">,
+    value: string
+  ) => {
     const currentValues = filters[key];
     const newValues = currentValues.includes(value)
       ? currentValues.filter((v) => v !== value)
       : [...currentValues, value];
-    
+
     onFilterChange({ ...filters, [key]: newValues });
   };
 
@@ -54,7 +78,7 @@ export const FilterSidebar = ({ filters, onFilterChange }: FilterSidebarProps) =
     const newRatings = filters.rating.includes(rating)
       ? filters.rating.filter((r) => r !== rating)
       : [...filters.rating, rating];
-    
+
     onFilterChange({ ...filters, rating: newRatings });
   };
 
@@ -68,14 +92,14 @@ export const FilterSidebar = ({ filters, onFilterChange }: FilterSidebarProps) =
       categories: [],
       colors: [],
       priceRange: [0, 200],
-      rating: []
+      rating: [],
     });
   };
 
   return (
     <aside className="w-full lg:w-64 bg-sidebar border-r border-sidebar-border p-6 space-y-4">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-bold text-sidebar-foreground">Filter</h2>
+        <h2 className="text-xl font-bold text-sidebar-foreground">Filtro</h2>
       </div>
 
       {/* Filter Sections */}
@@ -109,7 +133,7 @@ export const FilterSidebar = ({ filters, onFilterChange }: FilterSidebarProps) =
       {/* Price Range */}
       <Collapsible defaultOpen className="space-y-4">
         <CollapsibleTrigger className="flex items-center justify-between w-full py-2 text-sidebar-foreground hover:text-sidebar-primary transition-colors">
-          <span className="font-medium">Price</span>
+          <span className="font-medium">Preço</span>
           <ChevronDown className="w-4 h-4 transition-transform ui-expanded:rotate-180" />
         </CollapsibleTrigger>
         <CollapsibleContent className="space-y-4 pt-2">
@@ -130,7 +154,7 @@ export const FilterSidebar = ({ filters, onFilterChange }: FilterSidebarProps) =
       {/* Rating */}
       <Collapsible defaultOpen className="space-y-2">
         <CollapsibleTrigger className="flex items-center justify-between w-full py-2 text-sidebar-foreground hover:text-sidebar-primary transition-colors">
-          <span className="font-medium">Rating</span>
+          <span className="font-medium">Avaliação</span>
           <ChevronDown className="w-4 h-4 transition-transform ui-expanded:rotate-180" />
         </CollapsibleTrigger>
         <CollapsibleContent className="space-y-2">
@@ -145,9 +169,14 @@ export const FilterSidebar = ({ filters, onFilterChange }: FilterSidebarProps) =
                 onChange={() => handleRatingChange(rating)}
                 className="w-4 h-4 rounded border-border text-accent focus:ring-accent focus:ring-offset-0"
               />
-              <span className="text-sm text-sidebar-foreground group-hover:text-sidebar-primary transition-colors">
-                {"⭐".repeat(rating)} & up
-              </span>
+              <div className="flex items-center gap-1">
+                {Array.from({ length: rating }).map((_, i) => (
+                  <Star key={i} className="w-4 h-4 fill-accent text-accent" />
+                ))}
+                <span className="text-sm text-sidebar-foreground group-hover:text-sidebar-primary transition-colors ml-1">
+                  & acima
+                </span>
+              </div>
             </label>
           ))}
         </CollapsibleContent>
@@ -159,7 +188,7 @@ export const FilterSidebar = ({ filters, onFilterChange }: FilterSidebarProps) =
         className="w-full mt-6 border-sale text-sale hover:bg-sale hover:text-sale-foreground transition-colors"
         onClick={handleClearAll}
       >
-        Clear All
+        Limpar tudo
       </Button>
     </aside>
   );

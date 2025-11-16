@@ -9,8 +9,10 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 
+const baseURL = import.meta.env.DEV ? "" : productionUrl;
+
 export const customFetch: AxiosInstance = axios.create({
-  baseURL: productionUrl,
+  baseURL,
   headers: {
     "Content-Type": "application/json",
   },

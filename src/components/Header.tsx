@@ -1,19 +1,24 @@
-import { Search, ShoppingCart, User, Menu, Shield } from "lucide-react";
+import { Search, ShoppingCart, User, Menu, Shield, LogOut } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Badge } from "./ui/badge";
 import { useState } from "react";
 import { CartSheet } from "./CartSheet";
 import { useCart } from "@/contexts/CartContext";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, NavLink, useLocation } from "react-router-dom";
 import Logo from "@/components/Logo";
 import { useAppSelector } from "../app/hooks";
+import { useAppDispatch } from "../app/hooks";
+import { logoutUser } from "@/features/user/userActions";
 
 export const Header = () => {
   const [cartOpen, setCartOpen] = useState(false);
   const { totalItems } = useCart();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, isAuthenticated } = useAppSelector((state) => state.user);
+  const dispatch = useAppDispatch();
+  const isHome = location.pathname === "/";
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
@@ -30,7 +35,9 @@ export const Header = () => {
             Wenner
           </div>
         </div> */}
-        <Logo />
+        <NavLink to="/" className="flex items-center gap-2">
+          <Logo />
+        </NavLink>
 
         {/* Search Bar */}
         <div className="flex-1 max-w-xl mx-auto hidden md:flex">
@@ -40,6 +47,7 @@ export const Header = () => {
               type="search"
               placeholder="Search products..."
               className="pl-10 bg-background"
+              disabled={!isHome}
             />
           </div>
         </div>
@@ -53,45 +61,55 @@ export const Header = () => {
           {/* Botões Login / Cadastrar */}
           {!isAuthenticated && (
             <>
-              <Button
-                variant="outline"
-                size="sm"
-                className="hidden md:inline-flex"
-                onClick={() => navigate("/auth")}
-              >
-                Login
-              </Button>
+              <NavLink to="/auth">
+                {({ isActive }) => (
+                  <Button
+                    variant={isActive ? "default" : "outline"}
+                    size="sm"
+                    className="hidden md:inline-flex"
+                  >
+                    Login
+                  </Button>
+                )}
+              </NavLink>
 
-              <Button
-                size="sm"
-                className="hidden md:inline-flex"
-                onClick={() => navigate("/auth")}
-              >
-                Cadastrar
-              </Button>
+              <NavLink to="/auth">
+                {({ isActive }) => (
+                  <Button
+                    variant={isActive ? "default" : "default"}
+                    size="sm"
+                    className="hidden md:inline-flex"
+                  >
+                    Cadastrar
+                  </Button>
+                )}
+              </NavLink>
             </>
           )}
 
           {/* Botões Perfil / Admin */}
           {isAuthenticated && (
             <>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => navigate("/profile")}
-              >
-                <User className="h-5 w-5" />
-              </Button>
+              <NavLink to="/profile">
+                {({ isActive }) => (
+                  <Button variant={isActive ? "default" : "ghost"} size="icon">
+                    <User className="h-5 w-5" />
+                  </Button>
+                )}
+              </NavLink>
 
-              {user?.isAdmin && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => navigate("/admin")}
-                  title="Painel Admin"
-                >
-                  <Shield className="h-5 w-5" />
-                </Button>
+              {user?.role === "admin" && (
+                <NavLink to="/admin">
+                  {({ isActive }) => (
+                    <Button
+                      variant={isActive ? "default" : "ghost"}
+                      size="icon"
+                      title="Painel Admin"
+                    >
+                      <Shield className="h-5 w-5" />
+                    </Button>
+                  )}
+                </NavLink>
               )}
 
               <Button
@@ -107,6 +125,17 @@ export const Header = () => {
                   </Badge>
                 )}
               </Button>
+
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => {
+                  dispatch(logoutUser());
+                  navigate("/");
+                }}
+              >
+                <LogOut className="h-5 w-5" />
+              </Button>
             </>
           )}
         </div>
@@ -120,6 +149,7 @@ export const Header = () => {
             type="search"
             placeholder="Search products..."
             className="pl-10 bg-background"
+            disabled={!isHome}
           />
         </div>
       </div>

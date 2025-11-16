@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAppDispatch } from "../app/hooks"; // hooks tipados
-import { loginUser } from "../features/user/userActions"; 
+import { loginUser, signupUser } from "../features/user/userActions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -44,7 +44,6 @@ const Auth = () => {
   const dispatch = useAppDispatch();
   const [isLoading, setIsLoading] = useState(false);
 
-  
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
@@ -64,7 +63,7 @@ const Auth = () => {
 
       setIsLoading(false);
       navigate("/");
-    } catch (error: any) {
+    } catch (error: unknown) {
       setIsLoading(false);
       if (error instanceof z.ZodError) {
         toast({
@@ -73,10 +72,24 @@ const Auth = () => {
           variant: "destructive",
         });
       } else {
+        // Trata erro como um objeto com possível message
+        const errorObj = error as {
+          response?: { data?: { message?: string } };
+          message?: string;
+        };
+        let description = "Ocorreu um erro";
+
+        if (typeof error === "string") {
+          description = error;
+        } else if (errorObj?.response?.data?.message) {
+          description = errorObj.response.data.message;
+        } else if (errorObj?.message) {
+          description = errorObj.message;
+        }
+
         toast({
           title: "Erro no login",
-          description:
-            error.response?.data?.message || error.message || "Ocorreu um erro",
+          description,
           variant: "destructive",
         });
       }
@@ -86,6 +99,7 @@ const Auth = () => {
   const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
+    const name = formData.get("name") as string;
     const email = formData.get("email") as string;
     const password = formData.get("password") as string;
     const confirmPassword = formData.get("confirmPassword") as string;
@@ -94,23 +108,47 @@ const Auth = () => {
       signupSchema.parse({ email, password, confirmPassword });
       setIsLoading(true);
 
-      // TODO: Implement signup with Lovable Cloud
+      await dispatch(
+        signupUser({ name, email, password, passwordConfirm: confirmPassword })
+      ).unwrap();
+
       toast({
-        title: "Cadastro não implementado",
-        description: "Configure o Lovable Cloud para habilitar autenticação",
-        variant: "destructive",
+        title: "Cadastro realizado com sucesso",
+        variant: "default",
       });
 
       setIsLoading(false);
-    } catch (error) {
+      navigate("/");
+    } catch (error: unknown) {
+      setIsLoading(false);
       if (error instanceof z.ZodError) {
         toast({
           title: "Erro de validação",
           description: error.errors[0].message,
           variant: "destructive",
         });
+      } else {
+        // Trata erro como um objeto com possível message
+        const errorObj = error as {
+          response?: { data?: { message?: string } };
+          message?: string;
+        };
+        let description = "Ocorreu um erro ao cadastrar";
+
+        if (typeof error === "string") {
+          description = error;
+        } else if (errorObj?.response?.data?.message) {
+          description = errorObj.response.data.message;
+        } else if (errorObj?.message) {
+          description = errorObj.message;
+        }
+
+        toast({
+          title: "Erro no cadastro",
+          description,
+          variant: "destructive",
+        });
       }
-      setIsLoading(false);
     }
   };
 

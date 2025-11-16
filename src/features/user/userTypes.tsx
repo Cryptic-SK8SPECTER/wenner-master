@@ -5,8 +5,17 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  role?: "admin" | "client" | "manager"; 
-  avatarUrl?: string; // opcional, se tiver foto
+  photo?: string;
+  phone?: string;
+  role?: "admin" | "client" | "manager";
+  password?: string;
+  passwordConfirm?: string;
+  address?: {
+    street: string;
+    city: string;
+    state: string;
+    zipCode: string;
+  };
 }
 
 // Estado do slice de usuário
@@ -23,11 +32,32 @@ export interface LoginPayload {
   password: string;
 }
 
+// Payload de cadastro
+export interface SignupPayload {
+  name: string;
+  email: string;
+  password: string;
+  passwordConfirm: string;
+}
+
 // Payload de atualização de perfil
 export interface UpdateProfilePayload {
   name?: string;
   email?: string;
-  avatarUrl?: string;
+  phone?: string;
+  address?: {
+    street?: string;
+    city?: string;
+    state?: string;
+    zipCode?: string;
+  };
+}
+
+// Payload de alteração de senha
+export interface UpdatePasswordPayload {
+  passwordCurrent: string;
+  password: string;
+  passwordConfirm: string;
 }
 
 // Payload de resposta da API (login)
