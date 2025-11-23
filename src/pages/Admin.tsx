@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import {
@@ -42,7 +42,7 @@ import {
   DollarSign,
 } from "lucide-react";
 import { mockProducts } from "@/data/products";
-import { Product } from "@/features/products/productTypes";
+import { Product } from "@/features/product/productTypes";
 import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
 import {
@@ -61,8 +61,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useAppDispatch } from "@/app/hooks";
-import { createProduct } from "@/features/products/productActions";
+import { useAppDispatch, useAppSelector } from "@/app/hooks";
+import {
+  createProduct,
+  fetchProducts,
+} from "@/features/product/productActions";
+import { fetchUsers } from "@/features/user/userActions";
 
 type ProductVariant = {
   id: string;
@@ -72,24 +76,6 @@ type ProductVariant = {
   image: string;
   imageFile?: File;
 };
-
-// Validation schema for new products
-const productSchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(3, "Nome deve ter pelo menos 3 caracteres")
-    .max(100, "Nome muito longo"),
-  price: z.number().positive("Preço deve ser positivo"),
-  category: z.string().trim().min(1, "Selecione uma categoria"),
-  gender: z.string().trim().min(1, "Selecione um gênero"),
-  description: z
-    .string()
-    .trim()
-    .min(10, "Descrição deve ter pelo menos 10 caracteres")
-    .max(500, "Descrição muito longa"),
-  imageCover: z.string().url("URL da imagem inválida"),
-});
 
 const Admin = () => {
   const { toast } = useToast();
@@ -114,6 +100,47 @@ const Admin = () => {
   > | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingVariants, setEditingVariants] = useState<ProductVariant[]>([]);
+
+  const { products, loading, error } = useAppSelector((state) => state.product);
+  const {
+    users,
+    loading: usersLoading,
+    error: usersError,
+  } = useAppSelector((state) => state.user);
+
+  const [productsLoaded, setProductsLoaded] = useState(false);
+
+  // useEffect para carregar produtos
+  useEffect(() => {
+    const loadProducts = async () => {
+      try {
+        await dispatch(fetchProducts()).unwrap();
+        setProductsLoaded(true);
+      } catch (err) {
+        console.error("❌ Admin: Erro ao carregar produtos:", err);
+        setProductsLoaded(true);
+      }
+    };
+
+    if (!productsLoaded) {
+      loadProducts();
+    }
+  }, [dispatch, productsLoaded]);
+
+  // Carregar usuários
+  useEffect(() => {
+    const loadUsers = async () => {
+      console.log("🔄 Admin: Iniciando carregamento de usuários");
+      try {
+        await dispatch(fetchUsers()).unwrap();
+        console.log("✅ Admin: Usuários carregados com sucesso");
+      } catch (err) {
+        console.error("❌ Admin: Erro ao carregar usuários:", err);
+      }
+    };
+
+    loadUsers();
+  }, [dispatch]);
 
   // Mock customers data
   const allCustomers = [
@@ -252,7 +279,7 @@ const Admin = () => {
   });
 
   // Filter products
-  const filteredProducts = mockProducts.filter(
+  const filteredProducts = products.filter(
     (product) =>
       product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       product.category.toLowerCase().includes(searchTerm.toLowerCase())
@@ -525,10 +552,6 @@ const Admin = () => {
         imageCover: productImageFile,
       };
 
-
-      // Validar dados com schema
-      // productSchema.parse(productData);
-
       // Despache thunk para criar produto usando FormData (multipart)
       const form = new FormData();
       form.append("name", productData.name);
@@ -537,12 +560,14 @@ const Admin = () => {
       form.append("gender", productData.gender);
       form.append("description", productData.description);
 
+      console.log(
+        "imageCover instanceof File:",
+        productImageFile instanceof File
+      );
       // Main image file (prefer file; fallback to nothing)
       if (productImageFile) {
         form.append("imageCover", productImageFile);
       }
-
-     
 
       await dispatch(createProduct(form)).unwrap();
 
@@ -554,8 +579,7 @@ const Admin = () => {
       e.currentTarget.reset();
       setProductImage("");
     } catch (error) {
-
-      console.log('resposta   :' , error)
+      console.log("resposta   :", error);
       const errorMsg =
         error instanceof Error ? error.message : "Erro ao cadastrar produto";
       toast({
@@ -1669,7 +1693,7 @@ const Admin = () => {
                   <Input
                     id="edit-name"
                     name="name"
-                    defaultValue={editingProduct.name}
+                    defaultValue={editingProduct.name as string}
                     required
                   />
                 </div>
@@ -1680,7 +1704,7 @@ const Admin = () => {
                     name="price"
                     type="number"
                     step="0.01"
-                    defaultValue={editingProduct.price}
+                    defaultValue={editingProduct.price as number}
                     required
                   />
                 </div>
@@ -1691,7 +1715,7 @@ const Admin = () => {
                   <Label htmlFor="edit-category">Categoria *</Label>
                   <Select
                     name="category"
-                    defaultValue={editingProduct.category}
+                    defaultValue={editingProduct.category as string}
                     required
                   >
                     <SelectTrigger>
@@ -1711,16 +1735,16 @@ const Admin = () => {
                   <Label htmlFor="edit-gender">Gênero *</Label>
                   <Select
                     name="gender"
-                    defaultValue={editingProduct.gender}
+                    defaultValue={editingProduct.gender as string}
                     required
                   >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Men">Masculino</SelectItem>
-                      <SelectItem value="Women">Feminino</SelectItem>
-                      <SelectItem value="Unisex">Unissex</SelectItem>
+                      <SelectItem value="Masculino">Masculino</SelectItem>
+                      <SelectItem value="Feminino">Feminino</SelectItem>
+                      <SelectItem value="Unissex">Unissex</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1772,7 +1796,7 @@ const Admin = () => {
                             <div className="space-y-2">
                               <Label>Cor *</Label>
                               <Input
-                                placeholder="Ex: Preto"
+                                type="color"
                                 value={variant.color}
                                 onChange={(e) =>
                                   updateEditingVariant(

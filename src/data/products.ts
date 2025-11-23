@@ -1,20 +1,5 @@
-export interface Product {
-  id: string;
-  name: string;
-  price: number;
-  originalPrice?: number;
-  image: string;
-  images: string[];
-  category: string;
-  gender: string;
-  colors: string[];
-  sizes: string[];
-  rating: number;
-  description: string;
-  discount?: number;
-}
 
-export const mockProducts: Product[] = [
+export const mockProducts = [
   {
     id: "1",
     name: "Premium Cotton T-Shirt",

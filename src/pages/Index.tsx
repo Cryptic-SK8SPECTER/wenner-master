@@ -1,12 +1,24 @@
 import { FilterSidebar, type Filters } from "@/components/FilterSidebar";
 import { Header } from "@/components/Header";
 import { ProductCard } from "@/components/ProductCard";
-import { mockProducts, type Product } from "@/data/products";
 import { Button } from "@/components/ui/button";
 import { SlidersHorizontal } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
+import { useAppDispatch, useAppSelector } from "@/app/hooks";
+import { fetchProducts } from "@/features/product/productActions";
+import { useToast } from "@/hooks/use-toast";
+import { clearError } from "@/features/product/productSlice";
+
 const Index = () => {
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -15,62 +27,163 @@ const Index = () => {
     categories: [],
     colors: [],
     priceRange: [0, 200],
-    rating: []
+    rating: [],
   });
+
   const ITEMS_PER_PAGE = 6;
-  const filteredProducts = useMemo(() => {
-    return mockProducts.filter((product: Product) => {
-      // Filter by gender
-      if (filters.gender.length > 0 && !filters.gender.includes(product.gender)) {
-        return false;
-      }
 
-      // Filter by category
-      if (filters.categories.length > 0 && !filters.categories.includes(product.category)) {
-        return false;
-      }
+  // Redux hooks
+  const dispatch = useAppDispatch();
+  const { products, loading, error, searchQuery } = useAppSelector(
+    (state) => state.product
+  );
+  const { toast } = useToast();
 
-      // Filter by colors
-      if (filters.colors.length > 0) {
-        const hasMatchingColor = product.colors.some(color => filters.colors.some(filterColor => color.toLowerCase() === filterColor.toLowerCase()));
-        if (!hasMatchingColor) return false;
-      }
+  // Fetch products on component mount
+  useEffect(() => {
+    dispatch(fetchProducts());
+  }, [dispatch]);
 
-      // Filter by price range
-      if (product.price < filters.priceRange[0] || product.price > filters.priceRange[1]) {
-        return false;
-      }
+  // Reset page when search query changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
 
-      // Filter by rating
-      if (filters.rating.length > 0) {
-        const meetsRating = filters.rating.some(minRating => product.rating >= minRating);
-        if (!meetsRating) return false;
-      }
-      return true;
-    });
-  }, [filters]);
-  const totalPages = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE);
+  // Show error toast if there's an error
+  useEffect(() => {
+    if (error) {
+      toast({
+        variant: "destructive",
+        title: "Erro ao carregar produtos",
+        description: error,
+      });
+      // Clear error after showing
+      dispatch(clearError());
+    }
+  }, [error, toast, dispatch]);
+
+  // Apply filters and search to products from Redux state
+   const appliedFiltersProducts = useMemo(() => {
+     if (!products || products.length === 0) return [];
+
+     return products.filter((product) => {
+       // Filter by search query
+       if (searchQuery.trim()) {
+         const query = searchQuery.toLowerCase().trim();
+         const matchesName = product.name.toLowerCase().includes(query);
+         const matchesCategory = product.category.toLowerCase().includes(query);
+         const matchesDescription = product.description?.toLowerCase().includes(query);
+         
+         if (!matchesName && !matchesCategory && !matchesDescription) {
+           return false;
+         }
+       }
+
+       // Filter by gender
+       if (
+         filters.gender.length > 0 &&
+         !filters.gender.includes(product.gender)
+       ) {
+         return false;
+       }
+
+       // Filter by category
+       if (
+         filters.categories.length > 0 &&
+         !filters.categories.includes(product.category)
+       ) {
+         return false;
+       }
+
+       // Filter by colors - CORRIGIDO
+       if (filters.colors.length > 0) {
+         const productColorValues =
+           product.colors?.map((colorObj) => colorObj.color.toLowerCase()) ||
+           [];
+         const hasMatchingColor = productColorValues.some((productColor) =>
+           filters.colors.some(
+             (filterColor) => productColor === filterColor.toLowerCase()
+           )
+         );
+         if (!hasMatchingColor) return false;
+       }
+
+       // Filter by price range
+       if (
+         product.price < filters.priceRange[0] ||
+         product.price > filters.priceRange[1]
+       ) {
+         return false;
+       }
+
+       // Filter by rating
+       if (filters.rating.length > 0) {
+         const meetsRating = filters.rating.some(
+           (minRating) => product.rating >= minRating
+         );
+         if (!meetsRating) return false;
+       }
+       return true;
+     });
+   }, [products, filters, searchQuery]);
+
+
+  const totalPages = Math.ceil(appliedFiltersProducts.length / ITEMS_PER_PAGE);
+
   const paginatedProducts = useMemo(() => {
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
     const endIndex = startIndex + ITEMS_PER_PAGE;
-    return filteredProducts.slice(startIndex, endIndex);
-  }, [filteredProducts, currentPage]);
+    return appliedFiltersProducts.slice(startIndex, endIndex);
+  }, [appliedFiltersProducts, currentPage]);
+
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
     window.scrollTo({
       top: 0,
-      behavior: 'smooth'
+      behavior: "smooth",
     });
   };
-  return <div className="min-h-screen bg-background">
+
+  const handleClearFilters = () => {
+    setFilters({
+      gender: [],
+      categories: [],
+      colors: [],
+      priceRange: [0, 200],
+      rating: [],
+    });
+    setCurrentPage(1);
+  };
+
+  // Loading state
+  if (loading && products.length === 0) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <div className="container px-4 md:px-6 py-12">
+          <div className="flex justify-center items-center">
+            <p className="text-muted-foreground">Carregando produtos...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+
+  return (
+    <div className="min-h-screen bg-background">
       <Header />
-      
+
       {/* Breadcrumb */}
       <div className="container px-4 md:px-6 py-4">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <span className="hover:text-foreground cursor-pointer transition-colors">Home</span>
+          <span className="hover:text-foreground cursor-pointer transition-colors">
+            Home
+          </span>
           <span>/</span>
-          <span className="hover:text-foreground cursor-pointer transition-colors">E-commerce</span>
+          <span className="hover:text-foreground cursor-pointer transition-colors">
+            E-commerce
+          </span>
           <span>/</span>
           <span className="text-foreground font-medium">Products</span>
         </div>
@@ -92,7 +205,8 @@ const Index = () => {
                   Products
                 </h1>
                 <p className="text-muted-foreground">
-                  Showing {filteredProducts.length} of {mockProducts.length} products
+                  Showing {appliedFiltersProducts.length} of {products.length}{" "}
+                  products
                 </p>
               </div>
 
@@ -105,70 +219,109 @@ const Index = () => {
                   </Button>
                 </SheetTrigger>
                 <SheetContent side="left" className="w-80 p-0">
-                  <FilterSidebar filters={filters} onFilterChange={setFilters} />
+                  <FilterSidebar
+                    filters={filters}
+                    onFilterChange={setFilters}
+                  />
                 </SheetContent>
               </Sheet>
             </div>
 
             {/* Product Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredProducts.length > 0 ? paginatedProducts.map(product => <ProductCard key={product.id} product={product} />) : <div className="col-span-full text-center py-12">
+              {appliedFiltersProducts.length > 0 ? (
+                paginatedProducts.map((product) => (
+                  <ProductCard key={product._id} product={product} />
+                ))
+              ) : (
+                <div className="col-span-full text-center py-12">
                   <p className="text-muted-foreground text-lg">
                     Nenhum produto encontrado com os filtros selecionados
                   </p>
-                  <Button variant="outline" className="mt-4" onClick={() => {
-                setFilters({
-                  gender: [],
-                  categories: [],
-                  colors: [],
-                  priceRange: [0, 200],
-                  rating: []
-                });
-                setCurrentPage(1);
-              }}>
+                  <Button
+                    variant="outline"
+                    className="mt-4"
+                    onClick={handleClearFilters}
+                  >
                     Limpar filtros
                   </Button>
-                </div>}
+                </div>
+              )}
             </div>
 
             {/* Pagination */}
-            {filteredProducts.length > 0 && totalPages > 1 && <div className="mt-12">
+            {appliedFiltersProducts.length > 0 && totalPages > 1 && (
+              <div className="mt-12">
                 <Pagination>
                   <PaginationContent>
                     <PaginationItem>
-                      <PaginationPrevious onClick={() => handlePageChange(Math.max(1, currentPage - 1))} className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"} />
+                      <PaginationPrevious
+                        onClick={() =>
+                          handlePageChange(Math.max(1, currentPage - 1))
+                        }
+                        className={
+                          currentPage === 1
+                            ? "pointer-events-none opacity-50"
+                            : "cursor-pointer"
+                        }
+                      />
                     </PaginationItem>
-                    
-                    {Array.from({
-                  length: totalPages
-                }, (_, i) => i + 1).map(page => {
-                  // Show first page, last page, current page, and pages around current
-                  if (page === 1 || page === totalPages || page >= currentPage - 1 && page <= currentPage + 1) {
-                    return <PaginationItem key={page}>
-                            <PaginationLink onClick={() => handlePageChange(page)} isActive={currentPage === page} className="cursor-pointer">
-                              {page}
-                            </PaginationLink>
-                          </PaginationItem>;
-                  } else if (page === currentPage - 2 || page === currentPage + 2) {
-                    return <PaginationItem key={page}>
-                            <PaginationEllipsis />
-                          </PaginationItem>;
-                  }
-                  return null;
-                })}
+
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(
+                      (page) => {
+                        if (
+                          page === 1 ||
+                          page === totalPages ||
+                          (page >= currentPage - 1 && page <= currentPage + 1)
+                        ) {
+                          return (
+                            <PaginationItem key={page}>
+                              <PaginationLink
+                                onClick={() => handlePageChange(page)}
+                                isActive={currentPage === page}
+                                className="cursor-pointer"
+                              >
+                                {page}
+                              </PaginationLink>
+                            </PaginationItem>
+                          );
+                        } else if (
+                          page === currentPage - 2 ||
+                          page === currentPage + 2
+                        ) {
+                          return (
+                            <PaginationItem key={page}>
+                              <PaginationEllipsis />
+                            </PaginationItem>
+                          );
+                        }
+                        return null;
+                      }
+                    )}
 
                     <PaginationItem>
-                      <PaginationNext onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))} className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"} />
+                      <PaginationNext
+                        onClick={() =>
+                          handlePageChange(
+                            Math.min(totalPages, currentPage + 1)
+                          )
+                        }
+                        className={
+                          currentPage === totalPages
+                            ? "pointer-events-none opacity-50"
+                            : "cursor-pointer"
+                        }
+                      />
                     </PaginationItem>
                   </PaginationContent>
                 </Pagination>
-              </div>}
+              </div>
+            )}
           </main>
         </div>
       </div>
-
-      {/* Produtos Relacionados */}
-      
-    </div>;
+    </div>
+  );
 };
+
 export default Index;

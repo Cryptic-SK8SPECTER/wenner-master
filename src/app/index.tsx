@@ -1,14 +1,14 @@
 // store/index.js
 import { configureStore } from "@reduxjs/toolkit";
 import userReducer from "../features/user/userSlice";
-// import cartReducer from "./slices/cartSlice";
+import productReducer from "../features/product/productSlice";
 // import themeReducer from "./slices/themeSlice";
 
 export const store = configureStore({
   reducer: {
     user: userReducer,
+    product: productReducer,
   },
-  // Redux Toolkit já inclui thunk middleware por padrão
 });
 
 export type RootState = ReturnType<typeof store.getState>;

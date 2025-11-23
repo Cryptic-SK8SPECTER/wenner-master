@@ -2,7 +2,7 @@
 
 // Interface que representa um usuário
 export interface User {
-  id: string;
+  _id: string;
   name: string;
   email: string;
   photo?: string;
@@ -24,6 +24,7 @@ export interface UserState {
   isAuthenticated: boolean;
   loading: boolean;
   error: string | null;
+  users: User[];
 }
 
 // Payload de login

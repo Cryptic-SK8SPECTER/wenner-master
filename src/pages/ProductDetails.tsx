@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { mockProducts } from "@/data/products";
+import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +10,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { useRequireAuth } from "@/hooks/auth/useRequireAuth";
+import { fetchProductBySlug, fetchRelatedProducts } from "../features/product/productActions";
+import { clearCurrentProduct } from "../features/product/productSlice";
 import {
   ArrowLeft,
   ShoppingCart,
@@ -17,17 +19,14 @@ import {
   Star,
   Minus,
   Plus,
-  Truck,
-  RotateCcw,
-  Shield,
   Tag,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { toast } from "@/hooks/use-toast";
 import { z } from "zod";
 import { useCart } from "@/contexts/CartContext";
+import { useToast } from "@/hooks/use-toast";
 const couponSchema = z.object({
   code: z
     .string()
@@ -62,98 +61,43 @@ const validCoupons = {
     type: "percentage" as const,
   },
 };
-interface Review {
-  id: string;
-  author: string;
-  rating: number;
-  date: string;
-  comment: string;
-}
-const mockReviews: Review[] = [
-  {
-    id: "1",
-    author: "Maria Silva",
-    rating: 5,
-    date: "2024-01-15",
-    comment:
-      "Produto excepcional! A qualidade é incrível e o caimento perfeito.",
-  },
-  {
-    id: "2",
-    author: "João Santos",
-    rating: 4,
-    date: "2024-01-10",
-    comment: "Muito bom, recomendo. Chegou rápido e bem embalado.",
-  },
-  {
-    id: "3",
-    author: "Ana Costa",
-    rating: 5,
-    date: "2024-01-05",
-    comment: "Adorei! Superou minhas expectativas. Vou comprar mais cores.",
-  },
-  {
-    id: "4",
-    author: "Pedro Oliveira",
-    rating: 3,
-    date: "2024-01-03",
-    comment: "Bom produto, mas esperava mais pela descrição.",
-  },
-  {
-    id: "5",
-    author: "Carla Ferreira",
-    rating: 5,
-    date: "2024-01-01",
-    comment: "Perfeito! Exatamente como na foto. Super recomendo!",
-  },
-  {
-    id: "6",
-    author: "Lucas Rodrigues",
-    rating: 4,
-    date: "2023-12-28",
-    comment: "Qualidade boa, entrega dentro do prazo.",
-  },
-  {
-    id: "7",
-    author: "Juliana Alves",
-    rating: 5,
-    date: "2023-12-25",
-    comment: "Amei! Já comprei outros produtos da marca.",
-  },
-  {
-    id: "8",
-    author: "Roberto Santos",
-    rating: 2,
-    date: "2023-12-20",
-    comment: "Não atendeu minhas expectativas. Tamanho veio diferente.",
-  },
-];
 
-// Calculate rating distribution
-const calculateRatingDistribution = (reviews: Review[]) => {
-  const distribution = {
-    5: 0,
-    4: 0,
-    3: 0,
-    2: 0,
-    1: 0,
+interface Review {
+  _id: string;
+  review: string;
+  rating: number;
+  createdAt: string;
+  user: {
+    _id: string;
+    name: string;
+    photo?: string;
   };
-  reviews.forEach((review) => {
-    const rating = Math.floor(review.rating);
-    if (rating >= 1 && rating <= 5) {
-      distribution[rating as keyof typeof distribution]++;
-    }
-  });
-  return distribution;
-};
+}
+
+interface Variant {
+  _id: string;
+  product: string;
+  color: string;
+  size: string;
+  price: number;
+  image: string;
+  stock: number;
+}
+
 const ProductDetails = () => {
-  const { id } = useParams();
+  const { slug } = useParams();
   const navigate = useNavigate();
-  const { addItem } = useCart();
+  const dispatch = useAppDispatch();
+  const { toast: showToast } = useToast();
+
+  const { currentProduct, relatedProducts, loading, error } = useAppSelector(
+    (state) => state.product
+  );
 
   const { user, requireAuth } = useRequireAuth();
+  const { addItem } = useCart();
 
-  const product = mockProducts.find((p) => p.id === id);
+  // Estados locais
   const [selectedImage, setSelectedImage] = useState(0);
   const [selectedColor, setSelectedColor] = useState<string>("");
   const [selectedSize, setSelectedSize] = useState<string>("");
@@ -166,79 +110,151 @@ const ProductDetails = () => {
     type: "percentage" | "fixed";
   } | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const reviewsPerPage = 3;
-  if (!product) {
+
+  // Buscar detalhes do produto pelo slug
+  useEffect(() => {
+    if (slug) {
+      dispatch(fetchProductBySlug(slug));
+    }
+
+    // Limpar produto atual ao desmontar
+    return () => {
+      dispatch(clearCurrentProduct());
+    };
+  }, [dispatch, slug]);
+
+  // Buscar produtos relacionados quando o produto atual for carregado
+  useEffect(() => {
+    if (currentProduct?.category) {
+      dispatch(
+        fetchRelatedProducts({
+          category: currentProduct.category,
+          excludeId: currentProduct._id,
+        })
+      );
+    }
+  }, [dispatch, currentProduct?._id, currentProduct?.category]);
+
+  // Tratar erros
+  useEffect(() => {
+    if (error) {
+      showToast({
+        variant: "destructive",
+        title: "Erro ao carregar produto",
+        description: error,
+      });
+    }
+  }, [error, showToast]);
+
+  // Loading state
+  if (loading) {
     return (
       <div className="min-h-screen bg-background">
         <Header />
         <div className="container px-4 py-20 text-center">
-          <h1 className="text-2xl font-bold mb-4">Produto não encontrado</h1>
+          <div className="flex justify-center items-center">
+            <p className="text-muted-foreground">Carregando produto...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state ou produto não encontrado
+  if (error || !currentProduct) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <div className="container px-4 py-20 text-center">
+          <h1 className="text-2xl font-bold mb-4">
+            {error || "Produto não encontrado"}
+          </h1>
           <Button onClick={() => navigate("/")}>Voltar para a loja</Button>
         </div>
       </div>
     );
   }
-  const relatedProducts = mockProducts
-    .filter((p) => p.category === product.category && p.id !== product.id)
-    .slice(0, 4);
-  const handleAddToCart = () => {
-    if (!selectedColor) {
-      toast({
-        title: "Selecione uma cor",
-        description:
-          "Por favor, escolha uma cor antes de adicionar ao carrinho.",
-        variant: "destructive",
-      });
-      return;
-    }
-    if (!selectedSize) {
-      toast({
-        title: "Selecione um tamanho",
-        description:
-          "Por favor, escolha um tamanho antes de adicionar ao carrinho.",
-        variant: "destructive",
-      });
-      return;
-    }
 
-    for (let i = 0; i < quantity; i++) {
-      addItem({
-        id: product.id,
-        name: product.name,
-        price: finalPrice / quantity,
-        image: product.image,
-        size: selectedSize,
-        color: selectedColor,
-      });
-    }
+  const product = currentProduct;
 
-    toast({
-      title: "Produto adicionado!",
-      description: `${quantity}x ${product.name} adicionado ao carrinho.`,
-    });
+  const productImages = [
+    ...(product.variants?.map((variant) => variant.image) || []),
+    ...(product.images || []),
+  ];
+
+  // Variantes do produto (garanta que vem populado com .populate('variants') no backend)
+  const variants: Variant[] = product.variants || [];
+
+  // === FUNÇÕES DE SINCRONIZAÇÃO AUTOMÁTICA ===
+  const getAvailableSizesForColor = (color: string) => {
+    if (!color) return Array.from(new Set(variants.map((v) => v.size)));
+    return Array.from(
+      new Set(variants.filter((v) => v.color === color).map((v) => v.size))
+    );
   };
-  const handleBuyNow = () => {
-    if (!selectedColor || !selectedSize) {
-      toast({
-        title: "Selecione cor e tamanho",
-        description: "Por favor, escolha cor e tamanho antes de comprar.",
-        variant: "destructive",
-      });
-      return;
-    }
-    toast({
-      title: "Processando compra...",
-      description: "Redirecionando para o checkout.",
-    });
-  };
-  const averageRating =
-    mockReviews.reduce((acc, r) => acc + r.rating, 0) / mockReviews.length;
-  const ratingDistribution = calculateRatingDistribution(mockReviews);
-  const totalReviews = mockReviews.length;
 
-  // Calculate final price with coupon
+  const getAvailableColorsForSize = (size: string) => {
+    if (!size) return Array.from(new Set(variants.map((v) => v.color)));
+    return Array.from(
+      new Set(variants.filter((v) => v.size === size).map((v) => v.color))
+    );
+  };
+
+  // Cores e tamanhos disponíveis baseados na seleção atual
+  const availableColors = selectedSize
+    ? getAvailableColorsForSize(selectedSize)
+    : Array.from(new Set(variants.map((v) => v.color)));
+
+  const availableSizes = selectedColor
+    ? getAvailableSizesForColor(selectedColor)
+    : Array.from(new Set(variants.map((v) => v.size)));
+
+  // Handlers com sincronização automática
+  const handleColorSelect = (color: string) => {
+    setSelectedColor(color);
+    
+    // Se um tamanho já está selecionado, verificar se ainda é válido para a nova cor
+    if (selectedSize) {
+      const validSizesForColor = getAvailableSizesForColor(color);
+      if (!validSizesForColor.includes(selectedSize)) {
+        setSelectedSize(""); // Limpar tamanho se não for compatível
+      }
+    }
+  };
+
+  const handleSizeSelect = (size: string) => {
+    setSelectedSize(size);
+    
+    // Se uma cor já está selecionada, verificar se ainda é válida para o novo tamanho
+    if (selectedColor) {
+      const validColorsForSize = getAvailableColorsForSize(size);
+      if (!validColorsForSize.includes(selectedColor)) {
+        setSelectedColor(""); // Limpar cor se não for compatível
+      }
+    }
+  };
+
+  const reviews = product.reviews || [];
+  const averageRating = product.ratingsAverage || 0;
+  const totalReviews = product.ratingsQuantity || 0;
+
+  // Calcular distribuição de ratings
+  const calculateRatingDistribution = (reviews: Review[]) => {
+    const distribution = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+    reviews.forEach((review) => {
+      const rating = Math.floor(review.rating);
+      if (rating >= 1 && rating <= 5) {
+        distribution[rating as keyof typeof distribution]++;
+      }
+    });
+    return distribution;
+  };
+
+  const ratingDistribution = calculateRatingDistribution(reviews);
+
+  // Calcular preço final com desconto
   const calculateFinalPrice = () => {
-    const basePrice = product.price * quantity;
+    const basePrice = (product.priceDiscount || product.price) * quantity;
     if (!appliedCoupon) return basePrice;
     if (appliedCoupon.type === "percentage") {
       return basePrice * (1 - appliedCoupon.discount / 100);
@@ -246,14 +262,65 @@ const ProductDetails = () => {
       return Math.max(0, basePrice - appliedCoupon.discount);
     }
   };
+
   const finalPrice = calculateFinalPrice();
   const savings = appliedCoupon ? product.price * quantity - finalPrice : 0;
 
-  // Pagination
+  // Paginação de reviews
+  const reviewsPerPage = 3;
   const totalPages = Math.ceil(totalReviews / reviewsPerPage);
   const startIndex = (currentPage - 1) * reviewsPerPage;
   const endIndex = startIndex + reviewsPerPage;
-  const currentReviews = mockReviews.slice(startIndex, endIndex);
+  const currentReviews = reviews.slice(startIndex, endIndex);
+
+  const handleAddToCart = () => {
+    if (!selectedColor) {
+      showToast({
+        title: "Selecione uma cor",
+        description:
+          "Por favor, escolha uma cor antes de adicionar ao carrinho.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    requireAuth(() => {
+      for (let i = 0; i < quantity; i++) {
+        addItem({
+          id: product._id,
+          name: product.name,
+          price: finalPrice / quantity,
+          image: product.imageCover,
+          size: selectedSize,
+          color: selectedColor,
+        });
+      }
+
+      showToast({
+        title: "Produto adicionado!",
+        description: `${quantity}x ${product.name} adicionado ao carrinho.`,
+      });
+    });
+  };
+
+  const handleBuyNow = () => {
+    if (!selectedColor) {
+      showToast({
+        title: "Selecione uma cor",
+        description: "Por favor, escolha uma cor antes de comprar.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    requireAuth(() => {
+      showToast({
+        title: "Processando compra...",
+        description: "Redirecionando para o checkout.",
+      });
+    });
+  };
+
   const handleApplyCoupon = () => {
     try {
       const validated = couponSchema.parse({
@@ -265,7 +332,7 @@ const ProductDetails = () => {
           code: validated.code,
           ...coupon,
         });
-        toast({
+        showToast({
           title: "Cupom aplicado!",
           description: `Você ganhou ${
             coupon.type === "percentage"
@@ -274,7 +341,7 @@ const ProductDetails = () => {
           } de desconto.`,
         });
       } else {
-        toast({
+        showToast({
           title: "Cupom inválido",
           description: "Este cupom não existe ou expirou.",
           variant: "destructive",
@@ -282,7 +349,7 @@ const ProductDetails = () => {
       }
     } catch (error) {
       if (error instanceof z.ZodError) {
-        toast({
+        showToast({
           title: "Cupom inválido",
           description: error.errors[0].message,
           variant: "destructive",
@@ -290,14 +357,16 @@ const ProductDetails = () => {
       }
     }
   };
+
   const handleRemoveCoupon = () => {
     setAppliedCoupon(null);
     setCouponCode("");
-    toast({
+    showToast({
       title: "Cupom removido",
       description: "O desconto foi removido do seu pedido.",
     });
   };
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -327,18 +396,29 @@ const ProductDetails = () => {
           <div className="space-y-4">
             <div className="relative aspect-[3/3] bg-muted rounded-lg overflow-hidden group">
               <img
-                src={product.images[selectedImage] || product.image}
+                src={productImages[selectedImage]}
                 alt={product.name}
                 className="w-full h-full object-cover transition-opacity duration-300"
+                onError={(e) => {
+                  e.currentTarget.src = "/images/product-placeholder.jpg";
+                }}
               />
-              {product.discount && (
-                <Badge className="absolute top-4 left-4 bg-sale text-sale-foreground font-semibold z-10">
-                  -{product.discount}%
-                </Badge>
-              )}
+
+              {product.priceDiscount &&
+                product.priceDiscount < product.price && (
+                  <Badge className="absolute top-4 left-4 bg-sale text-sale-foreground font-semibold z-10">
+                    -
+                    {Math.round(
+                      ((product.price - product.priceDiscount) /
+                        product.price) *
+                        100
+                    )}
+                    %
+                  </Badge>
+                )}
 
               {/* Carousel Navigation */}
-              {product.images.length > 1 && (
+              {productImages.length > 1 && (
                 <>
                   <Button
                     variant="secondary"
@@ -346,7 +426,7 @@ const ProductDetails = () => {
                     className="absolute left-4 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-background/80 backdrop-blur-sm hover:bg-background/90"
                     onClick={() =>
                       setSelectedImage((prev) =>
-                        prev === 0 ? product.images.length - 1 : prev - 1
+                        prev === 0 ? productImages.length - 1 : prev - 1
                       )
                     }
                   >
@@ -358,7 +438,7 @@ const ProductDetails = () => {
                     className="absolute right-4 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-background/80 backdrop-blur-sm hover:bg-background/90"
                     onClick={() =>
                       setSelectedImage((prev) =>
-                        prev === product.images.length - 1 ? 0 : prev + 1
+                        prev === productImages.length - 1 ? 0 : prev + 1
                       )
                     }
                   >
@@ -367,7 +447,7 @@ const ProductDetails = () => {
 
                   {/* Dots Indicator */}
                   <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-10">
-                    {product.images.map((_, idx) => (
+                    {productImages.map((_, idx) => (
                       <button
                         key={idx}
                         onClick={() => setSelectedImage(idx)}
@@ -385,9 +465,9 @@ const ProductDetails = () => {
             </div>
 
             {/* Thumbnail Grid */}
-            {product.images.length > 1 && (
+            {productImages.length > 1 && (
               <div className="grid grid-cols-4 gap-2">
-                {product.images.map((img, idx) => (
+                {productImages.map((img, idx) => (
                   <button
                     key={idx}
                     onClick={() => setSelectedImage(idx)}
@@ -402,6 +482,9 @@ const ProductDetails = () => {
                       src={img}
                       alt={`${product.name} ${idx + 1}`}
                       className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.currentTarget.src = "/images/product-placeholder.jpg";
+                      }}
                     />
                   </button>
                 ))}
@@ -430,7 +513,7 @@ const ProductDetails = () => {
                   ))}
                 </div>
                 <span className="text-sm text-muted-foreground">
-                  ({mockReviews.length} avaliações)
+                  ({totalReviews} avaliações)
                 </span>
               </div>
             </div>
@@ -441,11 +524,12 @@ const ProductDetails = () => {
                 <span className="text-4xl font-bold text-foreground">
                   {finalPrice.toFixed(2)} MZN
                 </span>
-                {(product.originalPrice || appliedCoupon) && (
-                  <span className="text-xl text-muted-foreground line-through">
-                    {(product.price * quantity).toFixed(2)} MZN
-                  </span>
-                )}
+                {product.priceDiscount &&
+                  product.priceDiscount < product.price && (
+                    <span className="text-xl text-muted-foreground line-through">
+                      {(product.price * quantity).toFixed(2)} MZN
+                    </span>
+                  )}
               </div>
 
               {appliedCoupon && (
@@ -507,12 +591,12 @@ const ProductDetails = () => {
 
             {/* Color Selection */}
             <div>
-              <h3 className="font-semibold mb-3">Cor: {selectedColor}</h3>
+              <h3 className="font-semibold mb-3">Cor: {selectedColor || "Selecione"}</h3>
               <div className="flex gap-2">
-                {product.colors.map((color) => (
+                {availableColors.map((color) => (
                   <button
                     key={color}
-                    onClick={() => setSelectedColor(color)}
+                    onClick={() => handleColorSelect(color)}
                     className={cn(
                       "w-10 h-10 rounded-full border-2 transition-all hover:scale-110",
                       selectedColor === color
@@ -530,12 +614,12 @@ const ProductDetails = () => {
 
             {/* Size Selection */}
             <div>
-              <h3 className="font-semibold mb-3">Tamanho: {selectedSize}</h3>
+              <h3 className="font-semibold mb-3">Tamanho: {selectedSize || "Selecione"}</h3>
               <div className="flex gap-2 flex-wrap">
-                {product.sizes.map((size) => (
+                {availableSizes.map((size) => (
                   <button
                     key={size}
-                    onClick={() => setSelectedSize(size)}
+                    onClick={() => handleSizeSelect(size)}
                     className={cn(
                       "px-6 py-2 rounded-md border-2 font-medium transition-all hover:border-primary",
                       selectedSize === size
@@ -577,11 +661,7 @@ const ProductDetails = () => {
 
             {/* Action Buttons */}
             <div className="flex gap-3">
-              <Button
-                size="lg"
-                className="flex-1"
-                onClick={() => requireAuth(handleAddToCart)}
-              >
+              <Button size="lg" className="flex-1" onClick={handleAddToCart}>
                 <ShoppingCart className="w-5 h-5 mr-2" />
                 Adicionar ao Carrinho
               </Button>
@@ -603,12 +683,10 @@ const ProductDetails = () => {
               size="lg"
               variant="secondary"
               className="w-full"
-              onClick={() => requireAuth(handleBuyNow)}
+              onClick={handleBuyNow}
             >
               Comprar Agora
             </Button>
-
-            {/* Features */}
           </div>
         </div>
 
@@ -676,11 +754,12 @@ const ProductDetails = () => {
                         ratingDistribution[
                           stars as keyof typeof ratingDistribution
                         ];
-                      const percentage = (count / totalReviews) * 100;
+                      const percentage =
+                        totalReviews > 0 ? (count / totalReviews) * 100 : 0;
                       return (
                         <div key={stars} className="flex items-center gap-3">
                           <span className="text-sm font-medium w-16 text-right">
-                            {stars} Stars
+                            {stars} Estrelas
                           </span>
                           <div className="flex-1 h-3 bg-muted rounded-full overflow-hidden">
                             <div
@@ -708,20 +787,20 @@ const ProductDetails = () => {
                 <div className="space-y-4">
                   {currentReviews.map((review) => (
                     <div
-                      key={review.id}
+                      key={review._id}
                       className="bg-card rounded-lg p-6 shadow-card border border-border"
                     >
                       <div className="flex items-start gap-4">
                         <Avatar className="w-12 h-12">
                           <AvatarFallback className="bg-primary text-primary-foreground text-lg">
-                            {review.author[0]}
+                            {review.user.name[0]}
                           </AvatarFallback>
                         </Avatar>
                         <div className="flex-1">
                           <div className="flex items-center justify-between mb-2">
                             <div>
                               <h4 className="font-semibold text-foreground">
-                                {review.author}
+                                {review.user.name}
                               </h4>
                               <div className="flex items-center gap-2 mt-1">
                                 <div className="flex items-center gap-1">
@@ -740,18 +819,13 @@ const ProductDetails = () => {
                               </div>
                             </div>
                             <span className="text-sm text-muted-foreground">
-                              {new Date(review.date).toLocaleDateString(
-                                "pt-BR",
-                                {
-                                  day: "numeric",
-                                  month: "long",
-                                  year: "numeric",
-                                }
+                              {new Date(review.createdAt).toLocaleDateString(
+                                "pt-BR"
                               )}
                             </span>
                           </div>
                           <p className="text-muted-foreground leading-relaxed mt-3">
-                            {review.comment}
+                            {review.review}
                           </p>
                         </div>
                       </div>
@@ -782,7 +856,6 @@ const ProductDetails = () => {
                       <div className="flex items-center gap-1">
                         {[...Array(totalPages)].map((_, i) => {
                           const page = i + 1;
-                          // Show first page, last page, current page and adjacent pages
                           if (
                             page === 1 ||
                             page === totalPages ||
@@ -835,6 +908,7 @@ const ProductDetails = () => {
                 )}
               </div>
             </TabsContent>
+
             <TabsContent value="description" className="pt-8">
               <div className="bg-card rounded-lg p-8 shadow-card border border-border">
                 <h3 className="text-xl font-semibold mb-4">Sobre o Produto</h3>
@@ -864,16 +938,6 @@ const ProductDetails = () => {
                         estilo
                       </span>
                     </li>
-                    <li className="flex items-start gap-3 text-muted-foreground">
-                      <div className="w-1.5 h-1.5 rounded-full bg-accent mt-2" />
-                      <span>
-                        Durabilidade garantida com materiais resistentes
-                      </span>
-                    </li>
-                    <li className="flex items-start gap-3 text-muted-foreground">
-                      <div className="w-1.5 h-1.5 rounded-full bg-accent mt-2" />
-                      <span>Fácil manutenção e cuidados simples</span>
-                    </li>
                   </ul>
                 </div>
               </div>
@@ -900,13 +964,7 @@ const ProductDetails = () => {
                   <div className="flex py-3 border-b border-border">
                     <span className="font-medium w-48">Cores disponíveis:</span>
                     <span className="text-muted-foreground">
-                      {product.colors.length} opções
-                    </span>
-                  </div>
-                  <div className="flex py-3 border-b border-border">
-                    <span className="font-medium w-48">Tamanhos:</span>
-                    <span className="text-muted-foreground">
-                      {product.sizes.join(", ")}
+                      {availableColors.length} opções
                     </span>
                   </div>
                   <div className="flex py-3 border-b border-border">
@@ -918,7 +976,7 @@ const ProductDetails = () => {
                   <div className="flex py-3">
                     <span className="font-medium w-48">SKU:</span>
                     <span className="text-muted-foreground">
-                      PRD-{product.id.padStart(6, "0")}
+                      PRD-{product._id.slice(-6)}
                     </span>
                   </div>
                 </div>
@@ -935,7 +993,7 @@ const ProductDetails = () => {
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               {relatedProducts.map((product) => (
-                <ProductCard key={product.id} product={product} />
+                <ProductCard key={product._id} product={product} />
               ))}
             </div>
           </div>
@@ -944,4 +1002,5 @@ const ProductDetails = () => {
     </div>
   );
 };
+
 export default ProductDetails;

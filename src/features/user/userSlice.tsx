@@ -5,6 +5,9 @@ import {
   signupUser,
   updateProfile,
   updatePassword,
+  updateUserRole,
+  deleteUser,
+  fetchUsers
 } from "./userActions";
 const persistedUser = localStorage.getItem("user");
 
@@ -13,6 +16,7 @@ const initialState: UserState = {
   isAuthenticated: !!persistedUser,
   loading: false,
   error: null,
+  users: []
 };
 
 const userSlice = createSlice({
@@ -83,6 +87,50 @@ const userSlice = createSlice({
         state.error = null;
       })
       .addCase(updatePassword.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+      .addCase(fetchUsers.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchUsers.fulfilled, (state, action) => {
+        state.users = action.payload;
+        state.loading = false;
+        state.error = null;
+      })
+      .addCase(fetchUsers.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+      // Update User Role
+      .addCase(updateUserRole.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(updateUserRole.fulfilled, (state, action) => {
+        const updatedUser = action.payload;
+        const index = state.users.findIndex(
+          (user) => user._id === updatedUser._id
+        );
+        if (index !== -1) {
+          state.users[index] = updatedUser;
+        }
+        state.loading = false;
+      })
+      .addCase(updateUserRole.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+      // Delete User
+      .addCase(deleteUser.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(deleteUser.fulfilled, (state, action) => {
+        const userId = action.payload;
+        state.users = state.users.filter((user) => user._id !== userId);
+        state.loading = false;
+      })
+      .addCase(deleteUser.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       });

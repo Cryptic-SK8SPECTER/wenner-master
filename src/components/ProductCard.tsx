@@ -1,7 +1,7 @@
 import { Heart, ShoppingCart } from "lucide-react";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Product } from "@/data/products";
+import { Product } from "../features/product/productTypes";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { cn } from "@/lib/utils";
@@ -18,7 +18,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
   const { addItem } = useCart();
 
   const handleCardClick = () => {
-    navigate(`/product/${product.id}`);
+    navigate(`/product/${product.slug}`);
   };
 
   const handleAddToCart = (e: React.MouseEvent) => {
@@ -35,25 +35,38 @@ export const ProductCard = ({ product }: ProductCardProps) => {
     });
   };
 
+   const uniqueColors = useMemo(() => {
+     if (!product.colors) return [];
+
+     const colorValues = product.colors.map((colorObj) => colorObj.color);
+     // Remover cores duplicadas
+     return [...new Set(colorValues)];
+   }, [product.colors]);
+
   return (
-    <div 
+    <div
       onClick={handleCardClick}
       className="group relative bg-card rounded-lg overflow-hidden shadow-card hover:shadow-card-hover transition-all duration-300 cursor-pointer"
     >
       {/* Image Container */}
       <div className="relative aspect-[3/3] overflow-hidden bg-muted">
         <img
-          src={product.image}
+          src={
+            product.imageCover ||
+            "https://i.pinimg.com/1200x/a7/2f/db/a72fdbea7e86c3fb70a17c166a36407b.jpg"
+          }
           alt={product.name}
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
         />
-        
+
         {/* Discount Badge */}
-        {product.discount && (
-          <Badge className="absolute top-3 left-3 bg-accent text-accent-foreground font-semibold">
-            -{product.discount}%
-          </Badge>
-        )}
+        {product.priceDiscount &&
+          product.price > 0 &&
+          product.priceDiscount < product.price && (
+            <Badge className="absolute top-3 left-3 bg-accent text-accent-foreground font-semibold">
+              -{Math.round((1 - product.priceDiscount / product.price) * 100)}%
+            </Badge>
+          )}
 
         {/* Favorite Button */}
         <button
@@ -63,8 +76,8 @@ export const ProductCard = ({ product }: ProductCardProps) => {
           }}
           className={cn(
             "absolute top-3 right-3 p-2 rounded-full transition-all duration-300",
-            isFavorite 
-              ? "bg-sale text-sale-foreground" 
+            isFavorite
+              ? "bg-sale text-sale-foreground"
               : "bg-card/80 backdrop-blur-sm text-muted-foreground hover:bg-card hover:text-sale"
           )}
         >
@@ -80,15 +93,21 @@ export const ProductCard = ({ product }: ProductCardProps) => {
         <h3 className="font-medium text-card-foreground mb-1 line-clamp-1">
           {product.name}
         </h3>
-        
+
         {/* Price */}
         <div className="flex items-center gap-2 mb-3">
-          <span className="text-lg font-bold text-card-foreground">
-            {product.price.toFixed(2)} MZN
-          </span>
-          {product.originalPrice && (
-            <span className="text-sm text-muted-foreground line-through">
-              {product.originalPrice.toFixed(2)} MZN
+          {product.priceDiscount ? (
+            <>
+              <span className="text-lg font-bold text-card-foreground">
+                {product.priceDiscount.toFixed(2)} MZN
+              </span>
+              <span className="text-sm text-muted-foreground line-through">
+                {product.price.toFixed(2)} MZN
+              </span>
+            </>
+          ) : (
+            <span className="text-lg font-bold text-card-foreground">
+              {product.price.toFixed(2)} MZN
             </span>
           )}
         </div>
@@ -96,17 +115,17 @@ export const ProductCard = ({ product }: ProductCardProps) => {
         {/* Colors and Add to Cart */}
         <div className="flex items-center justify-between gap-2">
           <div className="flex gap-1.5">
-            {product.colors.slice(0, 3).map((color) => (
+            {uniqueColors.slice(0, 3).map((color, index) => (
               <div
-                key={color}
+                key={`${color}-${index}`} // Chave única baseada na cor e índice
                 className="w-5 h-5 rounded-full border-2 border-border cursor-pointer hover:scale-110 transition-transform"
                 style={{ backgroundColor: color }}
                 title={color}
               />
             ))}
-            {product.colors.length > 3 && (
+            {uniqueColors.length > 3 && (
               <div className="w-5 h-5 rounded-full border-2 border-border bg-muted flex items-center justify-center text-[10px] text-muted-foreground">
-                +{product.colors.length - 3}
+                +{uniqueColors.length - 3}
               </div>
             )}
           </div>

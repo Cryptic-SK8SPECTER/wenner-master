@@ -11,9 +11,8 @@ export function cn(...inputs: ClassValue[]) {
 
 const baseURL = import.meta.env.DEV ? "" : productionUrl;
 
+// Do not set a global Content-Type header here. Some requests (file uploads using
+// FormData) must let the browser set the Content-Type with the proper boundary.
 export const customFetch: AxiosInstance = axios.create({
   baseURL,
-  headers: {
-    "Content-Type": "application/json",
-  },
 });
