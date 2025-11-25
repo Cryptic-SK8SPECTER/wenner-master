@@ -27,6 +27,8 @@ import { cn } from "@/lib/utils";
 import { z } from "zod";
 import { useCart } from "@/contexts/CartContext";
 import { useToast } from "@/hooks/use-toast";
+import { productionUrl } from "@/lib/utils";
+
 const couponSchema = z.object({
   code: z
     .string()
@@ -176,6 +178,8 @@ const ProductDetails = () => {
   }
 
   const product = currentProduct;
+
+  console.log('product  ', product);
 
   const productImages = [
     ...(product.variants?.map((variant) => variant.image) || []),
@@ -479,11 +483,11 @@ const ProductDetails = () => {
                     )}
                   >
                     <img
-                      src={img}
+                      src={`${productionUrl}/img/variants/${img}`}
                       alt={`${product.name} ${idx + 1}`}
                       className="w-full h-full object-cover"
                       onError={(e) => {
-                        e.currentTarget.src = "/images/product-placeholder.jpg";
+                        e.currentTarget.src = "https://i.pinimg.com/1200x/a7/2f/db/a72fdbea7e86c3fb70a17c166a36407b.jpg";
                       }}
                     />
                   </button>

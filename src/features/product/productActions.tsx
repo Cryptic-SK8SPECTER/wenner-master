@@ -81,6 +81,62 @@ export const createProduct = createAsyncThunk<ApiResponse, FormData>(
   }
 );
 
+interface UpdateProductArgs {
+  productId: string;
+  formData: FormData;
+}
+
+export const updateProduct = createAsyncThunk<
+  Product,
+  UpdateProductArgs,
+  { rejectValue: string }
+>("products/updateProduct", async ({ productId, formData }, { rejectWithValue, dispatch }) => {
+  try {
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      dispatch(logoutUser());
+      return rejectWithValue("Faça login para continuar.");
+    }
+
+    const response = await customFetch.patch(`/api/v1/products/${productId}`, formData, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    const updatedProduct = response.data?.data?.product ?? response.data?.data;
+
+    if (!updatedProduct) {
+      return rejectWithValue("Resposta inesperada ao atualizar produto.");
+    }
+
+    const normalizedProduct: Product = {
+      ...updatedProduct,
+      id: updatedProduct._id || updatedProduct.id,
+    };
+
+    return normalizedProduct;
+  } catch (err: unknown) {
+    const error = err as {
+      response?: { status?: number; data?: Record<string, unknown> };
+      message?: string;
+    };
+
+    if (error?.response?.status === 401) {
+      dispatch(logoutUser());
+      return rejectWithValue("Sessão expirada. Faça login novamente.");
+    }
+
+    const message =
+      (error?.response?.data?.message as string) ||
+      error?.message ||
+      "Erro ao atualizar produto.";
+
+    return rejectWithValue(message);
+  }
+});
+
 // features/products/productActions.ts
 export const fetchProductBySlug = createAsyncThunk<Product, string>(
   "products/fetchProductBySlug",
@@ -177,3 +233,48 @@ export const fetchRelatedProducts = createAsyncThunk<
     }
   }
 );
+
+interface DeleteProductArgs {
+  productId: string;
+}
+
+export const deleteProduct = createAsyncThunk<
+  string,
+  DeleteProductArgs,
+  { rejectValue: string }
+>("products/deleteProduct", async ({ productId }, { rejectWithValue, dispatch }) => {
+  try {
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      dispatch(logoutUser());
+      return rejectWithValue("Faça login para continuar.");
+    }
+
+    await customFetch.delete(`/api/v1/products/${productId}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    // retornamos apenas o id para remover no slice
+    return productId;
+  } catch (err: unknown) {
+    const error = err as {
+      response?: { status?: number; data?: { message?: string } };
+      message?: string;
+    };
+
+    if (error?.response?.status === 401) {
+      dispatch(logoutUser());
+      return rejectWithValue("Sessão expirada. Faça login novamente.");
+    }
+
+    const message =
+      error?.response?.data?.message ||
+      error?.message ||
+      "Erro ao eliminar produto.";
+
+    return rejectWithValue(message);
+  }
+});

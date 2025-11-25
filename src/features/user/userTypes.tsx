@@ -3,6 +3,7 @@
 // Interface que representa um usuário
 export interface User {
   _id: string;
+  userId?: string;
   name: string;
   email: string;
   photo?: string;
@@ -16,6 +17,10 @@ export interface User {
     state: string;
     zipCode: string;
   };
+  createdAt?: string;
+  totalOrders?: number;
+  totalSpent?: number;
+  lastOrder?: string;
 }
 
 // Estado do slice de usuário

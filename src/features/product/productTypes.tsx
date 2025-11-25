@@ -6,6 +6,7 @@ export interface Color {
 
 export interface Product {
   _id: string;
+  id?: string;
   name: string;
   price: number;
   originalPrice?: number;
@@ -23,6 +24,8 @@ export interface Product {
   createdAt: string;
   updatedAt?: string;
   variations?: ProductVariation[];
+  variants?: ProductVariation[];
+  images?: string[];
 }
 
 export interface ProductVariation {

@@ -42,7 +42,7 @@ import {
   DollarSign,
 } from "lucide-react";
 import { mockProducts } from "@/data/products";
-import { Product } from "@/features/product/productTypes";
+import { Product, ProductVariation } from "@/features/product/productTypes";
 import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
 import {
@@ -65,8 +65,12 @@ import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import {
   createProduct,
   fetchProducts,
+  updateProduct,
+  deleteProduct,
 } from "@/features/product/productActions";
-import { fetchUsers } from "@/features/user/userActions";
+import { createVariant } from "@/features/variants/variantActions";
+import { deleteUser, fetchUsers } from "@/features/user/userActions";
+import { productionUrl } from "@/lib/utils";
 
 type ProductVariant = {
   id: string;
@@ -77,6 +81,36 @@ type ProductVariant = {
   imageFile?: File;
 };
 
+type VariantFormState = {
+  color: string;
+  size: string;
+  sku: string;
+  stock: number;
+  imagePreview: string;
+  imageFile: File | null;
+};
+
+type Customer = {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+  joinDate: string;
+  totalOrders: number;
+  totalSpent: number;
+  lastOrder: string;
+};
+
+const createEmptyVariantForm = (): VariantFormState => ({
+  color: "#000000",
+  size: "",
+  sku: "",
+  stock: 0,
+  imagePreview: "",
+  imageFile: null,
+});
+
 const Admin = () => {
   const { toast } = useToast();
   const dispatch = useAppDispatch();
@@ -85,21 +119,24 @@ const Admin = () => {
   const [productImage, setProductImage] = useState<string>("");
   const [productImageFile, setProductImageFile] = useState<File | null>(null);
   const [variants, setVariants] = useState<ProductVariant[]>([]);
-  const [selectedCustomer, setSelectedCustomer] = useState<Record<
-    string,
-    unknown
-  > | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
+    null
+  );
   const [customerSearchTerm, setCustomerSearchTerm] = useState("");
   const [ordersPage, setOrdersPage] = useState(1);
   const [customersPage, setCustomersPage] = useState(1);
   const [productsPage, setProductsPage] = useState(1);
   const itemsPerPage = 5;
-  const [editingProduct, setEditingProduct] = useState<Record<
-    string,
-    unknown
-  > | null>(null);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [editingVariants, setEditingVariants] = useState<ProductVariant[]>([]);
+  const [editProductImageFile, setEditProductImageFile] = useState<File | null>(
+    null
+  );
+  const [editProductImagePreview, setEditProductImagePreview] =
+    useState<string>("");
+  const [variantForm, setVariantForm] = useState<VariantFormState>(() =>
+    createEmptyVariantForm()
+  );
 
   const { products, loading, error } = useAppSelector((state) => state.product);
   const {
@@ -107,8 +144,13 @@ const Admin = () => {
     loading: usersLoading,
     error: usersError,
   } = useAppSelector((state) => state.user);
+  const { loading: variantLoading } = useAppSelector((state) => state.variant);
 
   const [productsLoaded, setProductsLoaded] = useState(false);
+  const existingVariants: ProductVariation[] =
+    (editingProduct?.variants as ProductVariation[] | undefined) ||
+    (editingProduct?.variations as ProductVariation[] | undefined) ||
+    [];
 
   // useEffect para carregar produtos
   useEffect(() => {
@@ -142,65 +184,67 @@ const Admin = () => {
     loadUsers();
   }, [dispatch]);
 
-  // Mock customers data
-  const allCustomers = [
-    {
-      id: "C001",
-      name: "Maria Silva",
-      email: "maria.silva@email.com",
-      phone: "(11) 98765-4321",
-      address: "Rua das Flores, 123 - São Paulo, SP",
-      joinDate: "2024-01-15",
-      totalOrders: 5,
-      totalSpent: 2499.5,
-      lastOrder: "2024-03-15",
-    },
-    {
-      id: "C002",
-      name: "João Santos",
-      email: "joao.santos@email.com",
-      phone: "(21) 97654-3210",
-      address: "Av. Atlântica, 456 - Rio de Janeiro, RJ",
-      joinDate: "2024-02-01",
-      totalOrders: 3,
-      totalSpent: 1549.7,
-      lastOrder: "2024-03-14",
-    },
-    {
-      id: "C003",
-      name: "Ana Costa",
-      email: "ana.costa@email.com",
-      phone: "(31) 96543-2109",
-      address: "Praça da Liberdade, 789 - Belo Horizonte, MG",
-      joinDate: "2024-01-20",
-      totalOrders: 2,
-      totalSpent: 399.8,
-      lastOrder: "2024-03-13",
-    },
-    {
-      id: "C004",
-      name: "Pedro Oliveira",
-      email: "pedro.oliveira@email.com",
-      phone: "(47) 95432-1098",
-      address: "Rua XV de Novembro, 321 - Curitiba, PR",
-      joinDate: "2024-02-10",
-      totalOrders: 4,
-      totalSpent: 1799.6,
-      lastOrder: "2024-03-12",
-    },
-    {
-      id: "C005",
-      name: "Carla Ferreira",
-      email: "carla.ferreira@email.com",
-      phone: "(51) 94321-0987",
-      address: "Av. Ipiranga, 654 - Porto Alegre, RS",
-      joinDate: "2024-01-05",
-      totalOrders: 8,
-      totalSpent: 4299.2,
-      lastOrder: "2024-03-11",
-    },
-  ];
+  const formatCustomerAddress = (address?: {
+    street: string;
+    city: string;
+    state: string;
+    zipCode: string;
+  }) => {
+    if (!address) return "Endereço não informado";
 
+    const defaultValues = [
+      "Informe a rua e número",
+      "Informe a cidade",
+      "Informe o estado",
+      "Informe o código de endereçamento postal",
+    ];
+
+    // Verifica se é um endereço padrão
+    if (
+      defaultValues.includes(address.street) &&
+      defaultValues.includes(address.city) &&
+      defaultValues.includes(address.state) &&
+      defaultValues.includes(address.zipCode)
+    ) {
+      return "Endereço não informado";
+    }
+
+    // Filtra campos válidos
+    const parts = [
+      !defaultValues.includes(address.street) ? address.street : null,
+      !defaultValues.includes(address.city) ? address.city : null,
+      !defaultValues.includes(address.state) ? address.state : null,
+      !defaultValues.includes(address.zipCode) ? address.zipCode : null,
+    ].filter(Boolean);
+
+    return parts.length > 0
+      ? `${parts.slice(0, 2).join(", ")}${parts[2] ? ` - ${parts[2]}` : ""}${
+          parts[3] ? ` (${parts[3]})` : ""
+        }`
+      : "Endereço não informado";
+  };
+
+  const customersFromApi: Customer[] = (users || []).map((user) => {
+    const joinDate = user.createdAt || new Date().toISOString();
+
+    // Verifica se o telefone é o valor padrão
+    const phone =
+      user.phone && user.phone !== "(+258) XX XXXXXXX"
+        ? user.phone
+        : "Contacto não informado";
+
+    return {
+      id: user.userId || user._id,
+      name: user.name,
+      email: user.email,
+      phone: phone,
+      address: formatCustomerAddress(user.address),
+      joinDate,
+      totalOrders: user.totalOrders ?? 0,
+      totalSpent: user.totalSpent ?? 0,
+      lastOrder: user.lastOrder || joinDate,
+    };
+  });
   // Mock orders data (reusing from Profile page)
   const allOrders = [
     {
@@ -286,7 +330,7 @@ const Admin = () => {
   );
 
   // Filter customers
-  const filteredCustomers = allCustomers.filter(
+  const filteredCustomers = customersFromApi.filter(
     (customer) =>
       customer.name.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
       customer.email.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
@@ -324,11 +368,31 @@ const Admin = () => {
   ).length;
   const deliveryRate = (deliveredOrders / totalOrders) * 100;
 
-  const handleRemoveCustomer = (customerId: string) => {
-    toast({
-      title: "Cliente removido",
-      description: "O cliente foi removido com sucesso.",
-    });
+  const handleRemoveCustomer = async (customerId: string, name: string) => {
+    if (
+      !window.confirm(
+        `Tem certeza que deseja remover o cliente "${name}" da plataforma?`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      await dispatch(deleteUser(customerId)).unwrap();
+      toast({
+        title: "Cliente removido",
+        description: `"${name}" foi removido com sucesso.`,
+      });
+    } catch (error) {
+      const message =
+        (error as { message?: string })?.message ||
+        "Erro ao remover cliente.";
+      toast({
+        title: "Erro",
+        description: message,
+        variant: "destructive",
+      });
+    }
   };
 
   // Reset pagination when filters change
@@ -350,104 +414,227 @@ const Admin = () => {
 
   const handleEditProduct = (product: Product) => {
     setEditingProduct(product);
-    // Simulate loading existing variants (in a real app, these would come from the database)
-    const mockVariants: ProductVariant[] = [
-      {
-        id: "1",
-        color: (product.colors && product.colors[0]) || "Preto",
-        size: (product.sizes && product.sizes[0]) || "M",
-        quantity: 10,
-        image: product.image,
-      },
-    ];
-    setEditingVariants(mockVariants);
+    setEditProductImageFile(null);
+    setEditProductImagePreview(
+      product.imageCover
+        ? `${productionUrl}/img/products/${product.imageCover}`
+        : ""
+    );
+    setVariantForm(createEmptyVariantForm());
     setIsEditDialogOpen(true);
   };
 
-  const addEditingVariant = () => {
-    const newVariant: ProductVariant = {
-      id: Date.now().toString(),
-      color: "",
-      size: "",
-      quantity: 0,
-      image: "",
-    };
-    setEditingVariants([...editingVariants, newVariant]);
-  };
-
-  const removeEditingVariant = (id: string) => {
-    setEditingVariants(editingVariants.filter((v) => v.id !== id));
-  };
-
-  const updateEditingVariant = (
-    id: string,
-    field: keyof ProductVariant,
-    value: string | number
-  ) => {
-    setEditingVariants(
-      editingVariants.map((v) => (v.id === id ? { ...v, [field]: value } : v))
-    );
-  };
-
-  const handleEditingVariantImageUpload = (
-    variantId: string,
+  const handleEditProductImageUpload = (
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setEditingVariants(
-          editingVariants.map((v) =>
-            v.id === variantId ? { ...v, image: reader.result as string } : v
-          )
-        );
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+    setEditProductImageFile(file);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setEditProductImagePreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleResetEditImage = () => {
+    setEditProductImageFile(null);
+    setEditProductImagePreview(
+      editingProduct?.imageCover
+        ? `${productionUrl}/img/products/${editingProduct.imageCover}`
+        : ""
+    );
+  };
+
+  const resetVariantFormState = () => {
+    setVariantForm(createEmptyVariantForm());
+  };
+
+  const handleVariantImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setVariantForm((prev) => ({
+        ...prev,
+        imageFile: file,
+        imagePreview: reader.result as string,
+      }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleUpdateProduct = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!editingProduct) {
+      toast({
+        title: "Erro",
+        description: "Selecione um produto para editar.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const formData = new FormData(e.currentTarget);
+    const payload = new FormData();
+
+    const name = formData.get("name") as string;
+    const price = formData.get("price") as string;
+    const category = formData.get("category") as string;
+    const gender = formData.get("gender") as string;
+
+    payload.append("name", name);
+    payload.append("price", price);
+    payload.append("category", category);
+    payload.append("gender", gender);
+
+    if (editProductImageFile) {
+      payload.append("imageCover", editProductImageFile);
+    }
+
+    try {
+      const updated = await dispatch(
+        updateProduct({
+          productId: editingProduct._id,
+          formData: payload,
+        })
+      ).unwrap();
+
+      toast({
+        title: "Produto atualizado!",
+        description: `${updated.name} foi atualizado com sucesso.`,
+      });
+
+      setEditingProduct(updated);
+      setIsEditDialogOpen(false);
+      setEditProductImageFile(null);
+      setEditProductImagePreview("");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Erro ao atualizar produto.";
+      toast({
+        title: "Erro",
+        description: message,
+        variant: "destructive",
+      });
     }
   };
 
-  const handleUpdateProduct = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-
-    if (editingVariants.length === 0) {
+  const handleCreateVariant = async () => {
+    if (!editingProduct) {
       toast({
-        title: "Erro",
-        description: "Adicione pelo menos uma variante do produto",
+        title: "Selecione um produto",
+        description: "Abra um produto para adicionar variantes.",
         variant: "destructive",
       });
       return;
     }
 
-    const incompleteVariant = editingVariants.find(
-      (v) => !v.color || !v.size || v.quantity <= 0
-    );
-    if (incompleteVariant) {
+    if (!variantForm.size || !variantForm.sku || variantForm.stock <= 0) {
       toast({
-        title: "Erro",
-        description: "Preencha todos os campos das variantes",
+        title: "Campos obrigatórios",
+        description: "Informe tamanho, SKU e estoque da variante.",
         variant: "destructive",
       });
       return;
     }
 
-    const updatedProduct = {
-      ...editingProduct,
-      name: formData.get("name") as string,
-      price: parseFloat(formData.get("price") as string),
-      category: formData.get("category") as string,
-      gender: formData.get("gender") as string,
-    };
+    if (!variantForm.imageFile) {
+      toast({
+        title: "Imagem obrigatória",
+        description: "Selecione uma imagem para a variante.",
+        variant: "destructive",
+      });
+      return;
+    }
 
-    toast({
-      title: "Produto atualizado!",
-      description: `${updatedProduct.name} foi atualizado com ${editingVariants.length} variante(s).`,
-    });
+    const productId =
+      editingProduct._id || (editingProduct as { id?: string }).id;
 
-    setIsEditDialogOpen(false);
-    setEditingProduct(null);
-    setEditingVariants([]);
+    if (!productId) {
+      toast({
+        title: "Produto inválido",
+        description: "Não foi possível identificar o produto selecionado.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("color", variantForm.color);
+    formData.append("size", variantForm.size);
+    formData.append("sku", variantForm.sku);
+    formData.append("stock", String(variantForm.stock));
+    formData.append("product", productId);
+    formData.append("image", variantForm.imageFile);
+
+    try {
+      const createdVariant = await dispatch(createVariant(formData)).unwrap();
+
+      toast({
+        title: "Variante criada!",
+        description: `SKU ${createdVariant.sku} adicionada ao produto.`,
+      });
+
+      setEditingProduct((prev) =>
+        prev
+          ? {
+              ...prev,
+              variants: [
+                ...(prev.variants || prev.variations || []),
+                createdVariant,
+              ],
+            }
+          : prev
+      );
+      resetVariantFormState();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Erro ao criar variante.";
+      toast({
+        title: "Erro",
+        description: message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteProduct = async (product: Product) => {
+    const productId = product._id || product.id;
+
+    if (!productId) {
+      toast({
+        title: "Erro",
+        description: "ID do produto inválido.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (
+      !window.confirm(
+        `Tem certeza que deseja eliminar o produto "${product.name}"?`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      await dispatch(deleteProduct({ productId })).unwrap();
+
+      toast({
+        title: "Produto eliminado",
+        description: `"${product.name}" foi removido do catálogo.`,
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Erro ao eliminar produto.";
+      toast({
+        title: "Erro",
+        description: message,
+        variant: "destructive",
+      });
+    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -486,56 +673,6 @@ const Admin = () => {
       };
       reader.readAsDataURL(file);
     }
-  };
-
-  const handleVariantImageUpload = (
-    variantId: string,
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      // store preview (we keep using base64 preview for variants)
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setVariants(
-          variants.map((v) =>
-            v.id === variantId
-              ? {
-                  ...v,
-                  image: reader.result as string,
-                  imageFile: file as File,
-                }
-              : v
-          )
-        );
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const addVariant = () => {
-    const newVariant: ProductVariant = {
-      id: Date.now().toString(),
-      color: "",
-      size: "",
-      quantity: 0,
-      image: "",
-    };
-    setVariants([...variants, newVariant]);
-  };
-
-  const removeVariant = (id: string) => {
-    setVariants(variants.filter((v) => v.id !== id));
-  };
-
-  const updateVariant = (
-    id: string,
-    field: keyof ProductVariant,
-    value: string | number
-  ) => {
-    setVariants(
-      variants.map((v) => (v.id === id ? { ...v, [field]: value } : v))
-    );
   };
 
   const handleAddProduct = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -982,7 +1119,7 @@ const Admin = () => {
                                         </p>
                                       </div>
                                     </div>
-                                    <Separator />
+                                    {/* <Separator />
                                     <div>
                                       <h4 className="font-semibold mb-2">
                                         Histórico de Pedidos Recentes
@@ -1018,7 +1155,7 @@ const Admin = () => {
                                             </div>
                                           ))}
                                       </div>
-                                    </div>
+                                    </div> */}
                                   </div>
                                 )}
                               </DialogContent>
@@ -1026,7 +1163,9 @@ const Admin = () => {
                             <Button
                               variant="destructive"
                               size="sm"
-                              onClick={() => handleRemoveCustomer(customer.id)}
+                              onClick={() =>
+                                handleRemoveCustomer(customer.id, customer.name)
+                              }
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -1263,7 +1402,7 @@ const Admin = () => {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {allCustomers
+                        {customersFromApi
                           .sort((a, b) => b.totalSpent - a.totalSpent)
                           .slice(0, 5)
                           .map((customer) => (
@@ -1317,13 +1456,17 @@ const Admin = () => {
                   <div className="space-y-4">
                     {paginatedProducts.map((product) => (
                       <div
-                        key={product.id}
+                        key={product._id}
                         className="flex gap-4 p-4 border border-border rounded-lg hover:border-accent transition-colors"
                       >
                         <img
-                          src={product.imageCover}
+                          src={`${productionUrl}/img/products/${product.imageCover}`}
                           alt={product.name}
                           className="w-20 h-20 object-cover rounded-md"
+                          onError={(e) => {
+                            e.currentTarget.src =
+                              "https://i.pinimg.com/1200x/a7/2f/db/a72fdbea7e86c3fb70a17c166a36407b.jpg";
+                          }}
                         />
                         <div className="flex-1">
                           <div className="flex items-start justify-between gap-4">
@@ -1346,7 +1489,11 @@ const Admin = () => {
                               >
                                 <Pencil className="h-4 w-4" />
                               </Button>
-                              <Button variant="outline" size="icon">
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                onClick={() => handleDeleteProduct(product)}
+                              >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
                             </div>
@@ -1470,6 +1617,10 @@ const Admin = () => {
                             <SelectItem value="Blazers">Blazers</SelectItem>
                             <SelectItem value="Sapatos">Sapatos</SelectItem>
                             <SelectItem value="Carteiras">Carteiras</SelectItem>
+                            <SelectItem value="Calçados">Calçados</SelectItem>
+                            <SelectItem value="Jaquetas">Jaquetas</SelectItem>
+                            <SelectItem value="Saias">Saias</SelectItem>
+                            <SelectItem value="Moletons">Moletons</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -1722,12 +1873,16 @@ const Admin = () => {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="T-Shirts">Camisetas</SelectItem>
-                      <SelectItem value="Dresses">Vestidos</SelectItem>
-                      <SelectItem value="Jackets">Jaquetas</SelectItem>
-                      <SelectItem value="Pants">Calças</SelectItem>
+                      <SelectItem value="Camisetas">Camisetas</SelectItem>
+                      <SelectItem value="Vestidos">Vestidos</SelectItem>
+                      <SelectItem value="Jaquetas">Jaquetas</SelectItem>
+                      <SelectItem value="Calças">Calças</SelectItem>
                       <SelectItem value="Blazers">Blazers</SelectItem>
-                      <SelectItem value="Shoes">Calçados</SelectItem>
+                      <SelectItem value="Calçados">Calçados</SelectItem>
+                      <SelectItem value="Casacos">Casacos</SelectItem>
+                      <SelectItem value="Carteiras">Carteiras</SelectItem>
+                      <SelectItem value="Saias">Saias</SelectItem>
+                      <SelectItem value="Moletons">Moletons</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1750,147 +1905,205 @@ const Admin = () => {
                 </div>
               </div>
 
+              <div className="space-y-2">
+                <Label>Imagem Principal</Label>
+                <div className="flex items-center gap-4">
+                  <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-accent transition-colors">
+                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                      <Upload className="w-8 h-8 mb-2 text-muted-foreground" />
+                      <p className="text-sm text-muted-foreground">
+                        Clique para atualizar a imagem
+                      </p>
+                    </div>
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept="image/*"
+                      onChange={handleEditProductImageUpload}
+                    />
+                  </label>
+                  {editProductImagePreview && (
+                    <div className="relative">
+                      <img
+                        src={editProductImagePreview}
+                        alt="Imagem atual"
+                        className="w-32 h-32 object-cover rounded-lg"
+                      />
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="icon"
+                        className="absolute -top-2 -right-2 h-6 w-6"
+                        onClick={handleResetEditImage}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <Separator />
 
-              {/* Variants Section */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
+              {existingVariants.length > 0 && (
+                <div className="space-y-4">
                   <div>
-                    <Label>Variantes do Produto *</Label>
+                    <Label>Variantes cadastradas</Label>
                     <p className="text-sm text-muted-foreground">
-                      Gerencie as variantes de cor, tamanho e estoque
+                      Consulte o estoque atual antes de criar novas variantes.
                     </p>
                   </div>
-                  <Button type="button" onClick={addEditingVariant} size="sm">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Adicionar Variante
-                  </Button>
+                  <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
+                    {existingVariants.map((variant) => (
+                      <Card key={variant._id}>
+                        <CardContent className="pt-4 flex items-center justify-between gap-4">
+                          <div>
+                            <h4 className="font-semibold">
+                              {variant.color} • {variant.size}
+                            </h4>
+                            <p className="text-sm text-muted-foreground">
+                              SKU: {variant.sku} | Estoque: {variant.stock}
+                            </p>
+                          </div>
+                          {variant.image && (
+                            <img
+                              src={`${productionUrl}/img/variants/${variant.image}`}
+                              alt={variant.sku}
+                              className="w-16 h-16 object-cover rounded-md"
+                            />
+                          )}
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                  <Separator />
+                </div>
+              )}
+
+              <div className="space-y-4">
+                <div>
+                  <Label>Adicionar nova variante</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Defina cor, tamanho, SKU, estoque e imagem.
+                  </p>
+                </div>
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div className="space-y-2">
+                    <Label>Cor *</Label>
+                    <Input
+                      type="color"
+                      value={variantForm.color}
+                      onChange={(e) =>
+                        setVariantForm((prev) => ({
+                          ...prev,
+                          color: e.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Tamanho *</Label>
+                    <Input
+                      placeholder="Ex: M"
+                      value={variantForm.size}
+                      onChange={(e) =>
+                        setVariantForm((prev) => ({
+                          ...prev,
+                          size: e.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>SKU *</Label>
+                    <Input
+                      placeholder="Ex: camisa-preta-m"
+                      value={variantForm.sku}
+                      onChange={(e) =>
+                        setVariantForm((prev) => ({
+                          ...prev,
+                          sku: e.target.value,
+                        }))
+                      }
+                    />
+                  </div>
                 </div>
 
-                {editingVariants.length === 0 && (
-                  <div className="text-center py-8 text-muted-foreground border border-dashed border-border rounded-lg">
-                    Nenhuma variante adicionada ainda
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Estoque *</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={variantForm.stock}
+                      onChange={(e) =>
+                        setVariantForm((prev) => ({
+                          ...prev,
+                          stock: parseInt(e.target.value) || 0,
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Imagem da Variante *</Label>
+                    <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-accent transition-colors">
+                      <div className="flex flex-col items-center justify-center">
+                        <Upload className="w-6 h-6 mb-1 text-muted-foreground" />
+                        <p className="text-xs text-muted-foreground">
+                          Upload da imagem
+                        </p>
+                      </div>
+                      <input
+                        type="file"
+                        className="hidden"
+                        accept="image/*"
+                        onChange={handleVariantImageUpload}
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                {variantForm.imagePreview && (
+                  <div className="relative w-28 h-28">
+                    <img
+                      src={variantForm.imagePreview}
+                      alt="Preview variante"
+                      className="w-28 h-28 object-cover rounded-md"
+                    />
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="icon"
+                      className="absolute -top-2 -right-2 h-6 w-6"
+                      onClick={() =>
+                        setVariantForm((prev) => ({
+                          ...prev,
+                          imageFile: null,
+                          imagePreview: "",
+                        }))
+                      }
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
                   </div>
                 )}
 
-                <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
-                  {editingVariants.map((variant, index) => (
-                    <Card key={variant.id}>
-                      <CardContent className="pt-6">
-                        <div className="space-y-4">
-                          <div className="flex items-center justify-between mb-4">
-                            <h4 className="font-semibold">
-                              Variante {index + 1}
-                            </h4>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => removeEditingVariant(variant.id)}
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </div>
-
-                          <div className="grid gap-4 md:grid-cols-3">
-                            <div className="space-y-2">
-                              <Label>Cor *</Label>
-                              <Input
-                                type="color"
-                                value={variant.color}
-                                onChange={(e) =>
-                                  updateEditingVariant(
-                                    variant.id,
-                                    "color",
-                                    e.target.value
-                                  )
-                                }
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label>Tamanho *</Label>
-                              <Input
-                                placeholder="Ex: M"
-                                value={variant.size}
-                                onChange={(e) =>
-                                  updateEditingVariant(
-                                    variant.id,
-                                    "size",
-                                    e.target.value
-                                  )
-                                }
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label>Quantidade *</Label>
-                              <Input
-                                type="number"
-                                min="0"
-                                placeholder="0"
-                                value={variant.quantity}
-                                onChange={(e) =>
-                                  updateEditingVariant(
-                                    variant.id,
-                                    "quantity",
-                                    parseInt(e.target.value) || 0
-                                  )
-                                }
-                              />
-                            </div>
-                          </div>
-
-                          <div className="space-y-2">
-                            <Label>Imagem da Variante</Label>
-                            <div className="flex items-center gap-4">
-                              <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-accent transition-colors">
-                                <div className="flex flex-col items-center justify-center">
-                                  <Upload className="w-6 h-6 mb-1 text-muted-foreground" />
-                                  <p className="text-xs text-muted-foreground">
-                                    Upload da imagem
-                                  </p>
-                                </div>
-                                <input
-                                  type="file"
-                                  className="hidden"
-                                  accept="image/*"
-                                  onChange={(e) =>
-                                    handleEditingVariantImageUpload(
-                                      variant.id,
-                                      e
-                                    )
-                                  }
-                                />
-                              </label>
-                              {variant.image && (
-                                <div className="relative">
-                                  <img
-                                    src={variant.image}
-                                    alt="Variante"
-                                    className="w-24 h-24 object-cover rounded-lg"
-                                  />
-                                  <Button
-                                    type="button"
-                                    variant="destructive"
-                                    size="icon"
-                                    className="absolute -top-2 -right-2 h-6 w-6"
-                                    onClick={() =>
-                                      updateEditingVariant(
-                                        variant.id,
-                                        "image",
-                                        ""
-                                      )
-                                    }
-                                  >
-                                    <X className="h-4 w-4" />
-                                  </Button>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                <div className="flex justify-end gap-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={resetVariantFormState}
+                    disabled={variantLoading}
+                  >
+                    Limpar
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={handleCreateVariant}
+                    disabled={variantLoading}
+                  >
+                    {variantLoading ? "Salvando..." : "Adicionar Variante"}
+                  </Button>
                 </div>
               </div>
 
@@ -1903,7 +2116,9 @@ const Admin = () => {
                   onClick={() => {
                     setIsEditDialogOpen(false);
                     setEditingProduct(null);
-                    setEditingVariants([]);
+                    setEditProductImageFile(null);
+                    setEditProductImagePreview("");
+                    resetVariantFormState();
                   }}
                 >
                   Cancelar

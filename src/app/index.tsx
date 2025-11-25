@@ -2,12 +2,14 @@
 import { configureStore } from "@reduxjs/toolkit";
 import userReducer from "../features/user/userSlice";
 import productReducer from "../features/product/productSlice";
+import variantReducer from "../features/variants/variantSlice";
 // import themeReducer from "./slices/themeSlice";
 
 export const store = configureStore({
   reducer: {
     user: userReducer,
     product: productReducer,
+    variant: variantReducer,
   },
 });
 

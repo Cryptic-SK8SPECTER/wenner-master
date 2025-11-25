@@ -194,15 +194,25 @@ export const fetchUsers = createAsyncThunk<User[]>(
     try {
       console.log("🔄 Iniciando fetchUsers...");
 
-      const response = await customFetch.get(`/api/v1/users`);
+      const response = await customFetch.get(`/api/v1/users/orders/stats`);
 
-      const users = response.data?.data.data;
-      console.log("📦 Usuários extraídos:", users);
+      const { users } = response.data?.data || {};
 
       if (!Array.isArray(users)) {
         console.error("❌ Usuários não é array:", typeof users, users);
         return rejectWithValue("Resposta inesperada da API ao buscar usuários");
       }
+
+      const normalizedUsers: User[] = users.map((user, index) => ({
+        ...user,
+        _id: user._id || user.userId || `temp-user-${index}`,
+        userId: user.userId || user._id || `temp-user-${index}`,
+        totalOrders: user.totalOrders ?? 0,
+        totalSpent: user.totalSpent ?? 0,
+        lastOrder: user.lastOrder || user.createdAt || undefined,
+      }));
+
+      return normalizedUsers;
     } catch (err: unknown) {
       console.error("❌ Erro no fetchUsers:", err);
       const error = err as {
@@ -245,23 +255,36 @@ export const updateUserRole = createAsyncThunk<
   }
 });
 
-export const deleteUser = createAsyncThunk<string, string>(
-  "users/deleteUser",
-  async (userId, { rejectWithValue }) => {
-    try {
-      await customFetch.delete(`/api/v1/users/${userId}`);
-      return userId;
-    } catch (err: unknown) {
-      const error = err as {
-        response?: { status?: number; data?: Record<string, unknown> };
-        message?: string;
-      };
+export const deleteUser = createAsyncThunk<
+  string,
+  string,
+  { rejectValue: string }
+>("users/deleteUser", async (userId, { rejectWithValue, dispatch }) => {
+  try {
+    const token = localStorage.getItem("token");
 
-      const message =
-        error?.response?.data?.message ||
-        error?.message ||
-        "Erro ao deletar usuário";
-      return rejectWithValue(message);
+    if (!token) {
+      dispatch(logout());
+      return rejectWithValue("Faça login para continuar.");
     }
+
+    await customFetch.delete(`/api/v1/users/${userId}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    return userId;
+  } catch (err: unknown) {
+    const error = err as {
+      response?: { status?: number; data?: Record<string, unknown> };
+      message?: string;
+    };
+
+    const message: string =
+      (error?.response?.data?.message as string) ||
+      error?.message ||
+      "Erro ao deletar usuário";
+    return rejectWithValue(message);
   }
-);
+});
