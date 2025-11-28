@@ -16,7 +16,8 @@ interface CartSheetProps {
 }
 
 export const CartSheet = ({ open, onOpenChange }: CartSheetProps) => {
-  const { items, removeItem, updateQuantity, totalPrice, clearCart } = useCart();
+  const { items, removeItem, updateQuantity, totalPrice, clearCart } =
+    useCart();
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -39,13 +40,34 @@ export const CartSheet = ({ open, onOpenChange }: CartSheetProps) => {
                     className="flex gap-4 py-4 border-b border-border"
                   >
                     <img
-                      src={item.image}
+                      src={
+                        item.image ||
+                        "https://i.pinimg.com/1200x/a7/2f/db/a72fdbea7e86c3fb70a17c166a36407b.jpg"
+                      }
                       alt={item.name}
                       className="w-20 h-20 object-cover rounded-lg"
                     />
                     <div className="flex-1 space-y-2">
                       <div className="flex justify-between">
-                        <h4 className="font-medium">{item.name}</h4>
+                        <div>
+                          <h4 className="font-medium">{item.name}</h4>
+                          {/* Adicionando cor e tamanho */}
+                          <div className="flex gap-2 mt-1 text-xs text-muted-foreground">
+                            {item.color && (
+                              <span className="flex items-center gap-1">
+                                Cor: 
+                                <div
+                                  className="w-3 h-3 rounded-full border"
+                                  style={{ backgroundColor: item.color }}
+                                />
+                                
+                              </span>
+                            )}
+                            |
+                            {item.size && <span>Tamanho: {item.size}</span>}
+                          </div>
+                        </div>
+
                         <Button
                           variant="ghost"
                           size="icon"
@@ -56,7 +78,7 @@ export const CartSheet = ({ open, onOpenChange }: CartSheetProps) => {
                         </Button>
                       </div>
                       <p className="text-sm font-semibold">
-                         {item.price.toFixed(2)} MZN
+                        {item.price.toFixed(2)} MZN
                       </p>
                       <div className="flex items-center gap-2">
                         <Button
@@ -95,11 +117,7 @@ export const CartSheet = ({ open, onOpenChange }: CartSheetProps) => {
               <Button className="w-full" size="lg">
                 Finalizar Compra
               </Button>
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={clearCart}
-              >
+              <Button variant="outline" className="w-full" onClick={clearCart}>
                 Limpar Carrinho
               </Button>
             </div>

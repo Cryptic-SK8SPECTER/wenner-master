@@ -17,6 +17,8 @@ export const ProductCard = ({ product }: ProductCardProps) => {
   const navigate = useNavigate();
   const { addItem } = useCart();
 
+  // console.log('Check  ', product)
+
   const handleCardClick = () => {
     navigate(`/product/${product.slug}`);
   };
@@ -27,7 +29,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
       id: product.id,
       name: product.name,
       price: product.price,
-      image: product.image,
+      image: product.imageCover,
     });
     toast({
       title: "Adicionado ao carrinho!",

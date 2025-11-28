@@ -185,7 +185,7 @@ const Index = () => {
             E-commerce
           </span>
           <span>/</span>
-          <span className="text-foreground font-medium">Products</span>
+          <span className="text-foreground font-medium">Produtos</span>
         </div>
       </div>
 
@@ -202,11 +202,11 @@ const Index = () => {
             <div className="flex items-center justify-between mb-8">
               <div>
                 <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2">
-                  Products
+                  Produtos
                 </h1>
                 <p className="text-muted-foreground">
-                  Showing {appliedFiltersProducts.length} of {products.length}{" "}
-                  products
+                  Exibindo {appliedFiltersProducts.length} de {products.length}{" "}
+                  produtos
                 </p>
               </div>
 
@@ -215,7 +215,7 @@ const Index = () => {
                 <SheetTrigger asChild>
                   <Button variant="outline" size="sm" className="lg:hidden">
                     <SlidersHorizontal className="h-4 w-4 mr-2" />
-                    Filter
+                    Filtro
                   </Button>
                 </SheetTrigger>
                 <SheetContent side="left" className="w-80 p-0">

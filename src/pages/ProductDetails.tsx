@@ -96,6 +96,8 @@ const ProductDetails = () => {
     (state) => state.product
   );
 
+  console.log('Check  ', currentProduct)
+
   const { user, requireAuth } = useRequireAuth();
   const { addItem } = useCart();
 
