@@ -51,7 +51,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
       className="group relative bg-card rounded-lg overflow-hidden shadow-card hover:shadow-card-hover transition-all duration-300 cursor-pointer"
     >
       {/* Image Container */}
-      <div className="relative aspect-[3/3] overflow-hidden bg-muted">
+      <div  className="relative aspect-[3/3] overflow-hidden bg-muted">
         <img
           src={
             product.imageCover ||

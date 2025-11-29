@@ -22,21 +22,28 @@ import { clearError } from "@/features/product/productSlice";
 const Index = () => {
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [filters, setFilters] = useState<Filters>({
-    gender: [],
-    categories: [],
-    colors: [],
-    priceRange: [0, 200],
-    rating: [],
-  });
-
-  const ITEMS_PER_PAGE = 6;
 
   // Redux hooks
   const dispatch = useAppDispatch();
   const { products, loading, error, searchQuery } = useAppSelector(
     (state) => state.product
   );
+
+  const maxPrice =
+    products.length > 0
+      ? Math.max(...products.map((product) => product.price))
+      : 200;
+
+  const [filters, setFilters] = useState<Filters>({
+    gender: [],
+    categories: [],
+    colors: [],
+    priceRange: [0, maxPrice],
+    rating: [],
+  });
+
+  const ITEMS_PER_PAGE = 6;
+
   const { toast } = useToast();
 
   // Fetch products on component mount
@@ -63,70 +70,70 @@ const Index = () => {
   }, [error, toast, dispatch]);
 
   // Apply filters and search to products from Redux state
-   const appliedFiltersProducts = useMemo(() => {
-     if (!products || products.length === 0) return [];
+  const appliedFiltersProducts = useMemo(() => {
+    if (!products || products.length === 0) return [];
 
-     return products.filter((product) => {
-       // Filter by search query
-       if (searchQuery.trim()) {
-         const query = searchQuery.toLowerCase().trim();
-         const matchesName = product.name.toLowerCase().includes(query);
-         const matchesCategory = product.category.toLowerCase().includes(query);
-         const matchesDescription = product.description?.toLowerCase().includes(query);
-         
-         if (!matchesName && !matchesCategory && !matchesDescription) {
-           return false;
-         }
-       }
+    return products.filter((product) => {
+      // Filter by search query
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase().trim();
+        const matchesName = product.name.toLowerCase().includes(query);
+        const matchesCategory = product.category.toLowerCase().includes(query);
+        const matchesDescription = product.description
+          ?.toLowerCase()
+          .includes(query);
 
-       // Filter by gender
-       if (
-         filters.gender.length > 0 &&
-         !filters.gender.includes(product.gender)
-       ) {
-         return false;
-       }
+        if (!matchesName && !matchesCategory && !matchesDescription) {
+          return false;
+        }
+      }
 
-       // Filter by category
-       if (
-         filters.categories.length > 0 &&
-         !filters.categories.includes(product.category)
-       ) {
-         return false;
-       }
+      // Filter by gender
+      if (
+        filters.gender.length > 0 &&
+        !filters.gender.includes(product.gender)
+      ) {
+        return false;
+      }
 
-       // Filter by colors - CORRIGIDO
-       if (filters.colors.length > 0) {
-         const productColorValues =
-           product.colors?.map((colorObj) => colorObj.color.toLowerCase()) ||
-           [];
-         const hasMatchingColor = productColorValues.some((productColor) =>
-           filters.colors.some(
-             (filterColor) => productColor === filterColor.toLowerCase()
-           )
-         );
-         if (!hasMatchingColor) return false;
-       }
+      // Filter by category
+      if (
+        filters.categories.length > 0 &&
+        !filters.categories.includes(product.category)
+      ) {
+        return false;
+      }
 
-       // Filter by price range
-       if (
-         product.price < filters.priceRange[0] ||
-         product.price > filters.priceRange[1]
-       ) {
-         return false;
-       }
+      // Filter by colors - CORRIGIDO
+      if (filters.colors.length > 0) {
+        const productColorValues =
+          product.colors?.map((colorObj) => colorObj.color.toLowerCase()) || [];
+        const hasMatchingColor = productColorValues.some((productColor) =>
+          filters.colors.some(
+            (filterColor) => productColor === filterColor.toLowerCase()
+          )
+        );
+        if (!hasMatchingColor) return false;
+      }
 
-       // Filter by rating
-       if (filters.rating.length > 0) {
-         const meetsRating = filters.rating.some(
-           (minRating) => product.rating >= minRating
-         );
-         if (!meetsRating) return false;
-       }
-       return true;
-     });
-   }, [products, filters, searchQuery]);
+      // Filter by price range
+      if (
+        product.price < filters.priceRange[0] ||
+        product.price > filters.priceRange[1]
+      ) {
+        return false;
+      }
 
+      // Filter by rating
+      if (filters.rating.length > 0) {
+        const meetsRating = filters.rating.some(
+          (minRating) => product.rating >= minRating
+        );
+        if (!meetsRating) return false;
+      }
+      return true;
+    });
+  }, [products, filters, searchQuery]);
 
   const totalPages = Math.ceil(appliedFiltersProducts.length / ITEMS_PER_PAGE);
 
@@ -168,7 +175,6 @@ const Index = () => {
       </div>
     );
   }
-
 
   return (
     <div className="min-h-screen bg-background">

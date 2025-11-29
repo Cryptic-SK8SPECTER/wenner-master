@@ -96,8 +96,6 @@ const ProductDetails = () => {
     (state) => state.product
   );
 
-  console.log('Check  ', currentProduct)
-
   const { user, requireAuth } = useRequireAuth();
   const { addItem } = useCart();
 
@@ -181,7 +179,6 @@ const ProductDetails = () => {
 
   const product = currentProduct;
 
-  console.log('product  ', product);
 
   const productImages = [
     ...(product.variants?.map((variant) => variant.image) || []),
