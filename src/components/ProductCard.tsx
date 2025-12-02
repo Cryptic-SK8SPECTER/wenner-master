@@ -4,26 +4,80 @@ import { useNavigate } from "react-router-dom";
 import { Product } from "../features/product/productTypes";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
-import { cn } from "@/lib/utils";
+import { cn, productionUrl } from "@/lib/utils";
 import { useCart } from "@/contexts/CartContext";
 import { toast } from "@/hooks/use-toast";
+import { useAppDispatch, useAppSelector } from "@/app/hooks";
+import {
+  addToFavorites,
+  removeFromFavorites,
+} from "@/features/favorite/favoriteActions";
 
 interface ProductCardProps {
   product: Product;
 }
 
 export const ProductCard = ({ product }: ProductCardProps) => {
-  const [isFavorite, setIsFavorite] = useState(false);
+  const dispatch = useAppDispatch();
+  const { loading } = useAppSelector((state) => state.favorites);
+  
+  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { addItem } = useCart();
 
-  // console.log('Check  ', product)
+  const handleToggleFavorite = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const productId = product.id ?? product._id;
+    if (!productId) return;
+
+    if (loading || isLoading) return;
+
+    setIsLoading(true);
+
+    try {
+      // SEMPRE tenta adicionar - o backend vai validar se já existe
+      await dispatch(addToFavorites({ productId })).unwrap();
+      toast({
+        title: "Adicionado aos favoritos!",
+        description: `${product.name} foi adicionado.`,
+      });
+    } catch (error: any) {
+      // Se o erro for que o produto JÁ ESTÁ nos favoritos, então remove
+      if (error?.includes("já está nos favoritos") || error?.includes("já existe")) {
+        try {
+          await dispatch(removeFromFavorites({ productId })).unwrap();
+          toast({
+            title: "Removido dos favoritos",
+            description: `${product.name} foi removido.`,
+          });
+        } catch (removeError) {
+          toast({
+            title: "Erro",
+            description: "Erro ao remover dos favoritos",
+            variant: "destructive",
+          });
+        }
+      } else {
+        // Outros erros (auth, network, etc)
+        toast({
+          title: "Erro",
+          description: error?.message || "Erro ao processar favorito",
+          variant: "destructive",
+        });
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleCardClick = () => {
     navigate(`/product/${product.slug}`);
   };
 
   const handleAddToCart = (e: React.MouseEvent) => {
+    e.preventDefault();
     e.stopPropagation();
     addItem({
       id: product.id,
@@ -37,21 +91,17 @@ export const ProductCard = ({ product }: ProductCardProps) => {
     });
   };
 
-   const uniqueColors = useMemo(() => {
-     if (!product.colors) return [];
+  const uniqueColors = useMemo(() => {
+    if (!product.colors) return [];
 
-     const colorValues = product.colors.map((colorObj) => colorObj.color);
-     // Remover cores duplicadas
-     return [...new Set(colorValues)];
-   }, [product.colors]);
+    const colorValues = product.colors.map((colorObj) => colorObj.color);
+    return [...new Set(colorValues)];
+  }, [product.colors]);
 
   return (
-    <div
-      onClick={handleCardClick}
-      className="group relative bg-card rounded-lg overflow-hidden shadow-card hover:shadow-card-hover transition-all duration-300 cursor-pointer"
-    >
+    <div className="group relative bg-card rounded-lg overflow-hidden shadow-card hover:shadow-card-hover transition-all duration-300 cursor-pointer">
       {/* Image Container */}
-      <div  className="relative aspect-[3/3] overflow-hidden bg-muted">
+      <div className="relative aspect-[3/3] overflow-hidden bg-muted">
         <img
           src={
             product.imageCover ||
@@ -72,18 +122,20 @@ export const ProductCard = ({ product }: ProductCardProps) => {
 
         {/* Favorite Button */}
         <button
-          onClick={(e) => {
-            e.stopPropagation();
-            setIsFavorite(!isFavorite);
-          }}
+          onClick={handleToggleFavorite}
+          disabled={loading || isLoading}
           className={cn(
-            "absolute top-3 right-3 p-2 rounded-full transition-all duration-300",
-            isFavorite
-              ? "bg-sale text-sale-foreground"
-              : "bg-card/80 backdrop-blur-sm text-muted-foreground hover:bg-card hover:text-sale"
+            "absolute top-3 right-3 z-20 p-2 rounded-full transition-all duration-300",
+            "disabled:opacity-50 disabled:cursor-not-allowed",
+            "bg-card/80 backdrop-blur-sm text-muted-foreground hover:bg-card hover:text-sale"
           )}
         >
-          <Heart className={cn("w-5 h-5", isFavorite && "fill-current")} />
+          <Heart
+            className={cn(
+              "w-5 h-5 transition-all",
+              (loading || isLoading) && "animate-pulse"
+            )}
+          />
         </button>
 
         {/* Quick View Overlay */}
@@ -91,7 +143,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
       </div>
 
       {/* Product Info */}
-      <div className="p-4">
+      <div onClick={handleCardClick} className="p-4">
         <h3 className="font-medium text-card-foreground mb-1 line-clamp-1">
           {product.name}
         </h3>
@@ -119,14 +171,18 @@ export const ProductCard = ({ product }: ProductCardProps) => {
           <div className="flex gap-1.5">
             {uniqueColors.slice(0, 3).map((color, index) => (
               <div
-                key={`${color}-${index}`} // Chave única baseada na cor e índice
+                key={`${color}-${index}`}
                 className="w-5 h-5 rounded-full border-2 border-border cursor-pointer hover:scale-110 transition-transform"
                 style={{ backgroundColor: color }}
                 title={color}
+                onClick={(e) => e.stopPropagation()}
               />
             ))}
             {uniqueColors.length > 3 && (
-              <div className="w-5 h-5 rounded-full border-2 border-border bg-muted flex items-center justify-center text-[10px] text-muted-foreground">
+              <div
+                className="w-5 h-5 rounded-full border-2 border-border bg-muted flex items-center justify-center text-[10px] text-muted-foreground"
+                onClick={(e) => e.stopPropagation()}
+              >
                 +{uniqueColors.length - 3}
               </div>
             )}
@@ -136,6 +192,10 @@ export const ProductCard = ({ product }: ProductCardProps) => {
             variant="ghost"
             className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
             onClick={handleAddToCart}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
           >
             <ShoppingCart className="h-4 w-4" />
           </Button>

@@ -14,15 +14,13 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Heart, Package, User, Lock, MapPin } from "lucide-react";
 import { mockProducts } from "@/data/products";
-import { useState } from "react";
-import { useAppDispatch } from "@/app/hooks";
+import { useState, useEffect } from "react";
 import { updateProfile, updatePassword } from "@/features/user/userActions";
 import { useToast } from "@/hooks/use-toast";
-import { useAppSelector } from "@/app/hooks";
+import { useAppSelector, useAppDispatch } from "@/app/hooks";
 import {
   Pagination,
   PaginationContent,
-  PaginationEllipsis,
   PaginationItem,
   PaginationLink,
   PaginationNext,
@@ -35,6 +33,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  fetchFavorites,
+  removeFromFavorites,
+} from "@/features/favorite/favoriteActions";
+import ProductImage from "../components/ProductImage";
 
 const Profile = () => {
   const { toast } = useToast();
@@ -42,9 +45,7 @@ const Profile = () => {
   const [ordersPage, setOrdersPage] = useState(1);
   const [selectedOrder, setSelectedOrder] = useState<string | null>(null);
   const [orderDetailsPage, setOrderDetailsPage] = useState(1);
-  const [favoriteIds, setFavoriteIds] = useState<string[]>(
-    mockProducts.slice(0, 12).map((p) => p.id)
-  );
+
   const itemsPerPage = 4;
   const orderDetailsItemsPerPage = 3;
 
@@ -76,6 +77,14 @@ const Profile = () => {
   const [confirmPassword, setConfirmPassword] = useState("");
 
   const dispatch = useAppDispatch();
+
+  const { favorites, loading, error } = useAppSelector(
+    (state) => state.favorites
+  );
+
+  useEffect(() => {
+    dispatch(fetchFavorites());
+  }, [dispatch]);
 
   const handleSaveProfile = async () => {
     try {
@@ -158,9 +167,7 @@ const Profile = () => {
     }
   };
 
-  const allFavoriteProducts = mockProducts.filter((p) =>
-    favoriteIds.includes(p.id)
-  );
+  const allFavoriteProducts = favorites;
   const totalFavoritesPages = Math.ceil(
     allFavoriteProducts.length / itemsPerPage
   );
@@ -169,20 +176,41 @@ const Profile = () => {
     favoritesPage * itemsPerPage
   );
 
-  const handleRemoveFavorite = (productId: string, productName: string) => {
-    setFavoriteIds((prev) => prev.filter((id) => id !== productId));
+  useEffect(() => {
+    const totalPages = Math.ceil(allFavoriteProducts.length / itemsPerPage);
 
-    // Ajustar página se necessário
-    const newTotalProducts = allFavoriteProducts.length - 1;
-    const newTotalPages = Math.ceil(newTotalProducts / itemsPerPage);
-    if (favoritesPage > newTotalPages && newTotalPages > 0) {
-      setFavoritesPage(newTotalPages);
+    if (favoritesPage > totalPages) {
+      setFavoritesPage(Math.max(totalPages, 1));
     }
+  }, [allFavoriteProducts]);
 
-    toast({
-      title: "Removido dos favoritos",
-      description: `${productName} foi removido da sua lista de favoritos.`,
-    });
+  const handleRemoveFavorite = async (
+    productId: string,
+    productName: string
+  ) => {
+    try {
+      await dispatch(removeFromFavorites({ productId })).unwrap();
+
+      toast({
+        title: "Removido dos favoritos",
+        description: `${productName} foi removido da sua lista de favoritos.`,
+      });
+
+      // ajuste de página imediato
+      const updatedCount = allFavoriteProducts.length - 1;
+      const totalPages = Math.ceil(updatedCount / itemsPerPage);
+
+      if (favoritesPage > totalPages) {
+        setFavoritesPage(Math.max(totalPages, 1));
+      }
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description:
+          error instanceof Error ? error.message : "Erro ao remover favorito.",
+        variant: "destructive",
+      });
+    }
   };
 
   const allOrders = [
@@ -388,14 +416,10 @@ const Profile = () => {
                   <div className="grid gap-4 md:grid-cols-2">
                     {favoriteProducts.map((product) => (
                       <div
-                        key={product.id}
+                        key={product._id}
                         className="flex gap-4 p-4 border border-border rounded-lg hover:border-accent transition-colors"
                       >
-                        <img
-                          src={product.image}
-                          alt={product.name}
-                          className="w-20 h-20 object-cover rounded-md"
-                        />
+                        <ProductImage src={product.image} alt={product.name} />
                         <div className="flex-1">
                           <h3 className="font-semibold text-foreground">
                             {product.name}
@@ -403,19 +427,30 @@ const Profile = () => {
                           <p className="text-sm text-muted-foreground">
                             {product.category}
                           </p>
-                          <p className="text-lg font-bold text-accent mt-1">
-                            {product.price.toFixed(2)} MZN
-                          </p>
+                          {product.priceDiscount ? (
+                            <div className="flex items-center gap-2 mt-1">
+                              <p className="text-lg font-bold text-accent">
+                                {product.priceDiscount} MZN
+                              </p>
+                              <p className="text-sm line-through text-muted-foreground">
+                                {product.price} MZN
+                              </p>
+                            </div>
+                          ) : (
+                            <p className="text-lg font-bold text-accent mt-1">
+                              {product.price} MZN
+                            </p>
+                          )}
                         </div>
                         <Button
                           variant="ghost"
                           size="icon"
                           onClick={() =>
-                            handleRemoveFavorite(product.id, product.name)
+                            handleRemoveFavorite(product._id, product.name)
                           }
                           aria-label="Remover dos favoritos"
                         >
-                          <Heart className="h-5 w-5 fill-accent text-accent" />
+                          <Heart className="h-5 w-5 text-accent fill-accent hover:text-destructive hover:fill-destructive" />
                         </Button>
                       </div>
                     ))}
@@ -504,7 +539,7 @@ const Profile = () => {
                             {order.items} {order.items === 1 ? "item" : "itens"}
                           </div>
                           <div className="text-lg font-bold text-foreground">
-                            {order.total.toFixed(2)} MZN
+                            {order.total} MZN
                           </div>
                         </div>
                         <Button
@@ -736,13 +771,10 @@ const Profile = () => {
                         </div>
                         <div className="text-right">
                           <p className="font-bold text-foreground">
-                            {(
-                              (product.price || 0) * (product.quantity || 1)
-                            ).toFixed(2)}{" "}
-                            MZN
+                            {(product.price || 0) * (product.quantity || 1)} MZN
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {(product.price || 0).toFixed(2)} MZN cada
+                            {product.price || 0} MZN cada
                           </p>
                         </div>
                       </div>
@@ -803,7 +835,7 @@ const Profile = () => {
                   <div className="flex justify-between items-center">
                     <span className="text-lg font-semibold">Total</span>
                     <span className="text-2xl font-bold text-accent">
-                      {order.total.toFixed(2)} MZN
+                      {order.total} MZN
                     </span>
                   </div>
                 </div>
