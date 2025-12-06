@@ -22,7 +22,6 @@ export const updateProfile = createAsyncThunk<User, UpdateProfilePayload>(
       );
       const user = response.data.data.user;
 
-      console.log("Verifique :", user);
 
       if (user) {
         localStorage.setItem("user", JSON.stringify(user));
@@ -192,14 +191,12 @@ export const fetchUsers = createAsyncThunk<User[]>(
   "users/fetchUsers",
   async (_, { rejectWithValue }) => {
     try {
-      console.log("🔄 Iniciando fetchUsers...");
 
       const response = await customFetch.get(`/api/v1/users/orders/stats`);
 
       const { users } = response.data?.data || {};
 
       if (!Array.isArray(users)) {
-        console.error("❌ Usuários não é array:", typeof users, users);
         return rejectWithValue("Resposta inesperada da API ao buscar usuários");
       }
 

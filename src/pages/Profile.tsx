@@ -37,6 +37,9 @@ import {
   fetchFavorites,
   removeFromFavorites,
 } from "@/features/favorite/favoriteActions";
+import { fetchOrders, fetchOrderById } from "@/features/order/orderActions";
+import { Order } from "@/features/order/orderTypes";
+import { productionUrl } from "@/lib/utils";
 import ProductImage from "../components/ProductImage";
 
 const Profile = () => {
@@ -82,8 +85,13 @@ const Profile = () => {
     (state) => state.favorites
   );
 
+  const { orders: userOrders, currentOrder } = useAppSelector(
+    (state) => state.order
+  );
+
   useEffect(() => {
     dispatch(fetchFavorites());
+    dispatch(fetchOrders());
   }, [dispatch]);
 
   const handleSaveProfile = async () => {
@@ -213,96 +221,32 @@ const Profile = () => {
     }
   };
 
-  const allOrders = [
-    {
-      id: "001",
-      date: "2024-03-15",
-      total: 299.9,
-      status: "pending",
-      items: 2,
-      products: [
-        { ...mockProducts[0], quantity: 1 },
-        { ...mockProducts[1], quantity: 1 },
-      ],
-    },
-    {
-      id: "002",
-      date: "2024-03-10",
-      total: 549.8,
-      status: "processing",
-      items: 3,
-      products: [
-        { ...mockProducts[2], quantity: 2 },
-        { ...mockProducts[3], quantity: 1 },
-      ],
-    },
-    {
-      id: "003",
-      date: "2024-03-05",
-      total: 199.9,
-      status: "delivered",
-      items: 1,
-      products: [{ ...mockProducts[4], quantity: 1 }],
-    },
-    {
-      id: "004",
-      date: "2024-02-28",
-      total: 399.8,
-      status: "cancelled",
-      items: 2,
-      products: [
-        { ...mockProducts[5], quantity: 1 },
-        { ...mockProducts[6], quantity: 1 },
-      ],
-    },
-    {
-      id: "005",
-      date: "2024-02-20",
-      total: 899.9,
-      status: "delivered",
-      items: 4,
-      products: [
-        { ...mockProducts[0], quantity: 2 },
-        { ...mockProducts[2], quantity: 2 },
-      ],
-    },
-    {
-      id: "006",
-      date: "2024-02-15",
-      total: 249.9,
-      status: "delivered",
-      items: 1,
-      products: [{ ...mockProducts[7], quantity: 1 }],
-    },
-    {
-      id: "007",
-      date: "2024-02-10",
-      total: 679.8,
-      status: "delivered",
-      items: 3,
-      products: [
-        { ...mockProducts[1], quantity: 1 },
-        { ...mockProducts[3], quantity: 2 },
-      ],
-    },
-    {
-      id: "008",
-      date: "2024-02-05",
-      total: 349.9,
-      status: "delivered",
-      items: 2,
-      products: [
-        { ...mockProducts[4], quantity: 1 },
-        { ...mockProducts[5], quantity: 1 },
-      ],
-    },
-  ];
+  // Map API orders to display format
+  const allOrders = userOrders.map((order: Order) => ({
+    id: order._id || order.id || "",
+    date: order.createdAt
+      ? new Date(order.createdAt).toLocaleDateString("pt-BR")
+      : "",
+    total: order.totalPrice || 0,
+    status: order.status || "pendente",
+    items: order.totalItems || order.products?.length || 0,
+    products: order.products || [],
+  }));
 
   const totalOrdersPages = Math.ceil(allOrders.length / itemsPerPage);
   const orders = allOrders.slice(
     (ordersPage - 1) * itemsPerPage,
     ordersPage * itemsPerPage
   );
+
+  const handleSelectOrder = async (orderId: string) => {
+    setSelectedOrder(orderId);
+    setOrderDetailsPage(1);
+    // Fetch order details if needed
+    await dispatch(fetchOrderById(orderId));
+  };
+
+  console.log(' Your Orders ', orders)
 
   const getStatusBadge = (status: string) => {
     const statusMap: Record<
@@ -312,13 +256,14 @@ const Profile = () => {
         variant: "default" | "secondary" | "destructive" | "outline";
       }
     > = {
-      pending: { label: "Pendente", variant: "secondary" },
-      processing: { label: "Em Espera", variant: "default" },
-      delivered: { label: "Recebido", variant: "outline" },
-      cancelled: { label: "Cancelado", variant: "destructive" },
+      pendente: { label: "Pendente", variant: "secondary" },
+      confirmado: { label: "Confirmado", variant: "default" },
+      enviado: { label: "Enviado", variant: "default" },
+      entregue: { label: "Entregue", variant: "outline" },
+      cancelado: { label: "Cancelado", variant: "destructive" },
     };
 
-    const config = statusMap[status] || statusMap.pending;
+    const config = statusMap[status] || statusMap.pendente;
     return <Badge variant={config.variant}>{config.label}</Badge>;
   };
 
@@ -525,7 +470,7 @@ const Profile = () => {
                         <div className="flex justify-between items-start mb-3">
                           <div>
                             <h3 className="font-semibold text-foreground">
-                              Pedido #{order.id}
+                              Pedido #{order.id?.slice(-8)}
                             </h3>
                             <p className="text-sm text-muted-foreground">
                               {new Date(order.date).toLocaleDateString("pt-BR")}
@@ -545,7 +490,7 @@ const Profile = () => {
                         <Button
                           variant="outline"
                           className="w-full mt-3"
-                          onClick={() => setSelectedOrder(order.id)}
+                          onClick={() => handleSelectOrder(order.id)}
                         >
                           Ver Detalhes
                         </Button>
@@ -709,7 +654,9 @@ const Profile = () => {
       >
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Detalhes do Pedido #{selectedOrder}</DialogTitle>
+            <DialogTitle>
+              Detalhes do Pedido #{selectedOrder?.slice(-8)}
+            </DialogTitle>
             <DialogDescription>
               Confira os produtos do seu pedido
             </DialogDescription>
@@ -717,8 +664,11 @@ const Profile = () => {
 
           {selectedOrder &&
             (() => {
-              const order = allOrders.find((o) => o.id === selectedOrder);
-              if (!order) return null;
+              // Busca pelo ID correto (suporta id ou _id)
+              const order = allOrders.find(
+                (o) => o.id === selectedOrder || o._id === selectedOrder
+              );
+              if (!order || !order.products) return null;
 
               const totalProductPages = Math.ceil(
                 order.products.length / orderDetailsItemsPerPage
@@ -730,6 +680,7 @@ const Profile = () => {
 
               return (
                 <div className="space-y-6">
+                  {/* Cabeçalho com data e status */}
                   <div className="flex justify-between items-center">
                     <div>
                       <p className="text-sm text-muted-foreground">
@@ -744,42 +695,68 @@ const Profile = () => {
 
                   <Separator />
 
+                  {/* Lista de produtos */}
                   <div className="space-y-4">
                     <h3 className="font-semibold text-foreground">
                       Produtos ({order.products.length})
                     </h3>
-                    {displayedProducts.map((product, index) => (
-                      <div
-                        key={index}
-                        className="flex gap-4 p-4 border border-border rounded-lg"
-                      >
-                        <img
-                          src={product.image}
-                          alt={product.name}
-                          className="w-20 h-20 object-cover rounded-md"
-                        />
-                        <div className="flex-1">
-                          <h4 className="font-semibold text-foreground">
-                            {product.name}
-                          </h4>
-                          <p className="text-sm text-muted-foreground">
-                            {product.category}
-                          </p>
-                          <p className="text-sm text-muted-foreground mt-1">
-                            Quantidade: {product.quantity}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-bold text-foreground">
-                            {(product.price || 0) * (product.quantity || 1)} MZN
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {product.price || 0} MZN cada
-                          </p>
-                        </div>
-                      </div>
-                    ))}
+                    {displayedProducts.map((item, index) => {
+                      // Extrai o produto do objeto item
+                      const product = item.product || {};
+                      return (
+                        <div
+                          key={item._id || index}
+                          className="flex gap-4 p-4 border border-border rounded-lg"
+                        >
+                          {/* Imagem do produto */}
+                          <div className="w-20 h-20 bg-muted rounded-md flex items-center justify-center overflow-hidden">
+                            <img
+                              src={
+                                product.imageCover ||
+                                product.images?.[0] ||
+                                "https://i.pinimg.com/1200x/a7/2f/db/a72fdbea7e86c3fb70a17c166a36407b.jpg"
+                              }
+                              alt={product.name}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                e.currentTarget.src =
+                                  "https://i.pinimg.com/1200x/a7/2f/db/a72fdbea7e86c3fb70a17c166a36407b.jpg";
+                              }}
+                            />
+                          </div>
 
+                          {/* Informações do produto */}
+                          <div className="flex-1">
+                            <h4 className="font-semibold text-foreground">
+                              {product.name || "Produto não encontrado"}
+                            </h4>
+                            <p className="text-sm text-muted-foreground">
+                              {product.category?.name ||
+                                product.category ||
+                                "Sem categoria"}
+                            </p>
+                            <p className="text-sm text-muted-foreground mt-2">
+                              Quantidade:{" "}
+                              <span className="font-semibold">
+                                {item.quantity}
+                              </span>
+                            </p>
+                          </div>
+
+                          {/* Preço */}
+                          <div className="text-right">
+                            <p className="font-bold text-foreground">
+                              {item.price * item.quantity} MZN
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {item.price} MZN cada
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {/* Paginação */}
                     {totalProductPages > 1 && (
                       <Pagination>
                         <PaginationContent>
@@ -832,12 +809,45 @@ const Profile = () => {
 
                   <Separator />
 
-                  <div className="flex justify-between items-center">
-                    <span className="text-lg font-semibold">Total</span>
-                    <span className="text-2xl font-bold text-accent">
-                      {order.total} MZN
-                    </span>
+                  {/* Resumo financeiro */}
+                  <div className="space-y-3">
+                    <div className="flex justify-between">
+                      <span className="text-foreground">
+                        Subtotal (
+                        {order.totalItems ||
+                          order.products.reduce(
+                            (sum, item) => sum + item.quantity,
+                            0
+                          )}{" "}
+                        itens):
+                      </span>
+                      <span className="text-foreground">{order.total} MZN</span>
+                    </div>
+
+                    {order.priceDiscount > 0 && (
+                      <div className="flex justify-between text-green-600">
+                        <span>Desconto:</span>
+                        <span>-{order.priceDiscount} MZN</span>
+                      </div>
+                    )}
+
+                    <Separator />
+
+                    <div className="flex justify-between items-center pt-2">
+                      <span className="text-lg font-semibold">Preço Total</span>
+                      <span className="text-2xl font-bold text-accent">
+                        {order.total} MZN
+                      </span>
+                    </div>
                   </div>
+
+                  {/* Observações */}
+                  {order.notes && (
+                    <div className="mt-4 p-3 bg-muted rounded-md">
+                      <p className="text-sm font-semibold mb-1">Observações:</p>
+                      <p className="text-sm text-foreground">{order.notes}</p>
+                    </div>
+                  )}
                 </div>
               );
             })()}

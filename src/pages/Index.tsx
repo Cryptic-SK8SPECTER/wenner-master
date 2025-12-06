@@ -29,6 +29,8 @@ const Index = () => {
     (state) => state.product
   );
 
+  console.log("Products ", products);
+
   const maxPrice =
     products.length > 0
       ? Math.max(...products.map((product) => product.price))
@@ -124,10 +126,13 @@ const Index = () => {
         return false;
       }
 
-      // Filter by rating
+      // Filter by rating (support both `rating` and `ratingsAverage` fields)
       if (filters.rating.length > 0) {
+        const productRating =
+          (product as any).rating ?? (product as any).ratingsAverage ?? 0;
+        const numericProductRating = Number(productRating) || 0;
         const meetsRating = filters.rating.some(
-          (minRating) => product.rating >= minRating
+          (minRating) => numericProductRating >= Number(minRating)
         );
         if (!meetsRating) return false;
       }

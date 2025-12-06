@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,17 +30,17 @@ import {
   Search,
   Pencil,
   Trash2,
-  X,
-  Upload,
-  Users,
-  BarChart3,
-  Eye,
-  Mail,
   Phone,
   MapPin,
   Calendar,
   TrendingUp,
   DollarSign,
+  Users,
+  BarChart3,
+  Mail,
+  Eye,
+  Upload,
+  X,
 } from "lucide-react";
 import { mockProducts } from "@/data/products";
 import { Product, ProductVariation } from "@/features/product/productTypes";
@@ -55,12 +56,20 @@ import {
 } from "@/components/ui/dialog";
 import {
   Table,
-  TableBody,
-  TableCell,
-  TableHead,
   TableHeader,
+  TableBody,
   TableRow,
+  TableHead,
+  TableCell,
 } from "@/components/ui/table";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import {
   createProduct,
@@ -70,6 +79,21 @@ import {
 } from "@/features/product/productActions";
 import { createVariant } from "@/features/variants/variantActions";
 import { deleteUser, fetchUsers } from "@/features/user/userActions";
+import {
+  fetchOrders,
+  fetchOrderById,
+  updateOrder,
+} from "@/features/order/orderActions";
+import {
+  fetchTotalRevenue,
+  fetchAverageTicket,
+  fetchTotalOrders,
+  fetchDeliveryRate,
+  fetchSalesByStatus,
+  fetchTopClients,
+  fetchSalesByPeriod,
+} from "@/features/report/reportActions";
+import { Order } from "@/features/order/orderTypes";
 import { productionUrl } from "@/lib/utils";
 
 type ProductVariant = {
@@ -77,17 +101,10 @@ type ProductVariant = {
   color: string;
   size: string;
   quantity: number;
-  image: string;
-  imageFile?: File;
-};
-
-type VariantFormState = {
-  color: string;
-  size: string;
-  sku: string;
-  stock: number;
-  imagePreview: string;
-  imageFile: File | null;
+  image?: string;
+  imageFile?: File | null;
+  stock?: number;
+  imagePreview?: string;
 };
 
 type Customer = {
@@ -100,6 +117,15 @@ type Customer = {
   totalOrders: number;
   totalSpent: number;
   lastOrder: string;
+};
+
+type VariantFormState = {
+  color: string;
+  size: string;
+  sku?: string;
+  stock: number;
+  imagePreview: string;
+  imageFile: File | null;
 };
 
 const createEmptyVariantForm = (): VariantFormState => ({
@@ -115,6 +141,8 @@ const Admin = () => {
   const { toast } = useToast();
   const dispatch = useAppDispatch();
   const [orderFilter, setOrderFilter] = useState<string>("all");
+  const [activeTab, setActiveTab] = useState<string>("orders");
+  const [reportsLoaded, setReportsLoaded] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [productImage, setProductImage] = useState<string>("");
   const [productImageFile, setProductImageFile] = useState<File | null>(null);
@@ -126,7 +154,10 @@ const Admin = () => {
   const [ordersPage, setOrdersPage] = useState(1);
   const [customersPage, setCustomersPage] = useState(1);
   const [productsPage, setProductsPage] = useState(1);
+  const [selectedOrder, setSelectedOrder] = useState<string | null>(null);
+  const [orderDetailsPage, setOrderDetailsPage] = useState(1);
   const itemsPerPage = 5;
+  const orderDetailsItemsPerPage = 3;
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editProductImageFile, setEditProductImageFile] = useState<File | null>(
@@ -134,6 +165,14 @@ const Admin = () => {
   );
   const [editProductImagePreview, setEditProductImagePreview] =
     useState<string>("");
+  // Confirmation dialog state for destructive actions
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    action: null | "removeCustomer" | "cancelOrder" | "deleteProduct";
+    id?: string;
+    name?: string;
+  }>({ open: false, action: null });
+  const [isConfirming, setIsConfirming] = useState(false);
   const [variantForm, setVariantForm] = useState<VariantFormState>(() =>
     createEmptyVariantForm()
   );
@@ -144,7 +183,26 @@ const Admin = () => {
     loading: usersLoading,
     error: usersError,
   } = useAppSelector((state) => state.user);
+  const {
+    orders,
+    currentOrder,
+    loading: ordersLoading,
+    error: ordersError,
+  } = useAppSelector((state) => (state as any).order);
+
   const { loading: variantLoading } = useAppSelector((state) => state.variant);
+
+  const {
+    totalRevenue,
+    averageTicket,
+    totalOrders,
+    deliveryRate,
+    salesByStatus,
+    topClients,
+    salesByPeriod,
+    loading: reportLoading,
+    error: reportError,
+  } = useAppSelector((state) => (state as any).report);
 
   const [productsLoaded, setProductsLoaded] = useState(false);
   const existingVariants: ProductVariation[] =
@@ -175,7 +233,6 @@ const Admin = () => {
       console.log("🔄 Admin: Iniciando carregamento de usuários");
       try {
         await dispatch(fetchUsers()).unwrap();
-        console.log("✅ Admin: Usuários carregados com sucesso");
       } catch (err) {
         console.error("❌ Admin: Erro ao carregar usuários:", err);
       }
@@ -183,6 +240,42 @@ const Admin = () => {
 
     loadUsers();
   }, [dispatch]);
+
+  // Carregar pedidos
+  useEffect(() => {
+    const loadOrders = async () => {
+      try {
+        await dispatch(fetchOrders()).unwrap();
+      } catch (err) {
+        console.error("❌ Admin: Erro ao carregar pedidos:", err);
+      }
+    };
+
+    loadOrders();
+  }, [dispatch]);
+
+  // Load report data when the Reports tab is opened (once)
+  useEffect(() => {
+    if (activeTab !== "reports" || reportsLoaded) return;
+
+    const loadReports = async () => {
+      try {
+        await dispatch(fetchTotalRevenue()).unwrap();
+        await dispatch(fetchAverageTicket()).unwrap();
+        await dispatch(fetchTotalOrders()).unwrap();
+        await dispatch(fetchDeliveryRate()).unwrap();
+        await dispatch(fetchSalesByStatus()).unwrap();
+        await dispatch(fetchTopClients()).unwrap();
+        await dispatch(fetchSalesByPeriod()).unwrap();
+        setReportsLoaded(true);
+      } catch (err) {
+        // errors handled in slice; mark loaded to avoid retry loop
+        setReportsLoaded(true);
+      }
+    };
+
+    loadReports();
+  }, [activeTab, reportsLoaded, dispatch]);
 
   const formatCustomerAddress = (address?: {
     street: string;
@@ -245,73 +338,40 @@ const Admin = () => {
       lastOrder: user.lastOrder || joinDate,
     };
   });
-  // Mock orders data (reusing from Profile page)
-  const allOrders = [
-    {
-      id: "001",
-      customerName: "Maria Silva",
-      date: "2024-03-15",
-      total: 299.9,
-      status: "pending",
-      items: 2,
-    },
-    {
-      id: "002",
-      customerName: "João Santos",
-      date: "2024-03-14",
-      total: 549.8,
-      status: "processing",
-      items: 3,
-    },
-    {
-      id: "003",
-      customerName: "Ana Costa",
-      date: "2024-03-13",
-      total: 199.9,
-      status: "delivered",
-      items: 1,
-    },
-    {
-      id: "004",
-      customerName: "Pedro Oliveira",
-      date: "2024-03-12",
-      total: 399.8,
-      status: "cancelled",
-      items: 2,
-    },
-    {
-      id: "005",
-      customerName: "Carla Ferreira",
-      date: "2024-03-11",
-      total: 899.9,
-      status: "delivered",
-      items: 4,
-    },
-    {
-      id: "006",
-      customerName: "Lucas Rodrigues",
-      date: "2024-03-10",
-      total: 249.9,
-      status: "pending",
-      items: 1,
-    },
-    {
-      id: "007",
-      customerName: "Juliana Alves",
-      date: "2024-03-09",
-      total: 679.8,
-      status: "processing",
-      items: 3,
-    },
-    {
-      id: "008",
-      customerName: "Roberto Santos",
-      date: "2024-03-08",
-      total: 349.9,
-      status: "delivered",
-      items: 2,
-    },
-  ];
+  // Use API orders or fallback to mock
+  const allOrders = orders.map((order: Order) => {
+    const userObj = typeof order.user === "object" ? order.user : null;
+    const userName = userObj?.name || "Cliente";
+    return {
+      id: order._id || order.id || "",
+      customerName: userName,
+      date: order.createdAt
+        ? new Date(order.createdAt).toLocaleDateString("pt-BR")
+        : "",
+      total: order.totalPrice || 0,
+      status: order.status || "pendente",
+      items: order.totalItems || order.products?.length || 0,
+      user: userObj, // Incluir objeto user completo para acesso aos dados do cliente
+      products: order.products, // Incluir produtos para o modal de detalhes
+    };
+  });
+
+  // Helper to normalize an order object (from currentOrder or API) into the view shape used above
+  const mapOrderToView = (o: any) => {
+    if (!o) return null;
+    const userObj = typeof o.user === "object" ? o.user : null;
+    return {
+      id: o._id || o.id || "",
+      customerName: userObj?.name || "Cliente",
+      date: o.createdAt || o.date || "",
+      total: o.totalPrice || o.total || 0,
+      status: o.status || "pendente",
+      items: o.totalItems || o.products?.length || 0,
+      user: userObj,
+      products: o.products || o.items || [],
+      raw: o,
+    };
+  };
 
   // Filter orders
   const filteredOrders = allOrders.filter((order) => {
@@ -359,40 +419,42 @@ const Admin = () => {
     productsPage * itemsPerPage
   );
 
-  // Sales statistics
-  const totalRevenue = allOrders.reduce((sum, order) => sum + order.total, 0);
-  const totalOrders = allOrders.length;
-  const averageOrderValue = totalRevenue / totalOrders;
-  const deliveredOrders = allOrders.filter(
-    (o) => o.status === "delivered"
+  // Sales statistics (computed fallback values)
+  const computedTotalRevenue = allOrders.reduce(
+    (sum, order) => sum + order.total,
+    0
+  );
+  const computedTotalOrders = allOrders.length;
+  const computedAverageOrderValue =
+    computedTotalRevenue / (computedTotalOrders || 1);
+  const computedDeliveredOrders = allOrders.filter(
+    (o) => o.status === "entregue"
   ).length;
-  const deliveryRate = (deliveredOrders / totalOrders) * 100;
+  const computedDeliveryRate =
+    (computedDeliveredOrders / (computedTotalOrders || 1)) * 100;
+
+  // Prefer server-provided report values when available
+  const totalOrdersValue =
+    typeof reportTotalOrders === "number"
+      ? reportTotalOrders
+      : computedTotalOrders;
+
+  // Prefer server-provided delivered orders count when available
+  const deliveredOrders =
+    Array.isArray(salesByStatus) && salesByStatus.length
+      ? salesByStatus.find(
+          (s: any) => s.status === "entregue" || s.status === "delivered"
+        )?.count ?? computedDeliveredOrders
+      : computedDeliveredOrders;
 
   const handleRemoveCustomer = async (customerId: string, name: string) => {
-    if (
-      !window.confirm(
-        `Tem certeza que deseja remover o cliente "${name}" da plataforma?`
-      )
-    ) {
-      return;
-    }
-
-    try {
-      await dispatch(deleteUser(customerId)).unwrap();
-      toast({
-        title: "Cliente removido",
-        description: `"${name}" foi removido com sucesso.`,
-      });
-    } catch (error) {
-      const message =
-        (error as { message?: string })?.message ||
-        "Erro ao remover cliente.";
-      toast({
-        title: "Erro",
-        description: message,
-        variant: "destructive",
-      });
-    }
+    // Open confirmation dialog instead of using window.confirm
+    setConfirmDialog({
+      open: true,
+      action: "removeCustomer",
+      id: customerId,
+      name,
+    });
   };
 
   // Reset pagination when filters change
@@ -610,31 +672,13 @@ const Admin = () => {
       });
       return;
     }
-
-    if (
-      !window.confirm(
-        `Tem certeza que deseja eliminar o produto "${product.name}"?`
-      )
-    ) {
-      return;
-    }
-
-    try {
-      await dispatch(deleteProduct({ productId })).unwrap();
-
-      toast({
-        title: "Produto eliminado",
-        description: `"${product.name}" foi removido do catálogo.`,
-      });
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Erro ao eliminar produto.";
-      toast({
-        title: "Erro",
-        description: message,
-        variant: "destructive",
-      });
-    }
+    // Open confirmation dialog for product deletion
+    setConfirmDialog({
+      open: true,
+      action: "deleteProduct",
+      id: productId,
+      name: product.name,
+    });
   };
 
   const getStatusBadge = (status: string) => {
@@ -645,19 +689,113 @@ const Admin = () => {
         variant: "default" | "secondary" | "destructive" | "outline";
       }
     > = {
+      pendente: { label: "Pendente", variant: "secondary" },
+      confirmado: { label: "Confirmado", variant: "default" },
+      enviado: { label: "Enviado", variant: "default" },
+      entregue: { label: "Entregue", variant: "outline" },
+      cancelado: { label: "Cancelado", variant: "destructive" },
+      // English aliases (in case some data or older code uses English keys)
       pending: { label: "Pendente", variant: "secondary" },
       processing: { label: "Confirmado", variant: "default" },
       delivered: { label: "Entregue", variant: "outline" },
       cancelled: { label: "Cancelado", variant: "destructive" },
     };
 
-    const config = statusMap[status] || statusMap.pending;
+    const config = statusMap[status] || statusMap.pendente;
     return <Badge variant={config.variant}>{config.label}</Badge>;
   };
 
   const getStatusCount = (status: string) => {
+    const normalize: Record<string, string> = {
+      pending: "pendente",
+      processing: "confirmado",
+      delivered: "entregue",
+      cancelled: "cancelado",
+    };
+
     if (status === "all") return allOrders.length;
-    return allOrders.filter((order) => order.status === status).length;
+    const norm = normalize[status] || status;
+    return allOrders.filter((order) => order.status === norm).length;
+  };
+
+  // Order status update helper
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+
+  const handleChangeOrderStatus = async (
+    orderId: string,
+    newStatus: string
+  ) => {
+    try {
+      setIsUpdatingStatus(true);
+      await dispatch(
+        updateOrder({ orderId, payload: { status: newStatus } })
+      ).unwrap();
+
+      toast({
+        title: "Status atualizado",
+        description: `Pedido atualizado para ${newStatus}`,
+      });
+
+      // Refresh orders list
+      await dispatch(fetchOrders()).unwrap();
+
+      // If the modal is open for this order, refresh the single order details too
+      if (selectedOrder === orderId) {
+        try {
+          await dispatch(fetchOrderById({ orderId })).unwrap();
+        } catch (e) {
+          // ignore single-order refresh failure, list is already refreshed
+        }
+      }
+
+      // close modal? keep it open but update content
+    } catch (err: any) {
+      toast({
+        title: "Erro",
+        description:
+          err?.message || "Não foi possível atualizar o status do pedido",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
+
+  // Wrap status change with confirmation for destructive actions
+  // Previously used window.confirm; now use the confirm Dialog below.
+  const handleConfirmDialog = async () => {
+    if (!confirmDialog.action) return;
+    setIsConfirming(true);
+    try {
+      if (confirmDialog.action === "removeCustomer" && confirmDialog.id) {
+        await dispatch(deleteUser(confirmDialog.id)).unwrap();
+        toast({
+          title: "Cliente removido",
+          description: `"${
+            confirmDialog.name || ""
+          }" foi removido com sucesso.`,
+        });
+      } else if (confirmDialog.action === "cancelOrder" && confirmDialog.id) {
+        await handleChangeOrderStatus(confirmDialog.id, "cancelado");
+      } else if (confirmDialog.action === "deleteProduct" && confirmDialog.id) {
+        await dispatch(deleteProduct({ productId: confirmDialog.id })).unwrap();
+        toast({
+          title: "Produto eliminado",
+          description: `"${
+            confirmDialog.name || ""
+          }" foi removido do catálogo.`,
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: "Erro",
+        description: err?.message || "Erro ao processar a ação",
+        variant: "destructive",
+      });
+    } finally {
+      setIsConfirming(false);
+      setConfirmDialog({ open: false, action: null });
+    }
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -697,10 +835,6 @@ const Admin = () => {
       form.append("gender", productData.gender);
       form.append("description", productData.description);
 
-      console.log(
-        "imageCover instanceof File:",
-        productImageFile instanceof File
-      );
       // Main image file (prefer file; fallback to nothing)
       if (productImageFile) {
         form.append("imageCover", productImageFile);
@@ -742,7 +876,12 @@ const Admin = () => {
             </p>
           </div>
 
-          <Tabs defaultValue="orders" className="w-full">
+          <Tabs
+            value={activeTab}
+            onValueChange={setActiveTab}
+            defaultValue="orders"
+            className="w-full"
+          >
             <TabsList className="grid w-full grid-cols-5 h-auto">
               <TabsTrigger value="orders" className="gap-2">
                 <ShoppingBag className="h-4 w-4" />
@@ -791,7 +930,6 @@ const Admin = () => {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  {/* Status Filter Pills */}
                   <div className="flex flex-wrap gap-2">
                     <Button
                       variant={orderFilter === "all" ? "default" : "outline"}
@@ -802,39 +940,39 @@ const Admin = () => {
                     </Button>
                     <Button
                       variant={
-                        orderFilter === "pending" ? "default" : "outline"
+                        orderFilter === "pendente" ? "default" : "outline"
                       }
                       size="sm"
-                      onClick={() => handleOrderFilterChange("pending")}
+                      onClick={() => handleOrderFilterChange("pendente")}
                     >
-                      Pendentes ({getStatusCount("pending")})
+                      Pendentes ({getStatusCount("pendente")})
                     </Button>
                     <Button
                       variant={
-                        orderFilter === "processing" ? "default" : "outline"
+                        orderFilter === "confirmado" ? "default" : "outline"
                       }
                       size="sm"
-                      onClick={() => handleOrderFilterChange("processing")}
+                      onClick={() => handleOrderFilterChange("confirmado")}
                     >
-                      Confirmados ({getStatusCount("processing")})
+                      Confirmados ({getStatusCount("confirmado")})
                     </Button>
                     <Button
                       variant={
-                        orderFilter === "delivered" ? "default" : "outline"
+                        orderFilter === "enviado" ? "default" : "outline"
                       }
                       size="sm"
-                      onClick={() => handleOrderFilterChange("delivered")}
+                      onClick={() => handleOrderFilterChange("enviado")}
                     >
-                      Entregues ({getStatusCount("delivered")})
+                      Entregues ({getStatusCount("enviado")})
                     </Button>
                     <Button
                       variant={
-                        orderFilter === "cancelled" ? "default" : "outline"
+                        orderFilter === "cancelado" ? "default" : "outline"
                       }
                       size="sm"
-                      onClick={() => handleOrderFilterChange("cancelled")}
+                      onClick={() => handleOrderFilterChange("cancelado")}
                     >
-                      Cancelados ({getStatusCount("cancelled")})
+                      Cancelados ({getStatusCount("cancelado")})
                     </Button>
                   </div>
 
@@ -851,7 +989,7 @@ const Admin = () => {
                           <div className="flex-1">
                             <div className="flex items-center gap-3 mb-2">
                               <h3 className="font-semibold text-foreground">
-                                Pedido #{order.id}
+                                Pedido #{order.id?.slice(-8)}
                               </h3>
                               {getStatusBadge(order.status)}
                             </div>
@@ -872,7 +1010,11 @@ const Admin = () => {
                                 {order.total.toFixed(2)} MZN
                               </p>
                             </div>
-                            <Button variant="outline" size="sm">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setSelectedOrder(order.id)}
+                            >
                               Ver Detalhes
                             </Button>
                           </div>
@@ -983,7 +1125,9 @@ const Admin = () => {
                               <h3 className="font-semibold text-foreground">
                                 {customer.name}
                               </h3>
-                              <Badge variant="outline">ID: {customer.id}</Badge>
+                              <Badge variant="outline">
+                                ID: {customer.id?.slice(-8)}
+                              </Badge>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-muted-foreground">
                               <div className="flex items-center gap-2">
@@ -1044,7 +1188,7 @@ const Admin = () => {
                                           ID do Cliente
                                         </Label>
                                         <p className="font-semibold">
-                                          {selectedCustomer.id}
+                                          {selectedCustomer.id?.slice(-8)}
                                         </p>
                                       </div>
                                       <div>
@@ -1254,11 +1398,19 @@ const Admin = () => {
                     </CardHeader>
                     <CardContent>
                       <div className="text-2xl font-bold">
-                        {totalRevenue.toFixed(2)} MZN
+                        {reportLoading ? (
+                          <Skeleton className="h-6 w-24" />
+                        ) : (
+                          `${totalRevenue} MZN`
+                        )}
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        De {totalOrders} pedidos
-                      </p>
+                      {reportLoading ? (
+                        <Skeleton className="h-4 w-32 mt-2" />
+                      ) : (
+                        <p className="text-xs text-muted-foreground">
+                          De {totalOrders} pedidos
+                        </p>
+                      )}
                     </CardContent>
                   </Card>
 
@@ -1271,7 +1423,11 @@ const Admin = () => {
                     </CardHeader>
                     <CardContent>
                       <div className="text-2xl font-bold">
-                        {averageOrderValue.toFixed(2)} MZN
+                        {reportLoading ? (
+                          <Skeleton className="h-6 w-20" />
+                        ) : (
+                          `${averageTicket} MZN`
+                        )}
                       </div>
                       <p className="text-xs text-muted-foreground">
                         Por pedido
@@ -1287,10 +1443,20 @@ const Admin = () => {
                       <ShoppingBag className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                      <div className="text-2xl font-bold">{totalOrders}</div>
-                      <p className="text-xs text-muted-foreground">
-                        {deliveredOrders} entregues
-                      </p>
+                      <div className="text-2xl font-bold">
+                        {reportLoading ? (
+                          <Skeleton className="h-6 w-12" />
+                        ) : (
+                          totalOrdersValue
+                        )}
+                      </div>
+                      {reportLoading ? (
+                        <Skeleton className="h-4 w-20 mt-2" />
+                      ) : (
+                        <p className="text-xs text-muted-foreground">
+                          {deliveredOrders} entregues
+                        </p>
+                      )}
                     </CardContent>
                   </Card>
 
@@ -1303,7 +1469,11 @@ const Admin = () => {
                     </CardHeader>
                     <CardContent>
                       <div className="text-2xl font-bold">
-                        {deliveryRate.toFixed(1)}%
+                        {reportLoading ? (
+                          <Skeleton className="h-6 w-12" />
+                        ) : (
+                          `${deliveryRate}%`
+                        )}
                       </div>
                       <p className="text-xs text-muted-foreground">
                         De todos os pedidos
@@ -1337,43 +1507,63 @@ const Admin = () => {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {[
-                          "pending",
-                          "processing",
-                          "delivered",
-                          "cancelled",
-                        ].map((status) => {
-                          const ordersWithStatus = allOrders.filter(
-                            (o) => o.status === status
-                          );
-                          const total = ordersWithStatus.reduce(
-                            (sum, o) => sum + o.total,
-                            0
-                          );
-                          const percentage =
-                            (ordersWithStatus.length / totalOrders) * 100;
-                          const statusLabels: Record<string, string> = {
-                            pending: "Pendente",
-                            processing: "Confirmado",
-                            delivered: "Entregue",
-                            cancelled: "Cancelado",
-                          };
+                        {salesByStatus && salesByStatus.length > 0
+                          ? salesByStatus.map((s) => (
+                              <TableRow key={s.status}>
+                                <TableCell>
+                                  {getStatusBadge(s.status)}
+                                </TableCell>
+                                <TableCell className="text-right font-medium">
+                                  {s.count}
+                                </TableCell>
+                                <TableCell className="text-right font-medium">
+                                  {s.total.toFixed(2)} MZN
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  {(
+                                    (s.count / (totalOrdersValue || 1)) *
+                                    100
+                                  ).toFixed(1)}
+                                  %
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          : [
+                              "pendente",
+                              "confirmado",
+                              "enviado",
+                              "entregue",
+                              "cancelado",
+                            ].map((status) => {
+                              const ordersWithStatus = allOrders.filter(
+                                (o) => o.status === status
+                              );
+                              const total = ordersWithStatus.reduce(
+                                (sum, o) => sum + o.total,
+                                0
+                              );
+                              const percentage =
+                                (ordersWithStatus.length /
+                                  (totalOrdersValue || 1)) *
+                                100;
 
-                          return (
-                            <TableRow key={status}>
-                              <TableCell>{getStatusBadge(status)}</TableCell>
-                              <TableCell className="text-right font-medium">
-                                {ordersWithStatus.length}
-                              </TableCell>
-                              <TableCell className="text-right font-medium">
-                                {total.toFixed(2)} MZN
-                              </TableCell>
-                              <TableCell className="text-right">
-                                {percentage.toFixed(1)}%
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
+                              return (
+                                <TableRow key={status}>
+                                  <TableCell>
+                                    {getStatusBadge(status)}
+                                  </TableCell>
+                                  <TableCell className="text-right font-medium">
+                                    {ordersWithStatus.length}
+                                  </TableCell>
+                                  <TableCell className="text-right font-medium">
+                                    {total.toFixed(2)} MZN
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    {percentage.toFixed(1)}%
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
                       </TableBody>
                     </Table>
                   </CardContent>
@@ -1402,27 +1592,46 @@ const Admin = () => {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {customersFromApi
-                          .sort((a, b) => b.totalSpent - a.totalSpent)
-                          .slice(0, 5)
-                          .map((customer) => (
-                            <TableRow key={customer.id}>
-                              <TableCell className="font-medium">
-                                {customer.name}
-                              </TableCell>
-                              <TableCell className="text-right">
-                                {customer.totalOrders}
-                              </TableCell>
-                              <TableCell className="text-right font-semibold text-accent">
-                                {customer.totalSpent.toFixed(2)} MZN
-                              </TableCell>
-                              <TableCell className="text-right">
-                                {new Date(
-                                  customer.lastOrder
-                                ).toLocaleDateString("pt-BR")}
-                              </TableCell>
-                            </TableRow>
-                          ))}
+                        {topClients && topClients.length > 0
+                          ? topClients.slice(0, 5).map((c, idx) => (
+                              <TableRow key={c.id || `topClient-${idx}`}>
+                                <TableCell className="font-medium">
+                                  {c.clientName}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  {c.totalOrders}
+                                </TableCell>
+                                <TableCell className="text-right font-semibold text-accent">
+                                  {c.totalSpent.toFixed(2)} MZN
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  {c.lastOrder}
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          : customersFromApi
+                              .sort((a, b) => b.totalSpent - a.totalSpent)
+                              .slice(0, 5)
+                              .map((customer, idx) => (
+                                <TableRow
+                                  key={customer.id || `customer-${idx}`}
+                                >
+                                  <TableCell className="font-medium">
+                                    {customer.name}
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    {customer.totalOrders}
+                                  </TableCell>
+                                  <TableCell className="text-right font-semibold text-accent">
+                                    {customer.totalSpent.toFixed(2)} MZN
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    {new Date(
+                                      customer.lastOrder
+                                    ).toLocaleDateString("pt-BR")}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
                       </TableBody>
                     </Table>
                   </CardContent>
@@ -1827,6 +2036,291 @@ const Admin = () => {
         </div>
       </div>
 
+      {/* Order Details Dialog */}
+      <Dialog
+        open={!!selectedOrder}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedOrder(null);
+            setOrderDetailsPage(1);
+          }
+        }}
+      >
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Detalhes do Pedido #{selectedOrder}</DialogTitle>
+            <DialogDescription>
+              Confira os produtos do seu pedido
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedOrder &&
+            (() => {
+              let order: any = null;
+              if (
+                currentOrder &&
+                (currentOrder._id || currentOrder.id) === selectedOrder
+              ) {
+                order = mapOrderToView(currentOrder);
+              } else {
+                order = allOrders.find((o) => o.id === selectedOrder);
+              }
+              if (!order || !order.products) return null;
+
+              const totalProductPages = Math.ceil(
+                order.products.length / orderDetailsItemsPerPage || 1
+              );
+              const displayedProducts = order.products.slice(
+                (orderDetailsPage - 1) * orderDetailsItemsPerPage,
+                orderDetailsPage * orderDetailsItemsPerPage
+              );
+
+              return (
+                <div className="space-y-6">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <p className="text-sm text-muted-foreground">
+                        Data do Pedido
+                      </p>
+                      <p className="font-semibold">
+                        {new Date(order.date).toLocaleDateString("pt-BR")}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {getStatusBadge(order.status)}
+
+                      {/* Status action buttons */}
+                      <div className="flex items-center gap-2">
+                        {
+                          // possible transitions
+                        }
+                        {(() => {
+                          const transitions: Record<
+                            string,
+                            { label: string; value: string }[]
+                          > = {
+                            pendente: [
+                              { label: "Confirmar", value: "confirmado" },
+                              { label: "Cancelar", value: "cancelado" },
+                            ],
+                            confirmado: [
+                              {
+                                label: "Marcar como Enviado",
+                                value: "enviado",
+                              },
+                              { label: "Cancelar", value: "cancelado" },
+                            ],
+                            enviado: [
+                              {
+                                label: "Marcar como Entregue",
+                                value: "entregue",
+                              },
+                            ],
+                            entregue: [],
+                            cancelado: [],
+                          };
+                          const list = transitions[order.status] || [];
+                          return list.map((t) => (
+                            <Button
+                              key={t.value}
+                              size="sm"
+                              variant="outline"
+                              disabled={isUpdatingStatus}
+                              onClick={() => {
+                                if (t.value === "cancelado") {
+                                  setConfirmDialog({
+                                    open: true,
+                                    action: "cancelOrder",
+                                    id: order.id,
+                                  });
+                                } else {
+                                  handleChangeOrderStatus(order.id, t.value);
+                                }
+                              }}
+                            >
+                              {t.label}
+                            </Button>
+                          ));
+                        })()}
+                      </div>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  <div className="space-y-4">
+                    <h3 className="font-semibold text-foreground">
+                      Produtos ({order.products.length})
+                    </h3>
+                    {displayedProducts.map((item, index) => {
+                      const product = item.product || {};
+                      return (
+                        <div
+                          key={item._id || index}
+                          className="flex gap-4 p-4 border border-border rounded-lg"
+                        >
+                          <img
+                            src={
+                              product.imageCover ||
+                              product.images?.[0] ||
+                              "https://i.pinimg.com/1200x/a7/2f/db/a72fdbea7e86c3fb70a17c166a36407b.jpg"
+                            }
+                            alt={product.name}
+                            className="w-20 h-20 object-cover rounded-md"
+                            onError={(e) => {
+                              e.currentTarget.src =
+                                "https://i.pinimg.com/1200x/a7/2f/db/a72fdbea7e86c3fb70a17c166a36407b.jpg";
+                            }}
+                          />
+                          <div className="flex-1">
+                            <h4 className="font-semibold text-foreground">
+                              {product.name || "Produto não encontrado"}
+                            </h4>
+                            <p className="text-sm text-muted-foreground">
+                              {product.category?.name ||
+                                product.category ||
+                                "Sem categoria"}
+                            </p>
+                            {product.color && (
+                              <p className="text-sm text-muted-foreground">
+                                Cor: {product.color}
+                              </p>
+                            )}
+                            {product.size && (
+                              <p className="text-sm text-muted-foreground">
+                                Tamanho: {product.size}
+                              </p>
+                            )}
+                            <p className="text-sm text-muted-foreground mt-1">
+                              Quantidade: {item.quantity}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-bold text-foreground">
+                              {(item.price * item.quantity).toFixed(2)} MZN
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {item.price.toFixed(2)} MZN cada
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {totalProductPages > 1 && (
+                      <Pagination>
+                        <PaginationContent>
+                          <PaginationItem>
+                            <PaginationPrevious
+                              onClick={() =>
+                                setOrderDetailsPage((prev) =>
+                                  Math.max(1, prev - 1)
+                                )
+                              }
+                              className={
+                                orderDetailsPage === 1
+                                  ? "pointer-events-none opacity-50"
+                                  : "cursor-pointer"
+                              }
+                            />
+                          </PaginationItem>
+                          {Array.from(
+                            { length: totalProductPages },
+                            (_, i) => i + 1
+                          ).map((page) => (
+                            <PaginationItem key={page}>
+                              <PaginationLink
+                                onClick={() => setOrderDetailsPage(page)}
+                                isActive={orderDetailsPage === page}
+                                className="cursor-pointer"
+                              >
+                                {page}
+                              </PaginationLink>
+                            </PaginationItem>
+                          ))}
+                          <PaginationItem>
+                            <PaginationNext
+                              onClick={() =>
+                                setOrderDetailsPage((prev) =>
+                                  Math.min(totalProductPages, prev + 1)
+                                )
+                              }
+                              className={
+                                orderDetailsPage === totalProductPages
+                                  ? "pointer-events-none opacity-50"
+                                  : "cursor-pointer"
+                              }
+                            />
+                          </PaginationItem>
+                        </PaginationContent>
+                      </Pagination>
+                    )}
+                  </div>
+
+                  <Separator />
+
+                  <div className="flex justify-between items-center">
+                    <span className="text-lg font-semibold">Total</span>
+                    <span className="text-2xl font-bold text-accent">
+                      {order.total.toFixed(2)} MZN
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirmation Dialog for destructive actions (remove customer, cancel order) */}
+      <Dialog
+        open={confirmDialog.open}
+        onOpenChange={(open) => setConfirmDialog((prev) => ({ ...prev, open }))}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {confirmDialog.action === "removeCustomer"
+                ? "Confirmar remoção"
+                : "Confirmar cancelamento"}
+            </DialogTitle>
+            <DialogDescription>
+              {confirmDialog.action === "removeCustomer" ? (
+                <>
+                  Tem certeza que deseja remover o cliente "{confirmDialog.name}
+                  "?
+                </>
+              ) : (
+                <>
+                  Tem certeza que deseja cancelar o pedido #{confirmDialog.id}?
+                  Esta ação não pode ser desfeita.
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 pt-4">
+            <Button
+              variant="outline"
+              onClick={() => setConfirmDialog({ open: false, action: null })}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant={
+                confirmDialog.action === "removeCustomer"
+                  ? "destructive"
+                  : "default"
+              }
+              onClick={handleConfirmDialog}
+              disabled={isConfirming || isUpdatingStatus}
+            >
+              {isConfirming || isUpdatingStatus
+                ? "Processando..."
+                : "Confirmar"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Edit Product Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -2109,6 +2603,25 @@ const Admin = () => {
 
               <Separator />
 
+              <div className="flex gap-3 justify-end pt-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setIsEditDialogOpen(false);
+                    setEditingProduct(null);
+                    setEditProductImageFile(null);
+                    setEditProductImagePreview("");
+                    resetVariantFormState();
+                  }}
+                >
+                  Cancelar
+                </Button>
+                <Button type="submit">
+                  <Pencil className="w-4 h-4 mr-2" />
+                  Salvar Alterações
+                </Button>
+              </div>
               <div className="flex gap-3 justify-end pt-4">
                 <Button
                   type="button"

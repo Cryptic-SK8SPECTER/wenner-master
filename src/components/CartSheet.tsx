@@ -1,3 +1,4 @@
+import { useState, useMemo, useEffect } from "react";
 import { Minus, Plus, X } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import {
@@ -8,7 +9,9 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
+import { useAppDispatch, useAppSelector } from "@/app/hooks";
+import { createOrder } from "@/features/order/orderActions";
+import { useToast } from "@/hooks/use-toast";
 
 interface CartSheetProps {
   open: boolean;
@@ -16,8 +19,65 @@ interface CartSheetProps {
 }
 
 export const CartSheet = ({ open, onOpenChange }: CartSheetProps) => {
+  // Redux hooks
+  const dispatch = useAppDispatch();
+  const { loading, error } = useAppSelector((state) => state.order);
+  const { toast } = useToast();
+
   const { items, removeItem, updateQuantity, totalPrice, clearCart } =
     useCart();
+
+  const handleCheckout = async () => {
+    if (!items || items.length === 0) {
+      toast({
+        title: "Carrinho vazio",
+        description: "Adicione produtos antes de finalizar.",
+      });
+      return;
+    }
+
+    // Reconhecer priceDiscount: se o preço do item for menor que o preço original,
+    // significa que há desconto aplicado. O priceDiscount é o preço final após desconto.
+    const payload = {
+      products: items.map((item) => ({
+        product: item.id,
+        quantity: item.quantity,
+        price: item.price, // Este é o priceDiscount (preço com desconto já aplicado)
+        color: item.color,
+        size: item.size,
+      })),
+      discount: 0, // Desconto adicional (cupom) se houver
+      paymentMethod: "cartao",
+      totalPrice: totalPrice,
+      notes: "",
+    };
+
+    try {
+      const resultAction = await dispatch(createOrder(payload as any));
+      // handle both fulfilled and rejected shapes
+      // RTK returns an action; check for `payload` and `error`
+      if (createOrder.fulfilled.match(resultAction)) {
+        toast({
+          title: "Pedido realizado",
+          description: "Seu pedido foi criado com sucesso.",
+        });
+        clearCart();
+        onOpenChange(false);
+      } else {
+        const apiPayload: any = (resultAction as any).payload;
+        const msg =
+          apiPayload?.message ||
+          (resultAction as any).error?.message ||
+          "Erro ao criar pedido";
+        toast({ title: "Erro", description: msg });
+      }
+    } catch (err: any) {
+      toast({
+        title: "Erro",
+        description: err?.message || "Erro ao criar pedido",
+      });
+    }
+  };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -36,7 +96,7 @@ export const CartSheet = ({ open, onOpenChange }: CartSheetProps) => {
               <div className="space-y-4">
                 {items.map((item) => (
                   <div
-                    key={item.id}
+                    key={item.key}
                     className="flex gap-4 py-4 border-b border-border"
                   >
                     <img
@@ -55,16 +115,14 @@ export const CartSheet = ({ open, onOpenChange }: CartSheetProps) => {
                           <div className="flex gap-2 mt-1 text-xs text-muted-foreground">
                             {item.color && (
                               <span className="flex items-center gap-1">
-                                Cor: 
+                                Cor:
                                 <div
                                   className="w-3 h-3 rounded-full border"
                                   style={{ backgroundColor: item.color }}
                                 />
-                                
                               </span>
                             )}
-                            |
-                            {item.size && <span>Tamanho: {item.size}</span>}
+                            |{item.size && <span>Tamanho: {item.size}</span>}
                           </div>
                         </div>
 
@@ -72,7 +130,7 @@ export const CartSheet = ({ open, onOpenChange }: CartSheetProps) => {
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8"
-                          onClick={() => removeItem(item.id)}
+                          onClick={() => removeItem(item.key)}
                         >
                           <X className="h-4 w-4" />
                         </Button>
@@ -86,7 +144,7 @@ export const CartSheet = ({ open, onOpenChange }: CartSheetProps) => {
                           size="icon"
                           className="h-8 w-8"
                           onClick={() =>
-                            updateQuantity(item.id, item.quantity - 1)
+                            updateQuantity(item.key, item.quantity - 1)
                           }
                         >
                           <Minus className="h-3 w-3" />
@@ -97,7 +155,7 @@ export const CartSheet = ({ open, onOpenChange }: CartSheetProps) => {
                           size="icon"
                           className="h-8 w-8"
                           onClick={() =>
-                            updateQuantity(item.id, item.quantity + 1)
+                            updateQuantity(item.key, item.quantity + 1)
                           }
                         >
                           <Plus className="h-3 w-3" />
@@ -114,8 +172,13 @@ export const CartSheet = ({ open, onOpenChange }: CartSheetProps) => {
                 <span>Total</span>
                 <span>{totalPrice.toFixed(2)} MZN</span>
               </div>
-              <Button className="w-full" size="lg">
-                Finalizar Compra
+              <Button
+                className="w-full"
+                size="lg"
+                onClick={handleCheckout}
+                disabled={loading}
+              >
+                {loading ? "Processando..." : "Finalizar Compra"}
               </Button>
               <Button variant="outline" className="w-full" onClick={clearCart}>
                 Limpar Carrinho

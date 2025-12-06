@@ -4,6 +4,8 @@ import userReducer from "../features/user/userSlice";
 import productReducer from "../features/product/productSlice";
 import variantReducer from "../features/variants/variantSlice";
 import favoriteReducer from "../features/favorite/favoriteSlice";
+import orderReducer from "../features/order/orderSlice";
+import reportReducer from "../features/report/reportSlice";
 // import themeReducer from "./slices/themeSlice";
 
 export const store = configureStore({
@@ -12,6 +14,8 @@ export const store = configureStore({
     product: productReducer,
     variant: variantReducer,
     favorites: favoriteReducer,
+    order: orderReducer,
+   report: reportReducer,
   },
 });
 

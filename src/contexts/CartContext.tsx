@@ -1,7 +1,10 @@
 import { createContext, useContext, useState, ReactNode } from "react";
 
 interface CartItem {
+  // product id
   id: string;
+  // unique key combining id/color/size to distinguish variants
+  key: string;
   name: string;
   price: number;
   image: string;
@@ -25,29 +28,34 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 export const CartProvider = ({ children }: { children: ReactNode }) => {
   const [items, setItems] = useState<CartItem[]>([]);
 
-  const addItem = (item: Omit<CartItem, "quantity">) => {
+  // Generate unique key combining product ID, color, and size
+  const getItemKey = (item: Omit<CartItem, "quantity" | "key">) => {
+    return `${item.id}-${item.color || ""}-${item.size || ""}`;
+  };
+
+  const addItem = (item: Omit<CartItem, "quantity" | "key">) => {
     setItems((prev) => {
-      const existingItem = prev.find((i) => i.id === item.id);
+      const itemKey = getItemKey(item);
+      const existingItem = prev.find((i) => i.key === itemKey);
       if (existingItem) {
         return prev.map((i) =>
-          i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i
+          i.key === itemKey ? { ...i, quantity: i.quantity + 1 } : i
         );
       }
-      return [...prev, { ...item, quantity: 1 }];
+      return [...prev, { ...item, quantity: 1, key: itemKey } as CartItem];
     });
   };
-
-  const removeItem = (id: string) => {
-    setItems((prev) => prev.filter((item) => item.id !== id));
+  const removeItem = (itemKey: string) => {
+    setItems((prev) => prev.filter((item) => item.key !== itemKey));
   };
 
-  const updateQuantity = (id: string, quantity: number) => {
+  const updateQuantity = (itemKey: string, quantity: number) => {
     if (quantity <= 0) {
-      removeItem(id);
+      removeItem(itemKey);
       return;
     }
     setItems((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, quantity } : item))
+      prev.map((item) => (item.key === itemKey ? { ...item, quantity } : item))
     );
   };
 

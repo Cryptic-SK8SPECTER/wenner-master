@@ -10,7 +10,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { useRequireAuth } from "@/hooks/auth/useRequireAuth";
-import { fetchProductBySlug, fetchRelatedProducts } from "../features/product/productActions";
+import {
+  fetchProductBySlug,
+  fetchRelatedProducts,
+} from "../features/product/productActions";
 import { clearCurrentProduct } from "../features/product/productSlice";
 import {
   ArrowLeft,
@@ -179,7 +182,6 @@ const ProductDetails = () => {
 
   const product = currentProduct;
 
-
   const productImages = [
     ...(product.variants?.map((variant) => variant.image) || []),
     ...(product.images || []),
@@ -215,7 +217,7 @@ const ProductDetails = () => {
   // Handlers com sincronização automática
   const handleColorSelect = (color: string) => {
     setSelectedColor(color);
-    
+
     // Se um tamanho já está selecionado, verificar se ainda é válido para a nova cor
     if (selectedSize) {
       const validSizesForColor = getAvailableSizesForColor(color);
@@ -227,7 +229,7 @@ const ProductDetails = () => {
 
   const handleSizeSelect = (size: string) => {
     setSelectedSize(size);
-    
+
     // Se uma cor já está selecionada, verificar se ainda é válida para o novo tamanho
     if (selectedColor) {
       const validColorsForSize = getAvailableColorsForSize(size);
@@ -486,7 +488,8 @@ const ProductDetails = () => {
                       alt={`${product.name} ${idx + 1}`}
                       className="w-full h-full object-cover"
                       onError={(e) => {
-                        e.currentTarget.src = "https://i.pinimg.com/1200x/a7/2f/db/a72fdbea7e86c3fb70a17c166a36407b.jpg";
+                        e.currentTarget.src =
+                          "https://i.pinimg.com/1200x/a7/2f/db/a72fdbea7e86c3fb70a17c166a36407b.jpg";
                       }}
                     />
                   </button>
@@ -594,7 +597,9 @@ const ProductDetails = () => {
 
             {/* Color Selection */}
             <div>
-              <h3 className="font-semibold mb-3">Cor: {selectedColor || "Selecione"}</h3>
+              <h3 className="font-semibold mb-3">
+                Cor: {selectedColor || "Selecione"}
+              </h3>
               <div className="flex gap-2">
                 {availableColors.map((color) => (
                   <button
@@ -617,7 +622,9 @@ const ProductDetails = () => {
 
             {/* Size Selection */}
             <div>
-              <h3 className="font-semibold mb-3">Tamanho: {selectedSize || "Selecione"}</h3>
+              <h3 className="font-semibold mb-3">
+                Tamanho: {selectedSize || "Selecione"}
+              </h3>
               <div className="flex gap-2 flex-wrap">
                 {availableSizes.map((size) => (
                   <button
@@ -635,6 +642,20 @@ const ProductDetails = () => {
                 ))}
               </div>
             </div>
+
+            {/* Reset Selection Button */}
+            {(selectedColor || selectedSize) && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setSelectedColor("");
+                  setSelectedSize("");
+                }}
+                className="w-full"
+              >
+                Limpar Seleção
+              </Button>
+            )}
 
             {/* Quantity */}
             <div>

@@ -62,14 +62,26 @@ export const FilterSidebar = ({
   filters,
   onFilterChange,
 }: FilterSidebarProps) => {
+  const colorNameToHex: Record<string, string> = {
+    Preto: "#000000",
+    Branco: "#FFFFFF",
+    Azul: "#0000FF",
+    Vermelho: "#FF0000",
+    "Azul Marinho": "#000080",
+    Cinza: "#808080",
+    Bege: "#F5DEB3",
+  };
   const handleCheckboxChange = (
     key: keyof Omit<Filters, "priceRange" | "rating">,
     value: string
   ) => {
+    // For colors, store hex values instead of display names
+    const valueToUse =
+      key === "colors" ? colorNameToHex[value] ?? value : value;
     const currentValues = filters[key];
-    const newValues = currentValues.includes(value)
-      ? currentValues.filter((v) => v !== value)
-      : [...currentValues, value];
+    const newValues = currentValues.includes(valueToUse)
+      ? currentValues.filter((v) => v !== valueToUse)
+      : [...currentValues, valueToUse];
 
     onFilterChange({ ...filters, [key]: newValues });
   };
@@ -110,22 +122,57 @@ export const FilterSidebar = ({
             <ChevronDown className="w-4 h-4 transition-transform ui-expanded:rotate-180" />
           </CollapsibleTrigger>
           <CollapsibleContent className="space-y-2">
-            {section.options?.map((option) => (
-              <label
-                key={option}
-                className="flex items-center gap-2 py-1.5 cursor-pointer group"
-              >
-                <input
-                  type="checkbox"
-                  checked={filters[section.key].includes(option)}
-                  onChange={() => handleCheckboxChange(section.key, option)}
-                  className="w-4 h-4 rounded border-border text-accent focus:ring-accent focus:ring-offset-0"
-                />
-                <span className="text-sm text-sidebar-foreground group-hover:text-sidebar-primary transition-colors">
-                  {option}
-                </span>
-              </label>
-            ))}
+            {section.key === "colors"
+              ? section.options?.map((option) => {
+                  const hex = colorNameToHex[option] ?? option;
+                  const checked = filters.colors.includes(hex);
+                  return (
+                    <label
+                      key={option}
+                      title={option}
+                      className="flex items-center gap-3 py-2 cursor-pointer group w-full"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() =>
+                          handleCheckboxChange(section.key, option)
+                        }
+                        className="sr-only"
+                        aria-label={`${option} color`}
+                      />
+                      <div className="flex items-center justify-between w-full">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`w-6 h-6 rounded-full border border-border transition-all ${
+                              checked ? "ring-2 ring-accent" : ""
+                            }`}
+                            style={{ backgroundColor: hex }}
+                          />
+                          <span className="text-sm text-sidebar-foreground group-hover:text-sidebar-primary transition-colors">
+                            {option}
+                          </span>
+                        </div>
+                      </div>
+                    </label>
+                  );
+                })
+              : section.options?.map((option) => (
+                  <label
+                    key={option}
+                    className="flex items-center gap-2 py-1.5 cursor-pointer group"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={filters[section.key].includes(option)}
+                      onChange={() => handleCheckboxChange(section.key, option)}
+                      className="w-4 h-4 rounded border-border text-accent focus:ring-accent focus:ring-offset-0"
+                    />
+                    <span className="text-sm text-sidebar-foreground group-hover:text-sidebar-primary transition-colors">
+                      {option}
+                    </span>
+                  </label>
+                ))}
           </CollapsibleContent>
         </Collapsible>
       ))}
