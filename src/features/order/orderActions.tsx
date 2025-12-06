@@ -1,0 +1,204 @@
+import { createAsyncThunk } from "@reduxjs/toolkit";
+import { customFetch } from "@/lib/utils";
+import {
+  CreateOrderPayload,
+  UpdateOrderPayload,
+  Order,
+  ApiResponse,
+} from "./orderTypes";
+
+const getErrorMessage = (error: unknown): string => {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return "An unknown error occurred";
+};
+
+/**
+ * Create a new order
+ * POST /api/v1/orders
+ */
+export const createOrder = createAsyncThunk<
+  Order,
+  CreateOrderPayload,
+  {
+    rejectValue: ApiResponse;
+  }
+>("order/createOrder", async (payload, { rejectWithValue }) => {
+  try {
+    const token = localStorage.getItem("token");
+    const response = await customFetch.post("/api/v1/orders", payload, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+
+    return response.data.data || response.data;
+  } catch (error) {
+    if (error instanceof Error && "response" in error) {
+      const axiosError = error as any;
+      return rejectWithValue(
+        axiosError.response?.data || {
+          status: "error",
+          message: getErrorMessage(error),
+        }
+      );
+    }
+    return rejectWithValue({
+      status: "error",
+      message: getErrorMessage(error),
+    });
+  }
+});
+
+/**
+ * Fetch all orders for the current user
+ * GET /api/v1/orders
+ */
+export const fetchOrders = createAsyncThunk<
+  Order[],
+  void,
+  {
+    rejectValue: ApiResponse;
+  }
+>("order/fetchOrders", async (_, { rejectWithValue }) => {
+  try {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      return rejectWithValue({ status: "fail", message: "Not authenticated" });
+    }
+
+    const response = await customFetch.get("/api/v1/orders", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    // Normalize response: extract orders array from various possible response shapes
+    let orders: Order[] = [];
+    if (Array.isArray(response.data?.data?.data)) {
+      orders = response.data.data.data;
+    }
+
+    return orders;
+  } catch (error) {
+    if (error instanceof Error && "response" in error) {
+      const axiosError = error as any;
+      return rejectWithValue(
+        axiosError.response?.data || {
+          status: "error",
+          message: getErrorMessage(error),
+        }
+      );
+    }
+    return rejectWithValue({
+      status: "error",
+      message: getErrorMessage(error),
+    });
+  }
+});
+
+/**
+ * Fetch a single order by ID
+ * GET /api/v1/orders/:id
+ */
+export const fetchOrderById = createAsyncThunk<
+  Order,
+  string,
+  {
+    rejectValue: ApiResponse;
+  }
+>("order/fetchOrderById", async (orderId, { rejectWithValue }) => {
+  try {
+    const token = localStorage.getItem("token");
+    const response = await customFetch.get(`/api/v1/orders/${orderId}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+
+    return response.data.data || response.data;
+  } catch (error) {
+    if (error instanceof Error && "response" in error) {
+      const axiosError = error as any;
+      return rejectWithValue(
+        axiosError.response?.data || {
+          status: "error",
+          message: getErrorMessage(error),
+        }
+      );
+    }
+    return rejectWithValue({
+      status: "error",
+      message: getErrorMessage(error),
+    });
+  }
+});
+
+/**
+ * Update an order
+ * PATCH /api/v1/orders/:id
+ */
+export const updateOrder = createAsyncThunk<
+  Order,
+  { orderId: string; payload: UpdateOrderPayload },
+  {
+    rejectValue: ApiResponse;
+  }
+>("order/updateOrder", async ({ orderId, payload }, { rejectWithValue }) => {
+  try {
+    const token = localStorage.getItem("token");
+    const response = await customFetch.patch(
+      `/api/v1/orders/${orderId}`,
+      payload,
+      {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      }
+    );
+
+    return response.data.data || response.data;
+  } catch (error) {
+    if (error instanceof Error && "response" in error) {
+      const axiosError = error as any;
+      return rejectWithValue(
+        axiosError.response?.data || {
+          status: "error",
+          message: getErrorMessage(error),
+        }
+      );
+    }
+    return rejectWithValue({
+      status: "error",
+      message: getErrorMessage(error),
+    });
+  }
+});
+
+/**
+ * Delete an order
+ * DELETE /api/v1/orders/:id
+ */
+export const deleteOrder = createAsyncThunk<
+  string,
+  string,
+  {
+    rejectValue: ApiResponse;
+  }
+>("order/deleteOrder", async (orderId, { rejectWithValue }) => {
+  try {
+    const token = localStorage.getItem("token");
+    await customFetch.delete(`/api/v1/orders/${orderId}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+
+    return orderId;
+  } catch (error) {
+    if (error instanceof Error && "response" in error) {
+      const axiosError = error as any;
+      return rejectWithValue(
+        axiosError.response?.data || {
+          status: "error",
+          message: getErrorMessage(error),
+        }
+      );
+    }
+    return rejectWithValue({
+      status: "error",
+      message: getErrorMessage(error),
+    });
+  }
+});
