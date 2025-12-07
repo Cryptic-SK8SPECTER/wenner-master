@@ -1,4 +1,5 @@
 import wenner from '../assets/img/wenner.png'
+import { Link } from "react-router-dom";
 
 const Logo = ({
   className = "flex items-center justify-center ",
@@ -6,9 +7,9 @@ const Logo = ({
   alt = "Wenner Logo",
 }) => {
   return (
-    <div className={className}>
+    <Link to="/" className={className}>
       <img src={wenner} alt={alt} className={imgClassName} />
-    </div>
+    </Link>
   );
 };
 

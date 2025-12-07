@@ -66,6 +66,12 @@ export interface UpdatePasswordPayload {
   passwordConfirm: string;
 }
 
+// Payload de reset de senha (via token)
+export interface ResetPasswordPayload {
+  password: string;
+  passwordConfirm: string;
+}
+
 // Payload de resposta da API (login)
 export interface LoginResponse {
   user: User;

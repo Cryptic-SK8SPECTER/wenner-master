@@ -7,7 +7,9 @@ import {
   updatePassword,
   updateUserRole,
   deleteUser,
-  fetchUsers
+  fetchUsers,
+  forgotPassword,
+  resetPassword,
 } from "./userActions";
 const persistedUser = localStorage.getItem("user");
 
@@ -16,7 +18,7 @@ const initialState: UserState = {
   isAuthenticated: !!persistedUser,
   loading: false,
   error: null,
-  users: []
+  users: [],
 };
 
 const userSlice = createSlice({
@@ -133,6 +135,32 @@ const userSlice = createSlice({
         state.loading = false;
       })
       .addCase(deleteUser.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+      // Forgot Password
+      .addCase(forgotPassword.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(forgotPassword.fulfilled, (state) => {
+        state.loading = false;
+        state.error = null;
+      })
+      .addCase(forgotPassword.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+      // Reset Password
+      .addCase(resetPassword.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(resetPassword.fulfilled, (state) => {
+        state.loading = false;
+        state.error = null;
+      })
+      .addCase(resetPassword.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       });

@@ -10,6 +10,7 @@ import {
   SignupPayload,
   UpdateProfilePayload,
   UpdatePasswordPayload,
+  ResetPasswordPayload,
 } from "./userTypes";
 
 export const updateProfile = createAsyncThunk<User, UpdateProfilePayload>(
@@ -21,7 +22,6 @@ export const updateProfile = createAsyncThunk<User, UpdateProfilePayload>(
         payload
       );
       const user = response.data.data.user;
-
 
       if (user) {
         localStorage.setItem("user", JSON.stringify(user));
@@ -191,7 +191,6 @@ export const fetchUsers = createAsyncThunk<User[]>(
   "users/fetchUsers",
   async (_, { rejectWithValue }) => {
     try {
-
       const response = await customFetch.get(`/api/v1/users/orders/stats`);
 
       const { users } = response.data?.data || {};
@@ -282,6 +281,54 @@ export const deleteUser = createAsyncThunk<
       (error?.response?.data?.message as string) ||
       error?.message ||
       "Erro ao deletar usuário";
+    return rejectWithValue(message);
+  }
+});
+
+export const forgotPassword = createAsyncThunk<
+  void,
+  { email: string },
+  { rejectValue: string }
+>("user/forgotPassword", async ({ email }, { rejectWithValue }) => {
+  try {
+    await customFetch.post("/api/v1/users/forgotPassword", {
+      email,
+    });
+
+    return;
+  } catch (err: unknown) {
+    const error = err as {
+      response?: { status?: number; data?: Record<string, unknown> };
+      message?: string;
+    };
+
+    const message: string =
+      (error?.response?.data?.message as string) ||
+      error?.message ||
+      "Erro ao enviar email de recuperação";
+    return rejectWithValue(message);
+  }
+});
+
+export const resetPassword = createAsyncThunk<
+  void,
+  { token: string; payload: ResetPasswordPayload },
+  { rejectValue: string }
+>("user/resetPassword", async ({ token, payload }, { rejectWithValue }) => {
+  try {
+    await customFetch.patch(`/api/v1/users/resetPassword/${token}`, payload);
+    
+    return;
+  } catch (err: unknown) {
+    const error = err as {
+      response?: { status?: number; data?: Record<string, unknown> };
+      message?: string;
+    };
+
+    const message: string =
+      (error?.response?.data?.message as string) ||
+      error?.message ||
+      "Erro ao redefinir senha";
     return rejectWithValue(message);
   }
 });
