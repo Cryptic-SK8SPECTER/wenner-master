@@ -1,4 +1,4 @@
-import { Header } from "@/components/Header";
+import Header from "../components/Header";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -89,9 +89,11 @@ const Profile = () => {
     (state) => state.order
   );
 
+  const { user } = useAppSelector((state) => state.user);
+
   useEffect(() => {
     dispatch(fetchFavorites());
-    dispatch(fetchOrders());
+    dispatch(fetchOrders(user._id));
   }, [dispatch]);
 
   const handleSaveProfile = async () => {
@@ -246,7 +248,7 @@ const Profile = () => {
     await dispatch(fetchOrderById(orderId));
   };
 
-  console.log(' Your Orders ', orders)
+  console.log(" Your Orders ", orders);
 
   const getStatusBadge = (status: string) => {
     const statusMap: Record<

@@ -10,7 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Lock, Mail, User } from "lucide-react";
+import { Loader2, Lock, Mail, User, Phone } from "lucide-react";
 import InputField from "@/components/ui/input-field";
 import {
   Card,
@@ -39,6 +39,7 @@ const signupSchema = z
       .string()
       .min(6, { message: "Senha deve ter no mínimo 6 caracteres" }),
     confirmPassword: z.string(),
+    phone: z.string().min(9, { message: "Contacto é obrigatório" }),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: "As senhas não coincidem",
@@ -138,15 +139,22 @@ const Auth = () => {
     const formData = new FormData(e.currentTarget);
     const name = formData.get("name") as string;
     const email = formData.get("email") as string;
+    const phone = (formData.get("phone") as string) || "";
     const password = formData.get("password") as string;
     const confirmPassword = formData.get("confirmPassword") as string;
 
     try {
-      signupSchema.parse({ email, password, confirmPassword });
+      signupSchema.parse({ email, password, confirmPassword, phone });
       setIsLoading(true);
 
       await dispatch(
-        signupUser({ name, email, password, passwordConfirm: confirmPassword })
+        signupUser({
+          name,
+          email,
+          phone,
+          password,
+          passwordConfirm: confirmPassword,
+        })
       ).unwrap();
 
       toast({
@@ -336,6 +344,17 @@ const Auth = () => {
                   iconPosition="right"
                 />
 
+                <InputField
+                  label="Contacto"
+                  id="signup-phone"
+                  name="phone"
+                  type="text"
+                  placeholder="Informe o seu contacto"
+                  required
+                  disabled={isLoading}
+                  icon={Phone}
+                  iconPosition="right"
+                />
                 <InputField
                   label="Email"
                   id="signup-email"

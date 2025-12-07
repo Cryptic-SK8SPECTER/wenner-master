@@ -8,6 +8,7 @@ import { cn, productionUrl } from "@/lib/utils";
 import { useCart } from "@/contexts/CartContext";
 import { toast } from "@/hooks/use-toast";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
+import { useRequireAuth } from "@/hooks/auth/useRequireAuth";
 import {
   addToFavorites,
   removeFromFavorites,
@@ -20,7 +21,8 @@ interface ProductCardProps {
 export const ProductCard = ({ product }: ProductCardProps) => {
   const dispatch = useAppDispatch();
   const { loading } = useAppSelector((state) => state.favorites);
-  
+  const { user, requireAuth } = useRequireAuth();
+
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { addItem } = useCart();
@@ -28,6 +30,15 @@ export const ProductCard = ({ product }: ProductCardProps) => {
   const handleToggleFavorite = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+
+    if (!user) {
+      toast({
+        title: "Faça login para favoritar",
+        description: "Entre na sua conta para salvar produtos favoritos.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     const productId = product.id ?? product._id;
     if (!productId) return;
@@ -45,7 +56,10 @@ export const ProductCard = ({ product }: ProductCardProps) => {
       });
     } catch (error: any) {
       // Se o erro for que o produto JÁ ESTÁ nos favoritos, então remove
-      if (error?.includes("já está nos favoritos") || error?.includes("já existe")) {
+      if (
+        error?.includes("já está nos favoritos") ||
+        error?.includes("já existe")
+      ) {
         try {
           await dispatch(removeFromFavorites({ productId })).unwrap();
           toast({
@@ -79,15 +93,18 @@ export const ProductCard = ({ product }: ProductCardProps) => {
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    addItem({
-      id: product.id,
-      name: product.name,
-      price: product.price,
-      image: product.imageCover,
-    });
-    toast({
-      title: "Adicionado ao carrinho!",
-      description: `${product.name} foi adicionado ao carrinho.`,
+
+    requireAuth(() => {
+      addItem({
+        id: product.id,
+        name: product.name,
+        price: product.price,
+        image: product.imageCover,
+      });
+      toast({
+        title: "Adicionado ao carrinho!",
+        description: `${product.name} foi adicionado ao carrinho.`,
+      });
     });
   };
 

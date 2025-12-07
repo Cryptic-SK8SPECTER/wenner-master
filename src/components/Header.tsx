@@ -1,4 +1,16 @@
-import { Search, ShoppingCart, User, Menu, Shield, LogOut } from "lucide-react";
+import {
+  Search,
+  ShoppingCart,
+  User,
+  Menu,
+  Shield,
+  LogOut,
+  Bell,
+  Package,
+  Tag,
+  Box,
+  Star,
+} from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Badge } from "./ui/badge";
@@ -11,8 +23,60 @@ import { useAppSelector } from "../app/hooks";
 import { useAppDispatch } from "../app/hooks";
 import { logoutUser } from "@/features/user/userActions";
 import { setSearchQuery } from "@/features/product/productSlice";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Link } from "react-router-dom";
 
-export const Header = () => {
+const notifications = [
+  {
+    id: 1,
+    title: "Pedido enviado",
+    message: "Seu pedido #1234 foi enviado e está a caminho.",
+    time: "Há 5 min",
+    unread: true,
+    icon: Package,
+    iconBg: "bg-blue-500/10",
+    iconColor: "text-blue-500",
+  },
+  {
+    id: 2,
+    title: "Promoção especial",
+    message: "50% de desconto em tênis selecionados!",
+    time: "Há 1 hora",
+    unread: true,
+    icon: Tag,
+    iconBg: "bg-green-500/10",
+    iconColor: "text-green-500",
+  },
+  {
+    id: 3,
+    title: "Produto disponível",
+    message: "O item da sua lista de desejos voltou ao estoque.",
+    time: "Há 2 horas",
+    unread: false,
+    icon: Box,
+    iconBg: "bg-purple-500/10",
+    iconColor: "text-purple-500",
+  },
+  {
+    id: 4,
+    title: "Avaliação pendente",
+    message: "Avalie sua última compra e ganhe pontos.",
+    time: "Ontem",
+    unread: false,
+    icon: Star,
+    iconBg: "bg-amber-500/10",
+    iconColor: "text-amber-500",
+  },
+];
+
+const Header = () => {
   const [cartOpen, setCartOpen] = useState(false);
   const [searchValue, setSearchValue] = useState("");
   const { totalItems } = useCart();
@@ -22,6 +86,7 @@ export const Header = () => {
   const { searchQuery } = useAppSelector((state) => state.product);
   const dispatch = useAppDispatch();
   const isHome = location.pathname === "/";
+  const unreadCount = notifications.filter((n) => n.unread).length;
 
   // Sincronizar searchValue com Redux quando searchQuery mudar externamente
   useEffect(() => {
@@ -33,7 +98,7 @@ export const Header = () => {
   const handleSearch = (value: string) => {
     setSearchValue(value);
     dispatch(setSearchQuery(value));
-    
+
     // Se não estiver na página home, navegar para lá
     if (location.pathname !== "/") {
       navigate("/");
@@ -60,12 +125,6 @@ export const Header = () => {
         </Button>
 
         {/* Logo */}
-
-        {/* <div className="flex items-center gap-2">
-          <div className="text-2xl font-bold bg-black from-primary to-accent bg-clip-text text-transparent dark:from-primary-dark dark:to-accent-dark">
-            Wenner
-          </div>
-        </div> */}
         <NavLink to="/" className="flex items-center gap-2">
           <Logo />
         </NavLink>
@@ -169,6 +228,104 @@ export const Header = () => {
                 )}
               </Button>
 
+              {/* Notifications Dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="p-2 hover:bg-muted rounded-full transition-colors relative">
+                    <Bell className="h-4 w-5 text-foreground" />
+                    {unreadCount > 0 && (
+                      <span className="absolute top-1 right-1 w-2 h-2 bg-destructive rounded-full"></span>
+                    )}
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="end"
+                  className="w-96 p-0 bg-card border-border shadow-xl rounded-xl overflow-hidden"
+                >
+                  <DropdownMenuLabel className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-primary/5 to-transparent border-b border-border">
+                    <div className="flex items-center gap-2">
+                      <Bell className="h-4 w-4 text-primary" />
+                      <span className="font-semibold text-base">
+                        Notificações
+                      </span>
+                    </div>
+                    {unreadCount > 0 && (
+                      <span className="text-xs font-medium bg-primary text-primary-foreground px-2.5 py-1 rounded-full shadow-sm">
+                        {unreadCount} novas
+                      </span>
+                    )}
+                  </DropdownMenuLabel>
+                  <div className="max-h-[360px] overflow-y-auto">
+                    {notifications.map((notification, index) => {
+                      const IconComponent = notification.icon;
+                      return (
+                        <DropdownMenuItem
+                          key={notification.id}
+                          className={`flex items-start gap-3 p-4 cursor-pointer transition-all duration-200 hover:bg-muted/50 focus:bg-muted/50 rounded-none ${
+                            notification.unread ? "bg-primary/[0.02]" : ""
+                          } ${
+                            index !== notifications.length - 1
+                              ? "border-b border-border/50"
+                              : ""
+                          }`}
+                        >
+                          <div
+                            className={`flex-shrink-0 w-10 h-10 rounded-full ${notification.iconBg} flex items-center justify-center`}
+                          >
+                            <IconComponent
+                              className={`h-5 w-5 ${notification.iconColor}`}
+                            />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-2 mb-1">
+                              <span
+                                className={`font-medium text-sm truncate ${
+                                  notification.unread
+                                    ? "text-foreground"
+                                    : "text-muted-foreground"
+                                }`}
+                              >
+                                {notification.title}
+                              </span>
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                {notification.unread && (
+                                  <span className="w-2 h-2 bg-primary rounded-full animate-pulse"></span>
+                                )}
+                                <span className="text-xs text-muted-foreground whitespace-nowrap">
+                                  {notification.time}
+                                </span>
+                              </div>
+                            </div>
+                            <p
+                              className={`text-xs leading-relaxed line-clamp-2 ${
+                                notification.unread
+                                  ? "text-muted-foreground"
+                                  : "text-muted-foreground/70"
+                              }`}
+                            >
+                              {notification.message}
+                            </p>
+                          </div>
+                        </DropdownMenuItem>
+                      );
+                    })}
+                  </div>
+                  <div className="border-t border-border bg-muted/30">
+                    <DropdownMenuItem
+                      asChild
+                      className="justify-center py-3 cursor-pointer hover:bg-muted/50 focus:bg-muted/50 rounded-none"
+                    >
+                      <Link
+                        to="/notificacoes"
+                        className="text-sm font-medium text-primary hover:underline"
+                      >
+                        Ver todas as notificações
+                      </Link>
+                    </DropdownMenuItem>
+                  </div>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
               <Button
                 variant="ghost"
                 size="icon"
@@ -205,3 +362,5 @@ export const Header = () => {
     </header>
   );
 };
+
+export default Header;

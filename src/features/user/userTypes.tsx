@@ -44,6 +44,7 @@ export interface SignupPayload {
   email: string;
   password: string;
   passwordConfirm: string;
+  phone: string;
 }
 
 // Payload de atualização de perfil

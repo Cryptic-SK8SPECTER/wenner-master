@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Header } from "@/components/Header";
+import Header from "../components/Header";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -245,7 +245,7 @@ const Admin = () => {
   useEffect(() => {
     const loadOrders = async () => {
       try {
-        await dispatch(fetchOrders()).unwrap();
+        await dispatch(fetchOrders(undefined)).unwrap();
       } catch (err) {
         console.error("❌ Admin: Erro ao carregar pedidos:", err);
       }
@@ -737,7 +737,7 @@ const Admin = () => {
       });
 
       // Refresh orders list
-      await dispatch(fetchOrders()).unwrap();
+      await dispatch(fetchOrders(undefined)).unwrap();
 
       // If the modal is open for this order, refresh the single order details too
       if (selectedOrder === orderId) {

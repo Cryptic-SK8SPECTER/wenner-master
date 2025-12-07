@@ -130,13 +130,17 @@ export const loginUser = createAsyncThunk<User, LoginPayload>(
 
 export const signupUser = createAsyncThunk<User, SignupPayload>(
   "user/signup",
-  async ({ name, email, password, passwordConfirm }, { rejectWithValue }) => {
+  async (
+    { name, email, password, passwordConfirm, phone },
+    { rejectWithValue }
+  ) => {
     try {
       const response = await customFetch.post<LoginResponse>(
         "/api/v1/users/signup",
         {
           name,
           email,
+          phone,
           password,
           passwordConfirm,
         }
@@ -317,7 +321,7 @@ export const resetPassword = createAsyncThunk<
 >("user/resetPassword", async ({ token, payload }, { rejectWithValue }) => {
   try {
     await customFetch.patch(`/api/v1/users/resetPassword/${token}`, payload);
-    
+
     return;
   } catch (err: unknown) {
     const error = err as {

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
-import { Header } from "@/components/Header";
+import Header from "../components/Header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ProductCard } from "@/components/ProductCard";
@@ -279,17 +279,16 @@ const ProductDetails = () => {
   const currentReviews = reviews.slice(startIndex, endIndex);
 
   const handleAddToCart = () => {
-    if (!selectedColor) {
-      showToast({
-        title: "Selecione uma cor",
-        description:
-          "Por favor, escolha uma cor antes de adicionar ao carrinho.",
-        variant: "destructive",
-      });
-      return;
-    }
-
     requireAuth(() => {
+      if (!selectedColor) {
+        showToast({
+          title: "Selecione uma cor",
+          description:
+            "Por favor, escolha uma cor antes de adicionar ao carrinho.",
+          variant: "destructive",
+        });
+        return;
+      }
       for (let i = 0; i < quantity; i++) {
         addItem({
           id: product._id,
@@ -309,16 +308,15 @@ const ProductDetails = () => {
   };
 
   const handleBuyNow = () => {
-    if (!selectedColor) {
-      showToast({
-        title: "Selecione uma cor",
-        description: "Por favor, escolha uma cor antes de comprar.",
-        variant: "destructive",
-      });
-      return;
-    }
-
     requireAuth(() => {
+      if (!selectedColor) {
+        showToast({
+          title: "Selecione uma cor",
+          description: "Por favor, escolha uma cor antes de comprar.",
+          variant: "destructive",
+        });
+        return;
+      }
       showToast({
         title: "Processando compra...",
         description: "Redirecionando para o checkout.",

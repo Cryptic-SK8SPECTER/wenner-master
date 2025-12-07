@@ -1,5 +1,5 @@
 import { FilterSidebar, type Filters } from "@/components/FilterSidebar";
-import { Header } from "@/components/Header";
+import  Header  from "../components/Header";
 import { ProductCard } from "@/components/ProductCard";
 import { Button } from "@/components/ui/button";
 import { SlidersHorizontal } from "lucide-react";

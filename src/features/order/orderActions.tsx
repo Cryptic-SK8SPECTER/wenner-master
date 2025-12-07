@@ -51,22 +51,24 @@ export const createOrder = createAsyncThunk<
 
 /**
  * Fetch all orders for the current user
- * GET /api/v1/orders
+ * GET /api/v1/orders or /api/v1/orders?user=userId
  */
 export const fetchOrders = createAsyncThunk<
   Order[],
-  void,
+  string | undefined,
   {
     rejectValue: ApiResponse;
   }
->("order/fetchOrders", async (_, { rejectWithValue }) => {
+>("order/fetchOrders", async (userId, { rejectWithValue }) => {
   try {
     const token = localStorage.getItem("token");
     if (!token) {
       return rejectWithValue({ status: "fail", message: "Not authenticated" });
     }
 
-    const response = await customFetch.get("/api/v1/orders", {
+    const url = userId ? `/api/v1/orders?user=${userId}` : "/api/v1/orders";
+
+    const response = await customFetch.get(url, {
       headers: { Authorization: `Bearer ${token}` },
     });
 
