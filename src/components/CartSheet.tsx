@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import React from "react";
 import { Minus, Plus, X } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import {
@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { createOrder } from "@/features/order/orderActions";
+import { createNotification } from "@/features/notification/notificationActions";
 import { useToast } from "@/hooks/use-toast";
 
 interface CartSheetProps {
@@ -22,6 +23,7 @@ export const CartSheet = ({ open, onOpenChange }: CartSheetProps) => {
   // Redux hooks
   const dispatch = useAppDispatch();
   const { loading, error } = useAppSelector((state) => state.order);
+  const { user } = useAppSelector((state) => state.user);
   const { toast } = useToast();
 
   const { items, removeItem, updateQuantity, totalPrice, clearCart } =
@@ -57,6 +59,27 @@ export const CartSheet = ({ open, onOpenChange }: CartSheetProps) => {
       // handle both fulfilled and rejected shapes
       // RTK returns an action; check for `payload` and `error`
       if (createOrder.fulfilled.match(resultAction)) {
+        const order = resultAction.payload;
+        const orderId = order?._id || order?.id;
+
+        // Criar notificação após pedido criado com sucesso
+        if (user?._id && orderId) {
+          try {
+            await dispatch(
+              createNotification({
+                title: "Pedido Realizado",
+                message: `Seu pedido #${orderId.slice(-6)} foi criado com sucesso. Total: ${totalPrice.toFixed(2)} MZN`,
+                type: "Pedido",
+                user: user._id,
+                order: orderId,
+              })
+            ).unwrap();
+          } catch (notificationError) {
+            // Não bloquear o fluxo se a notificação falhar
+            console.error("Erro ao criar notificação:", notificationError);
+          }
+        }
+
         toast({
           title: "Pedido realizado",
           description: "Seu pedido foi criado com sucesso.",
@@ -111,19 +134,22 @@ export const CartSheet = ({ open, onOpenChange }: CartSheetProps) => {
                       <div className="flex justify-between">
                         <div>
                           <h4 className="font-medium">{item.name}</h4>
-                          {/* Adicionando cor e tamanho */}
-                          <div className="flex gap-2 mt-1 text-xs text-muted-foreground">
-                            {item.color && (
-                              <span className="flex items-center gap-1">
-                                Cor:
-                                <div
-                                  className="w-3 h-3 rounded-full border"
-                                  style={{ backgroundColor: item.color }}
-                                />
-                              </span>
-                            )}
-                            |{item.size && <span>Tamanho: {item.size}</span>}
-                          </div>
+                          {/* Adicionando cor e tamanho - Só mostra se houver */}
+                          {(item.color || item.size) && (
+                            <div className="flex gap-2 mt-1 text-xs text-muted-foreground">
+                              {item.color && (
+                                <span className="flex items-center gap-1">
+                                  Cor:
+                                  <div
+                                    className="w-3 h-3 rounded-full border"
+                                    style={{ backgroundColor: item.color }}
+                                  />
+                                </span>
+                              )}
+                              {item.color && item.size && <span>|</span>}
+                              {item.size && <span>Tamanho: {item.size}</span>}
+                            </div>
+                          )}
                         </div>
 
                         <Button

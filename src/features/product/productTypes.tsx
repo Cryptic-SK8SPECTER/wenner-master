@@ -2,6 +2,7 @@ export interface Color {
   _id: string;
   product: string;
   color: string; // O valor hexadecimal da cor
+  size?: string; // Tamanho associado a esta cor (quando colors contém variantes)
 }
 
 export interface Product {

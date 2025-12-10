@@ -114,7 +114,9 @@ export const { clearError, clearSuccess, resetFavorites } =
 // Verifica se um produto está nos favoritos
 export const selectIsFavorite =
   (productId: string) => (state: { favorites: FavoritesState }) =>
-    state.favorites.favorites.some((item) => item.product._id === productId);
+    state.favorites.favorites.some(
+      (item) => item.product && (item.product._id === productId || item.product.id === productId)
+    );
 
 // Total de favoritos
 export const selectFavoritesCount = (state: { favorites: FavoritesState }) =>

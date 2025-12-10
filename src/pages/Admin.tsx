@@ -41,6 +41,10 @@ import {
   Eye,
   Upload,
   X,
+  Ticket,
+  Gift,
+  Check,
+  Copy,
 } from "lucide-react";
 import { mockProducts } from "@/data/products";
 import { Product, ProductVariation } from "@/features/product/productTypes";
@@ -53,6 +57,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   Table,
@@ -84,6 +89,7 @@ import {
   fetchOrderById,
   updateOrder,
 } from "@/features/order/orderActions";
+import { createNotification } from "@/features/notification/notificationActions";
 import {
   fetchTotalRevenue,
   fetchAverageTicket,
@@ -93,8 +99,12 @@ import {
   fetchTopClients,
   fetchSalesByPeriod,
 } from "@/features/report/reportActions";
-import { Order } from "@/features/order/orderTypes";
+import { Order, OrderStatus } from "@/features/order/orderTypes";
 import { productionUrl } from "@/lib/utils";
+import Cupom from "../features/coupon/cupomTypes";
+import { createCoupon, getAllCoupons } from "@/features/coupon/cupomActions";
+import { ICoupon } from "@/features/coupon/cupomTypes";
+import { resetCouponState } from "@/features/coupon/cupomSlice";
 
 type ProductVariant = {
   id: string;
@@ -176,6 +186,146 @@ const Admin = () => {
   const [variantForm, setVariantForm] = useState<VariantFormState>(() =>
     createEmptyVariantForm()
   );
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [selectedClient, setSelectedClient] = useState<Customer | null>(null);
+  const [coupons, setCoupons] = useState<Cupom[]>([]);
+
+  const {
+    coupons: apiCoupons,
+    loading: couponLoading,
+    error: couponError,
+    success: couponSuccess,
+  } = useAppSelector((state) => state.coupon);
+
+  //  do formulário de cupom
+  const [couponForm, setCouponForm] = useState({
+    code: "",
+    discount: "",
+    type: "percentage" as "percentage" | "fixed",
+    expiresAt: "", // Adicionar data de expiração
+    minPurchaseAmount: "",
+    maxDiscountAmount: "",
+    usageLimit: "1", // Limite de uso padrão
+  });
+
+  // Carregar cupons quando entrar na aba de relatórios
+  useEffect(() => {
+    if (activeTab === "reports") {
+      dispatch(getAllCoupons());
+    }
+  }, [activeTab, dispatch]);
+
+  // Mostrar feedback quando cupom for criado
+  useEffect(() => {
+    if (couponSuccess && selectedClient) {
+      toast({
+        title: "Cupom criado!",
+        description: `Cupom atribuído a ${selectedClient.clientName}`,
+      });
+      setIsDialogOpen(false);
+      setCouponForm({
+        code: "",
+        discount: "",
+        type: "percentage",
+        expiresAt: "",
+        minPurchaseAmount: "",
+        maxDiscountAmount: "",
+        usageLimit: "1",
+      });
+      setSelectedClient(null);
+      // Resetar o estado de sucesso para evitar que o toast apareça novamente
+      dispatch(resetCouponState());
+    }
+  }, [couponSuccess, selectedClient, dispatch, toast]);
+
+  // Mostrar erro se houver
+  useEffect(() => {
+    if (couponError) {
+      toast({
+        title: "Erro ao criar cupom",
+        description: couponError,
+        variant: "destructive",
+      });
+    }
+  }, [couponError, toast]);
+
+  // Função para gerar código de cupom
+  const generateCouponCode = () => {
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    let code = "";
+    for (let i = 0; i < 8; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setCouponForm((prev) => ({ ...prev, code }));
+  };
+
+  // Função para obter data mínima (hoje)
+  const getMinDate = () => {
+    const today = new Date();
+    today.setDate(today.getDate() + 1); // Pelo menos amanhã
+    return today.toISOString().split("T")[0];
+  };
+
+  const handleAssignCoupon = async () => {
+    if (
+      !selectedClient ||
+      !couponForm.code ||
+      !couponForm.discount ||
+      !couponForm.expiresAt
+    ) {
+      toast({
+        title: "Erro",
+        description: "Preencha todos os campos obrigatórios",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Criar cupom via API
+      await dispatch(
+        createCoupon({
+          code: couponForm.code.toUpperCase(),
+          discount: parseFloat(couponForm.discount),
+          type: couponForm.type,
+          expiresAt: new Date(couponForm.expiresAt).toISOString(),
+          assignedTo: selectedClient.clientId,
+          minPurchaseAmount: couponForm.minPurchaseAmount
+            ? parseFloat(couponForm.minPurchaseAmount)
+            : undefined,
+          maxDiscountAmount: couponForm.maxDiscountAmount
+            ? parseFloat(couponForm.maxDiscountAmount)
+            : undefined,
+          usageLimit: parseInt(couponForm.usageLimit),
+          isActive: true,
+        })
+      ).unwrap();
+
+      // Recarregar lista de cupons
+      await dispatch(getAllCoupons());
+    } catch (error: any) {
+      toast({
+        title: "Erro",
+        description: error || "Não foi possível criar o cupom",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const copyToClipboard = (code: string) => {
+    navigator.clipboard.writeText(code);
+    toast({
+      title: "Copiado!",
+      description: `Código ${code} copiado para a área de transferência`,
+    });
+  };
+
+  // const stats = {
+  //   totalClients: clients.length,
+  //   totalOrders: clients.reduce((acc, c) => acc + c.totalOrders, 0),
+  //   totalRevenue: clients.reduce((acc, c) => acc + c.totalSpent, 0),
+  //   activeCoupons: coupons.filter((c) => !c.usedAt).length,
+  // };
 
   const { products, loading, error } = useAppSelector((state) => state.product);
   const {
@@ -188,7 +338,7 @@ const Admin = () => {
     currentOrder,
     loading: ordersLoading,
     error: ordersError,
-  } = useAppSelector((state) => (state as any).order);
+  } = useAppSelector((state) => state.order as any);
 
   const { loading: variantLoading } = useAppSelector((state) => state.variant);
 
@@ -202,7 +352,11 @@ const Admin = () => {
     salesByPeriod,
     loading: reportLoading,
     error: reportError,
-  } = useAppSelector((state) => (state as any).report);
+  } = useAppSelector((state) => state.report as any);
+
+  const [clients, setClients] = useState<Customer[]>(
+    Array.isArray(topClients) ? topClients : []
+  );
 
   const [productsLoaded, setProductsLoaded] = useState(false);
   const existingVariants: ProductVariation[] =
@@ -230,7 +384,6 @@ const Admin = () => {
   // Carregar usuários
   useEffect(() => {
     const loadUsers = async () => {
-      console.log("🔄 Admin: Iniciando carregamento de usuários");
       try {
         await dispatch(fetchUsers()).unwrap();
       } catch (err) {
@@ -357,18 +510,18 @@ const Admin = () => {
   });
 
   // Helper to normalize an order object (from currentOrder or API) into the view shape used above
-  const mapOrderToView = (o: any) => {
+  const mapOrderToView = (o: Order | null): OrderViewShape | null => {
     if (!o) return null;
     const userObj = typeof o.user === "object" ? o.user : null;
     return {
       id: o._id || o.id || "",
       customerName: userObj?.name || "Cliente",
-      date: o.createdAt || o.date || "",
-      total: o.totalPrice || o.total || 0,
+      date: o.createdAt || "",
+      total: o.totalPrice || o.finalPrice || 0,
       status: o.status || "pendente",
       items: o.totalItems || o.products?.length || 0,
       user: userObj,
-      products: o.products || o.items || [],
+      products: o.products || [],
       raw: o,
     };
   };
@@ -435,15 +588,13 @@ const Admin = () => {
 
   // Prefer server-provided report values when available
   const totalOrdersValue =
-    typeof reportTotalOrders === "number"
-      ? reportTotalOrders
-      : computedTotalOrders;
+    typeof totalOrders === "number" ? totalOrders : computedTotalOrders;
 
   // Prefer server-provided delivered orders count when available
   const deliveredOrders =
     Array.isArray(salesByStatus) && salesByStatus.length
       ? salesByStatus.find(
-          (s: any) => s.status === "entregue" || s.status === "delivered"
+          (s) => s.status === "entregue" || s.status === "delivered"
         )?.count ?? computedDeliveredOrders
       : computedDeliveredOrders;
 
@@ -727,8 +878,147 @@ const Admin = () => {
   ) => {
     try {
       setIsUpdatingStatus(true);
+      
+      // SEMPRE buscar o pedido completo da API ANTES de atualizar para garantir dados corretos
+      let userId: string | null = null;
+      let orderData: Order | null = null;
+      
+      try {
+        const orderResult = await dispatch(fetchOrderById(orderId)).unwrap();
+        
+        // A API retorna { data: { ... } }, então precisamos acessar orderResult.data
+        const actualOrder = (orderResult as any)?.data || orderResult;
+        orderData = actualOrder;
+        
+        // DEBUG: Log completo da estrutura do pedido
+        console.log("🔍 DEBUG - Estrutura completa do pedido:", JSON.stringify({
+          orderId,
+          orderResult,
+          hasData: !!(orderResult as any)?.data,
+          actualOrder,
+          userType: typeof actualOrder.user,
+          userValue: actualOrder.user,
+          userIsObject: typeof actualOrder.user === "object",
+          userIsString: typeof actualOrder.user === "string",
+          userIsNull: actualOrder.user === null,
+          userIsUndefined: actualOrder.user === undefined,
+        }, null, 2));
+        
+        // Extrair userId - tentar múltiplas formas
+        if (actualOrder.user) {
+          if (typeof actualOrder.user === "string") {
+            userId = actualOrder.user;
+            console.log("✅ userId extraído como string:", userId);
+          } else if (typeof actualOrder.user === "object" && actualOrder.user !== null) {
+            // Tentar todas as propriedades possíveis
+            const userObj = actualOrder.user as any;
+            userId = userObj._id || userObj.id || userObj.userId || null;
+            console.log("✅ userId extraído do objeto:", { 
+              extractedUserId: userId, 
+              _id: userObj._id, 
+              id: userObj.id, 
+              userIdProp: userObj.userId,
+              fullObjectKeys: Object.keys(userObj),
+              fullObject: userObj 
+            });
+          }
+        } else {
+          console.warn("⚠️ actualOrder.user está vazio/null/undefined");
+        }
+        
+        // Se ainda não encontrou userId, tentar de outras fontes
+        if (!userId) {
+          console.warn("⚠️ userId não encontrado no pedido, tentando outras fontes...");
+          
+          // Tentar do currentOrder
+          if (currentOrder && (currentOrder._id === orderId || currentOrder.id === orderId)) {
+            console.log("🔍 Tentando extrair userId do currentOrder:", currentOrder);
+            if (typeof currentOrder.user === "string") {
+              userId = currentOrder.user;
+              console.log("✅ userId encontrado no currentOrder (string):", userId);
+            } else if (currentOrder.user && typeof currentOrder.user === "object") {
+              const userObj = currentOrder.user as any;
+              userId = userObj._id || userObj.id || userObj.userId || null;
+              console.log("✅ userId encontrado no currentOrder (object):", userId);
+            }
+          }
+          
+          // Tentar da lista de pedidos
+          if (!userId) {
+            const orderFromList = allOrders.find((o) => o.id === orderId || o._id === orderId);
+            console.log("🔍 Tentando extrair userId da lista de pedidos:", orderFromList);
+            if (orderFromList && orderFromList.user) {
+              if (typeof orderFromList.user === "string") {
+                userId = orderFromList.user;
+                console.log("✅ userId encontrado na lista (string):", userId);
+              } else if (typeof orderFromList.user === "object") {
+                const userObj = orderFromList.user as any;
+                userId = userObj._id || userObj.id || userObj.userId || null;
+                console.log("✅ userId encontrado na lista (object):", userId);
+              }
+            }
+          }
+        }
+        
+        console.log("📦 Resumo do pedido:", { 
+          orderId, 
+          userId, 
+          hasProducts: !!actualOrder?.products?.length,
+          productsCount: actualOrder?.products?.length || 0,
+          orderDataKeys: actualOrder ? Object.keys(actualOrder) : [],
+          productsStructure: actualOrder?.products
+        });
+      } catch (fetchError: any) {
+        console.error("❌ Erro ao buscar pedido:", fetchError);
+        console.error("❌ Detalhes do erro:", {
+          message: fetchError?.message,
+          response: fetchError?.response?.data,
+          status: fetchError?.response?.status,
+          statusText: fetchError?.response?.statusText,
+        });
+        toast({
+          title: "Erro",
+          description: `Não foi possível buscar os dados do pedido: ${fetchError?.message || "Erro desconhecido"}`,
+          variant: "destructive",
+        });
+        setIsUpdatingStatus(false);
+        return;
+      }
+
+      // Verificar se temos userId antes de continuar
+      if (!userId) {
+        console.error("❌ userId não encontrado após todas as tentativas");
+        console.error("❌ Dados disponíveis:", {
+          orderData: orderData ? {
+            exists: true,
+            hasUser: !!orderData.user,
+            userType: typeof orderData.user,
+            keys: Object.keys(orderData),
+          } : "não existe",
+          currentOrder: currentOrder ? {
+            exists: true,
+            hasUser: !!currentOrder.user,
+            userType: typeof currentOrder.user,
+            id: currentOrder._id || currentOrder.id,
+          } : "não existe",
+          allOrdersCount: allOrders.length,
+          orderInList: allOrders.find((o) => o.id === orderId || o._id === orderId) ? {
+            found: true,
+            hasUser: !!allOrders.find((o) => o.id === orderId || o._id === orderId)?.user,
+          } : "não encontrado"
+        });
+        toast({
+          title: "Erro",
+          description: "Não foi possível identificar o cliente do pedido. Abra o console (F12) para ver detalhes de debug.",
+          variant: "destructive",
+        });
+        setIsUpdatingStatus(false);
+        return;
+      }
+
+      // Atualizar o status do pedido
       await dispatch(
-        updateOrder({ orderId, payload: { status: newStatus } })
+        updateOrder({ orderId, payload: { status: newStatus as OrderStatus } })
       ).unwrap();
 
       toast({
@@ -736,24 +1026,174 @@ const Admin = () => {
         description: `Pedido atualizado para ${newStatus}`,
       });
 
+      // Criar notificação para o cliente baseado no status
+      const statusMessages: Record<string, { title: string; message: string; type: "Pedido" | "Entregue" | "Cancelado" }> = {
+        confirmado: {
+          title: "Pedido Confirmado",
+          message: `Seu pedido #${orderId.slice(-8)} foi confirmado e está sendo preparado.`,
+          type: "Pedido",
+        },
+        enviado: {
+          title: "Pedido Enviado",
+          message: `Seu pedido #${orderId.slice(-8)} foi enviado e está a caminho.`,
+          type: "Pedido",
+        },
+        entregue: {
+          title: "Pedido Entregue",
+          message: `Seu pedido #${orderId.slice(-8)} foi entregue com sucesso! Obrigado pela compra.`,
+          type: "Entregue",
+        },
+        cancelado: {
+          title: "Pedido Cancelado",
+          message: `Seu pedido #${orderId.slice(-8)} foi cancelado. Entre em contato conosco se tiver dúvidas.`,
+          type: "Cancelado",
+        },
+      };
+
+      const notificationData = statusMessages[newStatus];
+      if (notificationData) {
+        try {
+          await dispatch(
+            createNotification({
+              title: notificationData.title,
+              message: notificationData.message,
+              type: notificationData.type,
+              user: userId,
+              order: orderId,
+            })
+          ).unwrap();
+          console.log("✅ Notificação de status criada:", notificationData.type);
+        } catch (notificationError: any) {
+          console.error("❌ Erro ao criar notificação de status:", notificationError);
+          toast({
+            title: "Aviso",
+            description: "Status atualizado, mas não foi possível criar notificação.",
+            variant: "destructive",
+          });
+        }
+      }
+
+      // Se o pedido foi entregue, criar notificações para avaliar os produtos
+      if (newStatus === "entregue") {
+        // Buscar pedido atualizado após mudança de status para garantir produtos populados
+        // Usar actualOrder que já tem a estrutura correta (orderResult.data)
+        let finalOrderData = orderData;
+
+        if (!finalOrderData || !finalOrderData.products || finalOrderData.products.length === 0) {
+          try {
+            const updatedOrderResult = await dispatch(fetchOrderById(orderId)).unwrap();
+            // A API retorna { data: { ... } }, então precisamos acessar orderResult.data
+            finalOrderData = (updatedOrderResult as any)?.data || updatedOrderResult;
+            console.log("📦 Pedido atualizado buscado:", { 
+              hasProducts: !!finalOrderData?.products?.length,
+              productsCount: finalOrderData?.products?.length || 0,
+              products: finalOrderData?.products
+            });
+          } catch (e: any) {
+            console.error("❌ Erro ao buscar pedido atualizado:", e);
+          }
+        }
+
+        if (finalOrderData && finalOrderData.products && finalOrderData.products.length > 0) {
+          try {
+            // Obter produtos únicos do pedido
+            const uniqueProducts = new Map<string, { id: string; name: string }>();
+            
+            console.log("🔍 Processando produtos do pedido:", finalOrderData.products);
+            
+            finalOrderData.products.forEach((orderProduct: any) => {
+              console.log("🔍 Processando orderProduct:", orderProduct);
+              
+              // Tentar obter o ID do produto
+              let productId: string | null = null;
+              if (typeof orderProduct.product === "string") {
+                productId = orderProduct.product;
+                console.log("✅ productId extraído como string:", productId);
+              } else if (orderProduct.product && typeof orderProduct.product === "object") {
+                productId = (orderProduct.product as any)?._id || (orderProduct.product as any)?.id || null;
+                console.log("✅ productId extraído do objeto:", productId);
+              } else {
+                console.warn("⚠️ orderProduct.product não é string nem objeto:", orderProduct.product);
+              }
+
+              if (productId) {
+                // Tentar obter o nome do produto
+                let productName = "produto";
+                
+                // Primeiro tentar do orderProduct.name (se estiver populado)
+                if (orderProduct.name) {
+                  productName = orderProduct.name;
+                } 
+                // Se não, tentar do objeto product populado
+                else if (orderProduct.product && typeof orderProduct.product === "object") {
+                  productName = (orderProduct.product as any)?.name || "produto";
+                }
+
+                // Adicionar ao mapa (sobrescreve se já existir, mantendo o nome mais completo)
+                if (!uniqueProducts.has(productId) || uniqueProducts.get(productId)?.name === "produto") {
+                  uniqueProducts.set(productId, { id: productId, name: productName });
+                }
+              }
+            });
+
+            console.log(`📦 Produtos únicos encontrados: ${uniqueProducts.size}`);
+
+            // Criar uma notificação para cada produto único
+            let notificationsCreated = 0;
+            for (const [productId, productInfo] of uniqueProducts) {
+              try {
+                await dispatch(
+                  createNotification({
+                    title: "Avalie seu produto",
+                    message: `Seu pedido #${orderId.slice(-8)} foi entregue! Que tal avaliar o ${productInfo.name}? Sua opinião é muito importante para nós.`,
+                    type: "Avaliação",
+                    user: userId,
+                    order: orderId,
+                  })
+                ).unwrap();
+                notificationsCreated++;
+                console.log(`✅ Notificação de avaliação criada para: ${productInfo.name}`);
+              } catch (productNotificationError: any) {
+                console.error(`❌ Erro ao criar notificação de avaliação para ${productInfo.name}:`, productNotificationError);
+              }
+            }
+            
+            if (notificationsCreated > 0) {
+              console.log(`✅ Total de ${notificationsCreated} notificação(ões) de avaliação criada(s)`);
+            } else {
+              console.warn("⚠️ Nenhuma notificação de avaliação foi criada");
+            }
+          } catch (e: any) {
+            console.error("❌ Erro ao processar produtos para avaliação:", e);
+            toast({
+              title: "Aviso",
+              description: "Pedido marcado como entregue, mas não foi possível criar todas as notificações de avaliação.",
+              variant: "destructive",
+            });
+          }
+        } else {
+          console.warn("⚠️ Pedido marcado como entregue, mas não há produtos para criar notificações");
+        }
+      }
+
       // Refresh orders list
       await dispatch(fetchOrders(undefined)).unwrap();
 
       // If the modal is open for this order, refresh the single order details too
       if (selectedOrder === orderId) {
         try {
-          await dispatch(fetchOrderById({ orderId })).unwrap();
+          await dispatch(fetchOrderById(orderId)).unwrap();
         } catch (e) {
           // ignore single-order refresh failure, list is already refreshed
         }
       }
 
       // close modal? keep it open but update content
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : "Não foi possível atualizar o status do pedido";
       toast({
         title: "Erro",
-        description:
-          err?.message || "Não foi possível atualizar o status do pedido",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -786,10 +1226,12 @@ const Admin = () => {
           }" foi removido do catálogo.`,
         });
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const errorMessage =
+        err instanceof Error ? err.message : "Erro ao processar a ação";
       toast({
         title: "Erro",
-        description: err?.message || "Erro ao processar a ação",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -862,16 +1304,16 @@ const Admin = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="bg-background">
       <Header />
 
-      <div className="container px-4 md:px-6 py-8">
+      <div className="container px-3 sm:px-4 md:px-6 py-4 sm:py-6 md:py-8">
         <div className="max-w-7xl mx-auto">
-          <div className="mb-8">
-            <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2">
+          <div className="mb-4 sm:mb-6 md:mb-8">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-foreground mb-2">
               Painel Administrativo
             </h1>
-            <p className="text-muted-foreground">
+            <p className="text-sm sm:text-base text-muted-foreground">
               Gerencie pedidos e produtos da loja
             </p>
           </div>
@@ -882,25 +1324,25 @@ const Admin = () => {
             defaultValue="orders"
             className="w-full"
           >
-            <TabsList className="grid w-full grid-cols-5 h-auto">
-              <TabsTrigger value="orders" className="gap-2">
-                <ShoppingBag className="h-4 w-4" />
+            <TabsList className="grid w-full grid-cols-5 h-auto p-1 overflow-x-auto">
+              <TabsTrigger value="orders" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
+                <ShoppingBag className="h-3 w-3 sm:h-4 sm:w-4" />
                 <span className="hidden sm:inline">Pedidos</span>
               </TabsTrigger>
-              <TabsTrigger value="customers" className="gap-2">
-                <Users className="h-4 w-4" />
+              <TabsTrigger value="customers" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
+                <Users className="h-3 w-3 sm:h-4 sm:w-4" />
                 <span className="hidden sm:inline">Clientes</span>
               </TabsTrigger>
-              <TabsTrigger value="reports" className="gap-2">
-                <BarChart3 className="h-4 w-4" />
+              <TabsTrigger value="reports" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
+                <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4" />
                 <span className="hidden sm:inline">Relatórios</span>
               </TabsTrigger>
-              <TabsTrigger value="products" className="gap-2">
-                <Package className="h-4 w-4" />
+              <TabsTrigger value="products" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
+                <Package className="h-3 w-3 sm:h-4 sm:w-4" />
                 <span className="hidden sm:inline">Produtos</span>
               </TabsTrigger>
-              <TabsTrigger value="add-product" className="gap-2">
-                <Plus className="h-4 w-4" />
+              <TabsTrigger value="add-product" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
+                <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
                 <span className="hidden sm:inline">Novo</span>
               </TabsTrigger>
             </TabsList>
@@ -908,11 +1350,11 @@ const Admin = () => {
             {/* Orders Tab */}
             <TabsContent value="orders" className="mt-6">
               <Card>
-                <CardHeader>
+                <CardHeader className="p-4 sm:p-6">
                   <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                     <div>
-                      <CardTitle>Gestão de Pedidos</CardTitle>
-                      <CardDescription>
+                      <CardTitle className="text-lg sm:text-xl">Gestão de Pedidos</CardTitle>
+                      <CardDescription className="text-xs sm:text-sm">
                         {filteredOrders.length} pedidos encontrados
                       </CardDescription>
                     </div>
@@ -923,18 +1365,19 @@ const Admin = () => {
                           placeholder="Buscar por cliente ou ID..."
                           value={searchTerm}
                           onChange={(e) => handleSearchChange(e.target.value)}
-                          className="pl-10"
+                          className="pl-10 text-sm"
                         />
                       </div>
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-6">
+                <CardContent className="space-y-4 sm:space-y-6 p-4 sm:p-6">
                   <div className="flex flex-wrap gap-2">
                     <Button
                       variant={orderFilter === "all" ? "default" : "outline"}
                       size="sm"
                       onClick={() => handleOrderFilterChange("all")}
+                      className="text-xs sm:text-sm"
                     >
                       Todos ({getStatusCount("all")})
                     </Button>
@@ -944,6 +1387,7 @@ const Admin = () => {
                       }
                       size="sm"
                       onClick={() => handleOrderFilterChange("pendente")}
+                      className="text-xs sm:text-sm"
                     >
                       Pendentes ({getStatusCount("pendente")})
                     </Button>
@@ -953,6 +1397,7 @@ const Admin = () => {
                       }
                       size="sm"
                       onClick={() => handleOrderFilterChange("confirmado")}
+                      className="text-xs sm:text-sm"
                     >
                       Confirmados ({getStatusCount("confirmado")})
                     </Button>
@@ -962,6 +1407,7 @@ const Admin = () => {
                       }
                       size="sm"
                       onClick={() => handleOrderFilterChange("enviado")}
+                      className="text-xs sm:text-sm"
                     >
                       Entregues ({getStatusCount("enviado")})
                     </Button>
@@ -971,6 +1417,7 @@ const Admin = () => {
                       }
                       size="sm"
                       onClick={() => handleOrderFilterChange("cancelado")}
+                      className="text-xs sm:text-sm"
                     >
                       Cancelados ({getStatusCount("cancelado")})
                     </Button>
@@ -979,34 +1426,34 @@ const Admin = () => {
                   <Separator />
 
                   {/* Orders List */}
-                  <div className="space-y-4">
+                  <div className="space-y-3 sm:space-y-4">
                     {paginatedOrders.map((order) => (
                       <div
                         key={order.id}
-                        className="p-4 border border-border rounded-lg hover:border-accent transition-colors"
+                        className="p-3 sm:p-4 border border-border rounded-lg hover:border-accent transition-colors"
                       >
-                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-3 mb-2">
-                              <h3 className="font-semibold text-foreground">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
+                              <h3 className="font-semibold text-sm sm:text-base text-foreground break-words">
                                 Pedido #{order.id?.slice(-8)}
                               </h3>
                               {getStatusBadge(order.status)}
                             </div>
-                            <p className="text-sm text-muted-foreground mb-1">
+                            <p className="text-xs sm:text-sm text-muted-foreground mb-1 break-words">
                               Cliente: {order.customerName}
                             </p>
-                            <p className="text-sm text-muted-foreground">
+                            <p className="text-xs sm:text-sm text-muted-foreground">
                               Data:{" "}
                               {new Date(order.date).toLocaleDateString("pt-BR")}
                             </p>
                           </div>
-                          <div className="flex items-center gap-4">
-                            <div className="text-right">
-                              <p className="text-sm text-muted-foreground">
+                          <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-4">
+                            <div className="text-left sm:text-right">
+                              <p className="text-xs sm:text-sm text-muted-foreground">
                                 {order.items} itens
                               </p>
-                              <p className="text-lg font-bold text-foreground">
+                              <p className="text-base sm:text-lg font-bold text-foreground">
                                 {order.total.toFixed(2)} MZN
                               </p>
                             </div>
@@ -1014,6 +1461,7 @@ const Admin = () => {
                               variant="outline"
                               size="sm"
                               onClick={() => setSelectedOrder(order.id)}
+                              className="text-xs sm:text-sm whitespace-nowrap"
                             >
                               Ver Detalhes
                             </Button>
@@ -1031,8 +1479,8 @@ const Admin = () => {
 
                   {/* Pagination for Orders */}
                   {filteredOrders.length > itemsPerPage && (
-                    <div className="flex items-center justify-between pt-4">
-                      <p className="text-sm text-muted-foreground">
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 pt-4">
+                      <p className="text-xs sm:text-sm text-muted-foreground text-center sm:text-left">
                         Mostrando {(ordersPage - 1) * itemsPerPage + 1} a{" "}
                         {Math.min(
                           ordersPage * itemsPerPage,
@@ -1040,7 +1488,7 @@ const Admin = () => {
                         )}{" "}
                         de {filteredOrders.length} pedidos
                       </p>
-                      <div className="flex gap-2">
+                      <div className="flex items-center gap-1 sm:gap-2 flex-wrap justify-center">
                         <Button
                           variant="outline"
                           size="sm"
@@ -1048,10 +1496,11 @@ const Admin = () => {
                             setOrdersPage((p) => Math.max(1, p - 1))
                           }
                           disabled={ordersPage === 1}
+                          className="text-xs sm:text-sm"
                         >
                           Anterior
                         </Button>
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1 overflow-x-auto">
                           {Array.from(
                             { length: totalOrdersPages },
                             (_, i) => i + 1
@@ -1063,7 +1512,7 @@ const Admin = () => {
                               }
                               size="sm"
                               onClick={() => setOrdersPage(page)}
-                              className="w-10"
+                              className="w-8 h-8 sm:w-10 sm:h-10 text-xs sm:text-sm"
                             >
                               {page}
                             </Button>
@@ -1078,6 +1527,7 @@ const Admin = () => {
                             )
                           }
                           disabled={ordersPage === totalOrdersPages}
+                          className="text-xs sm:text-sm"
                         >
                           Próxima
                         </Button>
@@ -1091,11 +1541,11 @@ const Admin = () => {
             {/* Customers Tab */}
             <TabsContent value="customers" className="mt-6">
               <Card>
-                <CardHeader>
+                <CardHeader className="p-4 sm:p-6">
                   <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                     <div>
-                      <CardTitle>Gestão de Clientes</CardTitle>
-                      <CardDescription>
+                      <CardTitle className="text-lg sm:text-xl">Gestão de Clientes</CardTitle>
+                      <CardDescription className="text-xs sm:text-sm">
                         {filteredCustomers.length} clientes cadastrados
                       </CardDescription>
                     </div>
@@ -1107,52 +1557,62 @@ const Admin = () => {
                         onChange={(e) =>
                           handleCustomerSearchChange(e.target.value)
                         }
-                        className="pl-10"
+                        className="pl-10 text-sm"
                       />
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
+                <CardContent className="p-4 sm:p-6">
+                  <div className="space-y-3 sm:space-y-4">
                     {paginatedCustomers.map((customer) => (
                       <div
                         key={customer.id}
-                        className="p-4 border border-border rounded-lg hover:border-accent transition-colors"
+                        className="p-3 sm:p-4 border border-border rounded-lg hover:border-accent transition-colors"
                       >
-                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-3 mb-2">
-                              <h3 className="font-semibold text-foreground">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
+                              <h3 className="font-semibold text-sm sm:text-base text-foreground break-words">
                                 {customer.name}
                               </h3>
-                              <Badge variant="outline">
+                              <Badge variant="outline" className="text-xs">
                                 ID: {customer.id?.slice(-8)}
                               </Badge>
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-muted-foreground">
-                              <div className="flex items-center gap-2">
-                                <Mail className="h-4 w-4" />
-                                {customer.email}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs sm:text-sm text-muted-foreground">
+                              <div className="flex items-center gap-2 break-words">
+                                <Mail className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                                <span className="truncate">{customer.email}</span>
                               </div>
                               <div className="flex items-center gap-2">
-                                <Phone className="h-4 w-4" />
-                                {customer.phone}
+                                <Phone className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                                <span className="truncate">{customer.phone}</span>
+                              </div>
+                              <div className="flex items-start gap-2 sm:col-span-2">
+                                <MapPin className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0 mt-0.5" />
+                                <span className="break-words">{customer.address}</span>
                               </div>
                               <div className="flex items-center gap-2">
-                                <MapPin className="h-4 w-4" />
-                                {customer.address}
+                                <Calendar className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                                <span className="text-xs sm:text-sm">
+                                  Cliente desde:{" "}
+                                  {new Date(customer.joinDate).toLocaleDateString(
+                                    "pt-BR"
+                                  )}
+                                </span>
                               </div>
-                              <div className="flex items-center gap-2">
-                                <Calendar className="h-4 w-4" />
-                                Cliente desde:{" "}
-                                {new Date(customer.joinDate).toLocaleDateString(
-                                  "pt-BR"
-                                )}
-                              </div>
+                            </div>
+                            <div className="mt-2 sm:hidden">
+                              <p className="text-xs text-muted-foreground">
+                                {customer.totalOrders} pedidos
+                              </p>
+                              <p className="text-base font-bold text-foreground">
+                                {customer.totalSpent.toFixed(2)} MZN
+                              </p>
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
-                            <div className="text-right mr-4 hidden md:block">
+                            <div className="text-right mr-4 hidden sm:block">
                               <p className="text-sm text-muted-foreground">
                                 {customer.totalOrders} pedidos
                               </p>
@@ -1173,89 +1633,89 @@ const Admin = () => {
                                   </span>
                                 </Button>
                               </DialogTrigger>
-                              <DialogContent className="max-w-2xl">
-                                <DialogHeader>
-                                  <DialogTitle>Detalhes do Cliente</DialogTitle>
-                                  <DialogDescription>
+                              <DialogContent className="max-w-[95vw] sm:max-w-2xl p-4 sm:p-6">
+                                <DialogHeader className="pb-4">
+                                  <DialogTitle className="text-lg sm:text-xl">Detalhes do Cliente</DialogTitle>
+                                  <DialogDescription className="text-xs sm:text-sm">
                                     Informações completas sobre {customer.name}
                                   </DialogDescription>
                                 </DialogHeader>
                                 {selectedCustomer && (
                                   <div className="space-y-4">
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                       <div>
-                                        <Label className="text-muted-foreground">
+                                        <Label className="text-xs sm:text-sm text-muted-foreground">
                                           ID do Cliente
                                         </Label>
-                                        <p className="font-semibold">
+                                        <p className="font-semibold text-sm sm:text-base">
                                           {selectedCustomer.id?.slice(-8)}
                                         </p>
                                       </div>
                                       <div>
-                                        <Label className="text-muted-foreground">
+                                        <Label className="text-xs sm:text-sm text-muted-foreground">
                                           Nome Completo
                                         </Label>
-                                        <p className="font-semibold">
+                                        <p className="font-semibold text-sm sm:text-base break-words">
                                           {selectedCustomer.name}
                                         </p>
                                       </div>
                                       <div>
-                                        <Label className="text-muted-foreground">
+                                        <Label className="text-xs sm:text-sm text-muted-foreground">
                                           Email
                                         </Label>
-                                        <p className="font-semibold">
+                                        <p className="font-semibold text-sm sm:text-base break-words">
                                           {selectedCustomer.email}
                                         </p>
                                       </div>
                                       <div>
-                                        <Label className="text-muted-foreground">
+                                        <Label className="text-xs sm:text-sm text-muted-foreground">
                                           Telefone
                                         </Label>
-                                        <p className="font-semibold">
+                                        <p className="font-semibold text-sm sm:text-base">
                                           {selectedCustomer.phone}
                                         </p>
                                       </div>
-                                      <div className="col-span-2">
-                                        <Label className="text-muted-foreground">
+                                      <div className="col-span-1 sm:col-span-2">
+                                        <Label className="text-xs sm:text-sm text-muted-foreground">
                                           Endereço
                                         </Label>
-                                        <p className="font-semibold">
+                                        <p className="font-semibold text-sm sm:text-base break-words">
                                           {selectedCustomer.address}
                                         </p>
                                       </div>
                                       <div>
-                                        <Label className="text-muted-foreground">
+                                        <Label className="text-xs sm:text-sm text-muted-foreground">
                                           Cliente desde
                                         </Label>
-                                        <p className="font-semibold">
+                                        <p className="font-semibold text-sm sm:text-base">
                                           {new Date(
                                             selectedCustomer.joinDate
                                           ).toLocaleDateString("pt-BR")}
                                         </p>
                                       </div>
                                       <div>
-                                        <Label className="text-muted-foreground">
+                                        <Label className="text-xs sm:text-sm text-muted-foreground">
                                           Último Pedido
                                         </Label>
-                                        <p className="font-semibold">
+                                        <p className="font-semibold text-sm sm:text-base">
                                           {new Date(
                                             selectedCustomer.lastOrder
                                           ).toLocaleDateString("pt-BR")}
                                         </p>
                                       </div>
                                       <div>
-                                        <Label className="text-muted-foreground">
+                                        <Label className="text-xs sm:text-sm text-muted-foreground">
                                           Total de Pedidos
                                         </Label>
-                                        <p className="font-semibold text-accent">
+                                        <p className="font-semibold text-sm sm:text-base text-accent">
                                           {selectedCustomer.totalOrders} pedidos
                                         </p>
                                       </div>
                                       <div>
-                                        <Label className="text-muted-foreground">
+                                        <Label className="text-xs sm:text-sm text-muted-foreground">
                                           Total Gasto
                                         </Label>
-                                        <p className="font-semibold text-accent">
+                                        <p className="font-semibold text-sm sm:text-base text-accent">
                                           {selectedCustomer.totalSpent.toFixed(
                                             2
                                           )}{" "}
@@ -1327,8 +1787,8 @@ const Admin = () => {
 
                   {/* Pagination for Customers */}
                   {filteredCustomers.length > itemsPerPage && (
-                    <div className="flex items-center justify-between pt-4">
-                      <p className="text-sm text-muted-foreground">
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 pt-4">
+                      <p className="text-xs sm:text-sm text-muted-foreground text-center sm:text-left">
                         Mostrando {(customersPage - 1) * itemsPerPage + 1} a{" "}
                         {Math.min(
                           customersPage * itemsPerPage,
@@ -1336,7 +1796,7 @@ const Admin = () => {
                         )}{" "}
                         de {filteredCustomers.length} clientes
                       </p>
-                      <div className="flex gap-2">
+                      <div className="flex items-center gap-1 sm:gap-2 flex-wrap justify-center">
                         <Button
                           variant="outline"
                           size="sm"
@@ -1344,10 +1804,11 @@ const Admin = () => {
                             setCustomersPage((p) => Math.max(1, p - 1))
                           }
                           disabled={customersPage === 1}
+                          className="text-xs sm:text-sm"
                         >
                           Anterior
                         </Button>
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1 overflow-x-auto">
                           {Array.from(
                             { length: totalCustomersPages },
                             (_, i) => i + 1
@@ -1359,7 +1820,7 @@ const Admin = () => {
                               }
                               size="sm"
                               onClick={() => setCustomersPage(page)}
-                              className="w-10"
+                              className="w-8 h-8 sm:w-10 sm:h-10 text-xs sm:text-sm"
                             >
                               {page}
                             </Button>
@@ -1374,6 +1835,7 @@ const Admin = () => {
                             )
                           }
                           disabled={customersPage === totalCustomersPages}
+                          className="text-xs sm:text-sm"
                         >
                           Próxima
                         </Button>
@@ -1388,26 +1850,26 @@ const Admin = () => {
             <TabsContent value="reports" className="mt-6">
               <div className="space-y-6">
                 {/* Summary Cards */}
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                <div className="grid gap-3 sm:gap-4 grid-cols-2 md:grid-cols-2 lg:grid-cols-4">
                   <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4 sm:p-6">
+                      <CardTitle className="text-xs sm:text-sm font-medium">
                         Receita Total
                       </CardTitle>
-                      <DollarSign className="h-4 w-4 text-muted-foreground" />
+                      <DollarSign className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
                     </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold">
+                    <CardContent className="p-4 sm:p-6 pt-0">
+                      <div className="text-xl sm:text-2xl font-bold">
                         {reportLoading ? (
-                          <Skeleton className="h-6 w-24" />
+                          <Skeleton className="h-6 w-20 sm:w-24" />
                         ) : (
                           `${totalRevenue} MZN`
                         )}
                       </div>
                       {reportLoading ? (
-                        <Skeleton className="h-4 w-32 mt-2" />
+                        <Skeleton className="h-3 w-24 sm:w-32 mt-2" />
                       ) : (
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
                           De {totalOrders} pedidos
                         </p>
                       )}
@@ -1415,45 +1877,45 @@ const Admin = () => {
                   </Card>
 
                   <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4 sm:p-6">
+                      <CardTitle className="text-xs sm:text-sm font-medium">
                         Ticket Médio
                       </CardTitle>
-                      <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                      <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
                     </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold">
+                    <CardContent className="p-4 sm:p-6 pt-0">
+                      <div className="text-xl sm:text-2xl font-bold">
                         {reportLoading ? (
-                          <Skeleton className="h-6 w-20" />
+                          <Skeleton className="h-6 w-16 sm:w-20" />
                         ) : (
                           `${averageTicket} MZN`
                         )}
                       </div>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
                         Por pedido
                       </p>
                     </CardContent>
                   </Card>
 
                   <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4 sm:p-6">
+                      <CardTitle className="text-xs sm:text-sm font-medium">
                         Total de Pedidos
                       </CardTitle>
-                      <ShoppingBag className="h-4 w-4 text-muted-foreground" />
+                      <ShoppingBag className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
                     </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold">
+                    <CardContent className="p-4 sm:p-6 pt-0">
+                      <div className="text-xl sm:text-2xl font-bold">
                         {reportLoading ? (
-                          <Skeleton className="h-6 w-12" />
+                          <Skeleton className="h-6 w-10 sm:w-12" />
                         ) : (
                           totalOrdersValue
                         )}
                       </div>
                       {reportLoading ? (
-                        <Skeleton className="h-4 w-20 mt-2" />
+                        <Skeleton className="h-3 w-16 sm:w-20 mt-2" />
                       ) : (
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
                           {deliveredOrders} entregues
                         </p>
                       )}
@@ -1461,21 +1923,21 @@ const Admin = () => {
                   </Card>
 
                   <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4 sm:p-6">
+                      <CardTitle className="text-xs sm:text-sm font-medium">
                         Taxa de Entrega
                       </CardTitle>
-                      <BarChart3 className="h-4 w-4 text-muted-foreground" />
+                      <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
                     </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold">
+                    <CardContent className="p-4 sm:p-6 pt-0">
+                      <div className="text-xl sm:text-2xl font-bold">
                         {reportLoading ? (
-                          <Skeleton className="h-6 w-12" />
+                          <Skeleton className="h-6 w-10 sm:w-12" />
                         ) : (
                           `${deliveryRate}%`
                         )}
                       </div>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
                         De todos os pedidos
                       </p>
                     </CardContent>
@@ -1484,14 +1946,15 @@ const Admin = () => {
 
                 {/* Sales by Status */}
                 <Card>
-                  <CardHeader>
-                    <CardTitle>Vendas por Status</CardTitle>
-                    <CardDescription>
+                  <CardHeader className="p-4 sm:p-6">
+                    <CardTitle className="text-lg sm:text-xl">Vendas por Status</CardTitle>
+                    <CardDescription className="text-xs sm:text-sm">
                       Distribuição de pedidos por status
                     </CardDescription>
                   </CardHeader>
-                  <CardContent>
-                    <Table>
+                  <CardContent className="p-4 sm:p-6">
+                    <div className="overflow-x-auto">
+                      <Table>
                       <TableHeader>
                         <TableRow>
                           <TableHead>Status</TableHead>
@@ -1566,19 +2029,21 @@ const Admin = () => {
                             })}
                       </TableBody>
                     </Table>
+                    </div>
                   </CardContent>
                 </Card>
 
                 {/* Top Customers */}
                 <Card>
-                  <CardHeader>
-                    <CardTitle>Principais Clientes</CardTitle>
-                    <CardDescription>
+                  <CardHeader className="p-4 sm:p-6">
+                    <CardTitle className="text-lg sm:text-xl">Principais Clientes</CardTitle>
+                    <CardDescription className="text-xs sm:text-sm">
                       Clientes com maior volume de compras
                     </CardDescription>
                   </CardHeader>
-                  <CardContent>
-                    <Table>
+                  <CardContent className="p-4 sm:p-6">
+                    <div className="overflow-x-auto">
+                      <Table>
                       <TableHeader>
                         <TableRow>
                           <TableHead>Cliente</TableHead>
@@ -1589,6 +2054,10 @@ const Admin = () => {
                           <TableHead className="text-right">
                             Último Pedido
                           </TableHead>
+                          <TableHead className="text-center">
+                            Cupons Atribuídos
+                          </TableHead>
+                          <TableHead className="text-right">Ações</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -1606,6 +2075,343 @@ const Admin = () => {
                                 </TableCell>
                                 <TableCell className="text-right">
                                   {c.lastOrder}
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  {apiCoupons.filter(
+                                    (coupon) =>
+                                      coupon.assignedTo === c.clientId &&
+                                      coupon.isActive // Use clientId aqui
+                                  ).length > 0 ? (
+                                    <Badge variant="secondary">
+                                      {
+                                        apiCoupons.filter(
+                                          (coupon) =>
+                                            coupon.assignedTo === c.clientId &&
+                                            coupon.isActive
+                                        ).length
+                                      }
+                                    </Badge>
+                                  ) : (
+                                    <span className="text-muted-foreground text-sm">
+                                      Nenhum
+                                    </span>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <Dialog
+                                    open={
+                                      isDialogOpen &&
+                                      selectedClient?.clientId === c.clientId
+                                    } // Use clientId aqui
+                                    onOpenChange={(open) => {
+                                      setIsDialogOpen(open);
+                                      if (!open) setSelectedClient(null);
+                                    }}
+                                  >
+                                    <DialogTrigger asChild>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="gap-2 opacity-70 group-hover:opacity-100 transition-opacity"
+                                        onClick={() => setSelectedClient(c)}
+                                      >
+                                        <Ticket className="h-4 w-4" />
+                                        Atribuir Cupom
+                                      </Button>
+                                    </DialogTrigger>
+                                    <DialogContent className="sm:max-w-md max-w-[95vw] max-h-[90vh] flex flex-col p-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                                      {/* Header Fixo */}
+                                      <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-3 sm:pb-4 flex-shrink-0 border-b">
+                                        <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+                                          <Gift className="h-4 w-4 sm:h-5 sm:w-5 text-[hsl(var(--product-pink))]" />
+                                          Atribuir Cupom
+                                        </DialogTitle>
+                                        <DialogDescription className="text-xs sm:text-sm">
+                                          Crie um cupom exclusivo para{" "}
+                                          <strong>
+                                            {selectedClient?.clientName}
+                                          </strong>
+                                        </DialogDescription>
+                                      </DialogHeader>
+                                      
+                                      {/* Conteúdo com Scroll */}
+                                      <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-3 sm:py-4 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                                        <div className="space-y-3 sm:space-y-4">
+                                        {/* Código do Cupom */}
+                                        <div className="space-y-2">
+                                          <Label htmlFor="code" className="text-sm">
+                                            Código do Cupom *
+                                          </Label>
+                                          <div className="flex flex-col sm:flex-row gap-2">
+                                            <Input
+                                              id="code"
+                                              placeholder="Ex: VIP20"
+                                              value={couponForm.code}
+                                              onChange={(e) =>
+                                                setCouponForm((prev) => ({
+                                                  ...prev,
+                                                  code: e.target.value.toUpperCase(),
+                                                }))
+                                              }
+                                              className="uppercase text-sm flex-1"
+                                              maxLength={20}
+                                            />
+                                            <Button
+                                              type="button"
+                                              variant="secondary"
+                                              onClick={generateCouponCode}
+                                              className="text-sm whitespace-nowrap"
+                                            >
+                                              Gerar
+                                            </Button>
+                                          </div>
+                                        </div>
+
+                                        {/* Desconto e Tipo */}
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                          <div className="space-y-2">
+                                            <Label htmlFor="discount" className="text-sm">
+                                              Desconto *
+                                            </Label>
+                                            <Input
+                                              id="discount"
+                                              type="number"
+                                              step="0.01"
+                                              min="0"
+                                              placeholder="10"
+                                              value={couponForm.discount}
+                                              onChange={(e) =>
+                                                setCouponForm((prev) => ({
+                                                  ...prev,
+                                                  discount: e.target.value,
+                                                }))
+                                              }
+                                              className="text-sm"
+                                            />
+                                          </div>
+                                          <div className="space-y-2">
+                                            <Label className="text-sm">Tipo *</Label>
+                                            <Select
+                                              value={couponForm.type}
+                                              onValueChange={(
+                                                value: "percentage" | "fixed"
+                                              ) =>
+                                                setCouponForm((prev) => ({
+                                                  ...prev,
+                                                  type: value,
+                                                }))
+                                              }
+                                            >
+                                              <SelectTrigger className="text-sm">
+                                                <SelectValue />
+                                              </SelectTrigger>
+                                              <SelectContent>
+                                                <SelectItem value="percentage">
+                                                  Percentual (%)
+                                                </SelectItem>
+                                                <SelectItem value="fixed">
+                                                  Valor Fixo (MZN)
+                                                </SelectItem>
+                                              </SelectContent>
+                                            </Select>
+                                          </div>
+                                        </div>
+
+                                        {/* Data de Expiração e Limite de Uso */}
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                          <div className="space-y-2">
+                                            <Label htmlFor="expiresAt" className="text-sm">
+                                              Expira em *
+                                            </Label>
+                                            <Input
+                                              id="expiresAt"
+                                              type="date"
+                                              min={getMinDate()}
+                                              value={couponForm.expiresAt}
+                                              onChange={(e) =>
+                                                setCouponForm((prev) => ({
+                                                  ...prev,
+                                                  expiresAt: e.target.value,
+                                                }))
+                                              }
+                                              className="text-sm"
+                                            />
+                                          </div>
+                                          <div className="space-y-2">
+                                            <Label htmlFor="usageLimit" className="text-sm">
+                                              Limite de uso *
+                                            </Label>
+                                            <Input
+                                              id="usageLimit"
+                                              type="number"
+                                              min="1"
+                                              placeholder="1"
+                                              value={couponForm.usageLimit}
+                                              onChange={(e) =>
+                                                setCouponForm((prev) => ({
+                                                  ...prev,
+                                                  usageLimit: e.target.value,
+                                                }))
+                                              }
+                                              className="text-sm"
+                                            />
+                                          </div>
+                                        </div>
+
+                                        {/* Valor Mínimo de Compra */}
+                                        <div className="space-y-2">
+                                          <Label htmlFor="minPurchase" className="text-sm">
+                                            Valor mínimo de compra (opcional)
+                                          </Label>
+                                          <Input
+                                            id="minPurchase"
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            placeholder="100.00"
+                                            value={couponForm.minPurchaseAmount}
+                                            onChange={(e) =>
+                                              setCouponForm((prev) => ({
+                                                ...prev,
+                                                minPurchaseAmount:
+                                                  e.target.value,
+                                              }))
+                                            }
+                                            className="text-sm"
+                                          />
+                                          <p className="text-[10px] sm:text-xs text-muted-foreground">
+                                            Valor mínimo do carrinho para usar o
+                                            cupom
+                                          </p>
+                                        </div>
+
+                                        {/* Desconto Máximo (apenas para percentual) */}
+                                        {couponForm.type === "percentage" && (
+                                          <div className="space-y-2">
+                                            <Label htmlFor="maxDiscount" className="text-sm">
+                                              Desconto máximo (opcional)
+                                            </Label>
+                                            <Input
+                                              id="maxDiscount"
+                                              type="number"
+                                              step="0.01"
+                                              min="0"
+                                              placeholder="50.00"
+                                              value={
+                                                couponForm.maxDiscountAmount
+                                              }
+                                              onChange={(e) =>
+                                                setCouponForm((prev) => ({
+                                                  ...prev,
+                                                  maxDiscountAmount:
+                                                    e.target.value,
+                                                }))
+                                              }
+                                              className="text-sm"
+                                            />
+                                            <p className="text-[10px] sm:text-xs text-muted-foreground">
+                                              Valor máximo de desconto em MZN
+                                            </p>
+                                          </div>
+                                        )}
+
+                                        {/* Preview do Cupom */}
+                                        {couponForm.code &&
+                                          couponForm.discount &&
+                                          couponForm.expiresAt && (
+                                            <div className="p-3 sm:p-4 rounded-lg bg-secondary/50 border border-border">
+                                              <p className="text-xs sm:text-sm text-muted-foreground mb-1">
+                                                Prévia do cupom:
+                                              </p>
+                                              <div className="space-y-1">
+                                                <p className="font-bold text-base sm:text-lg break-words">
+                                                  {couponForm.code} →{" "}
+                                                  {couponForm.discount}
+                                                  {couponForm.type ===
+                                                  "percentage"
+                                                    ? "% OFF"
+                                                    : " MZN OFF"}
+                                                </p>
+                                                <p className="text-[10px] sm:text-xs text-muted-foreground">
+                                                  Válido até:{" "}
+                                                  {new Date(
+                                                    couponForm.expiresAt
+                                                  ).toLocaleDateString("pt-BR")}
+                                                </p>
+                                                {couponForm.minPurchaseAmount && (
+                                                  <p className="text-[10px] sm:text-xs text-muted-foreground">
+                                                    Compra mínima:{" "}
+                                                    {
+                                                      couponForm.minPurchaseAmount
+                                                    }{" "}
+                                                    MZN
+                                                  </p>
+                                                )}
+                                                {couponForm.maxDiscountAmount &&
+                                                  couponForm.type ===
+                                                    "percentage" && (
+                                                    <p className="text-[10px] sm:text-xs text-muted-foreground">
+                                                      Desconto máximo:{" "}
+                                                      {
+                                                        couponForm.maxDiscountAmount
+                                                      }{" "}
+                                                      MZN
+                                                    </p>
+                                                  )}
+                                                <p className="text-[10px] sm:text-xs text-muted-foreground">
+                                                  Usos permitidos:{" "}
+                                                  {couponForm.usageLimit}
+                                                </p>
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                      
+                                      {/* Footer Fixo */}
+                                      <DialogFooter className="px-4 sm:px-6 pb-4 sm:pb-6 pt-3 sm:pt-4 flex-shrink-0 border-t flex-col sm:flex-row gap-2">
+                                        <Button
+                                          variant="outline"
+                                          onClick={() => {
+                                            setIsDialogOpen(false);
+                                            setSelectedClient(null);
+                                            setCouponForm({
+                                              code: "",
+                                              discount: "",
+                                              type: "percentage",
+                                              expiresAt: "",
+                                              minPurchaseAmount: "",
+                                              maxDiscountAmount: "",
+                                              usageLimit: "1",
+                                            });
+                                          }}
+                                          disabled={couponLoading}
+                                          className="w-full sm:w-auto text-sm"
+                                        >
+                                          Cancelar
+                                        </Button>
+                                        <Button
+                                          onClick={handleAssignCoupon}
+                                          className="gap-2 w-full sm:w-auto text-sm"
+                                          disabled={couponLoading}
+                                        >
+                                          {couponLoading ? (
+                                            <>
+                                              <span className="animate-spin">
+                                                ⏳
+                                              </span>
+                                              Criando...
+                                            </>
+                                          ) : (
+                                            <>
+                                              <Check className="h-3 w-3 sm:h-4 sm:w-4" />
+                                              Atribuir Cupom
+                                            </>
+                                          )}
+                                        </Button>
+                                      </DialogFooter>
+                                    </DialogContent>
+                                  </Dialog>
                                 </TableCell>
                               </TableRow>
                             ))
@@ -1634,6 +2440,7 @@ const Admin = () => {
                               ))}
                       </TableBody>
                     </Table>
+                    </div>
                   </CardContent>
                 </Card>
               </div>
@@ -1642,11 +2449,11 @@ const Admin = () => {
             {/* Products Tab */}
             <TabsContent value="products" className="mt-6">
               <Card>
-                <CardHeader>
+                <CardHeader className="p-4 sm:p-6">
                   <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                     <div>
-                      <CardTitle>Produtos Cadastrados</CardTitle>
-                      <CardDescription>
+                      <CardTitle className="text-lg sm:text-xl">Produtos Cadastrados</CardTitle>
+                      <CardDescription className="text-xs sm:text-sm">
                         {filteredProducts.length} produtos no catálogo
                       </CardDescription>
                     </div>
@@ -1656,54 +2463,56 @@ const Admin = () => {
                         placeholder="Buscar produtos..."
                         value={searchTerm}
                         onChange={(e) => handleSearchChange(e.target.value)}
-                        className="pl-10"
+                        className="pl-10 text-sm"
                       />
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
+                <CardContent className="p-4 sm:p-6">
+                  <div className="space-y-3 sm:space-y-4">
                     {paginatedProducts.map((product) => (
                       <div
                         key={product._id}
-                        className="flex gap-4 p-4 border border-border rounded-lg hover:border-accent transition-colors"
+                        className="flex gap-3 sm:gap-4 p-3 sm:p-4 border border-border rounded-lg hover:border-accent transition-colors"
                       >
                         <img
                           src={`${productionUrl}/img/products/${product.imageCover}`}
                           alt={product.name}
-                          className="w-20 h-20 object-cover rounded-md"
+                          className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-md flex-shrink-0"
                           onError={(e) => {
                             e.currentTarget.src =
                               "https://i.pinimg.com/1200x/a7/2f/db/a72fdbea7e86c3fb70a17c166a36407b.jpg";
                           }}
                         />
-                        <div className="flex-1">
-                          <div className="flex items-start justify-between gap-4">
-                            <div>
-                              <h3 className="font-semibold text-foreground">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2 sm:gap-4">
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-semibold text-sm sm:text-base text-foreground break-words">
                                 {product.name}
                               </h3>
-                              <p className="text-sm text-muted-foreground">
+                              <p className="text-xs sm:text-sm text-muted-foreground">
                                 {product.category} • {product.gender}
                               </p>
-                              <p className="text-lg font-bold text-accent mt-1">
+                              <p className="text-base sm:text-lg font-bold text-accent mt-1">
                                 {product.price.toFixed(2)} MZN
                               </p>
                             </div>
-                            <div className="flex gap-2">
+                            <div className="flex gap-1 sm:gap-2 flex-shrink-0">
                               <Button
                                 variant="outline"
                                 size="icon"
                                 onClick={() => handleEditProduct(product)}
+                                className="h-8 w-8 sm:h-10 sm:w-10"
                               >
-                                <Pencil className="h-4 w-4" />
+                                <Pencil className="h-3 w-3 sm:h-4 sm:w-4" />
                               </Button>
                               <Button
                                 variant="outline"
                                 size="icon"
                                 onClick={() => handleDeleteProduct(product)}
+                                className="h-8 w-8 sm:h-10 sm:w-10"
                               >
-                                <Trash2 className="h-4 w-4" />
+                                <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
                               </Button>
                             </div>
                           </div>
@@ -1720,8 +2529,8 @@ const Admin = () => {
 
                   {/* Pagination for Products */}
                   {filteredProducts.length > itemsPerPage && (
-                    <div className="flex items-center justify-between pt-4">
-                      <p className="text-sm text-muted-foreground">
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 pt-4">
+                      <p className="text-xs sm:text-sm text-muted-foreground text-center sm:text-left">
                         Mostrando {(productsPage - 1) * itemsPerPage + 1} a{" "}
                         {Math.min(
                           productsPage * itemsPerPage,
@@ -1729,7 +2538,7 @@ const Admin = () => {
                         )}{" "}
                         de {filteredProducts.length} produtos
                       </p>
-                      <div className="flex gap-2">
+                      <div className="flex items-center gap-1 sm:gap-2 flex-wrap justify-center">
                         <Button
                           variant="outline"
                           size="sm"
@@ -1737,10 +2546,11 @@ const Admin = () => {
                             setProductsPage((p) => Math.max(1, p - 1))
                           }
                           disabled={productsPage === 1}
+                          className="text-xs sm:text-sm"
                         >
                           Anterior
                         </Button>
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1 overflow-x-auto">
                           {Array.from(
                             { length: totalProductsPages },
                             (_, i) => i + 1
@@ -1752,7 +2562,7 @@ const Admin = () => {
                               }
                               size="sm"
                               onClick={() => setProductsPage(page)}
-                              className="w-10"
+                              className="w-8 h-8 sm:w-10 sm:h-10 text-xs sm:text-sm"
                             >
                               {page}
                             </Button>
@@ -1767,6 +2577,7 @@ const Admin = () => {
                             )
                           }
                           disabled={productsPage === totalProductsPages}
+                          className="text-xs sm:text-sm"
                         >
                           Próxima
                         </Button>
@@ -1780,42 +2591,44 @@ const Admin = () => {
             {/* Add Product Tab */}
             <TabsContent value="add-product" className="mt-6">
               <Card>
-                <CardHeader>
-                  <CardTitle>Cadastrar Novo Produto</CardTitle>
-                  <CardDescription>
+                <CardHeader className="px-4 sm:px-6">
+                  <CardTitle className="text-xl sm:text-2xl">Cadastrar Novo Produto</CardTitle>
+                  <CardDescription className="text-sm">
                     Adicione um novo produto ao catálogo
                   </CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <form onSubmit={handleAddProduct} className="space-y-6">
-                    <div className="grid gap-4 md:grid-cols-2">
+                <CardContent className="px-4 sm:px-6 pb-6">
+                  <form onSubmit={handleAddProduct} className="space-y-4 sm:space-y-6">
+                    <div className="grid gap-4 sm:grid-cols-2">
                       <div className="space-y-2">
-                        <Label htmlFor="name">Nome do Produto *</Label>
+                        <Label htmlFor="name" className="text-sm font-medium">Nome do Produto *</Label>
                         <Input
                           id="name"
                           name="name"
                           placeholder="Ex: Camiseta Premium"
+                          className="text-sm"
                           required
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="price">Preço (MZN) *</Label>
+                        <Label htmlFor="price" className="text-sm font-medium">Preço (MZN) *</Label>
                         <Input
                           id="price"
                           name="price"
                           type="number"
                           step="0.01"
                           placeholder="0.00"
+                          className="text-sm"
                           required
                         />
                       </div>
                     </div>
 
-                    <div className="grid gap-4 md:grid-cols-2">
+                    <div className="grid gap-4 sm:grid-cols-2">
                       <div className="space-y-2">
-                        <Label htmlFor="category">Categoria *</Label>
+                        <Label htmlFor="category" className="text-sm font-medium">Categoria *</Label>
                         <Select name="category" required>
-                          <SelectTrigger>
+                          <SelectTrigger className="text-sm">
                             <SelectValue placeholder="Selecione a categoria" />
                           </SelectTrigger>
                           <SelectContent>
@@ -1834,9 +2647,9 @@ const Admin = () => {
                         </Select>
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="gender">Gênero *</Label>
+                        <Label htmlFor="gender" className="text-sm font-medium">Gênero *</Label>
                         <Select name="gender" required>
-                          <SelectTrigger>
+                          <SelectTrigger className="text-sm">
                             <SelectValue placeholder="Selecione o gênero" />
                           </SelectTrigger>
                           <SelectContent>
@@ -1849,24 +2662,25 @@ const Admin = () => {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="description">Descrição *</Label>
+                      <Label htmlFor="description" className="text-sm font-medium">Descrição *</Label>
                       <Textarea
                         id="description"
                         name="description"
                         placeholder="Descreva o produto..."
                         rows={4}
+                        className="text-sm resize-none"
                         required
                       />
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Imagem Principal do Produto *</Label>
-                      <div className="flex items-center gap-4">
+                      <Label className="text-sm font-medium">Imagem Principal do Produto *</Label>
+                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">
                         <div className="flex-1">
-                          <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-accent transition-colors">
-                            <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                              <Upload className="w-8 h-8 mb-2 text-muted-foreground" />
-                              <p className="text-sm text-muted-foreground">
+                          <label className="flex flex-col items-center justify-center w-full h-28 sm:h-32 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-accent transition-colors">
+                            <div className="flex flex-col items-center justify-center pt-4 sm:pt-5 pb-4 sm:pb-6">
+                              <Upload className="w-6 h-6 sm:w-8 sm:h-8 mb-2 text-muted-foreground" />
+                              <p className="text-xs sm:text-sm text-muted-foreground text-center px-2">
                                 Clique para fazer upload da imagem
                               </p>
                             </div>
@@ -1879,11 +2693,11 @@ const Admin = () => {
                           </label>
                         </div>
                         {productImage && (
-                          <div className="relative">
+                          <div className="relative flex-shrink-0 self-center sm:self-auto">
                             <img
                               src={productImage}
                               alt="Preview"
-                              className="w-32 h-32 object-cover rounded-lg"
+                              className="w-24 h-24 sm:w-32 sm:h-32 object-cover rounded-lg"
                             />
                             <Button
                               type="button"
@@ -1892,7 +2706,7 @@ const Admin = () => {
                               className="absolute -top-2 -right-2 h-6 w-6"
                               onClick={() => setProductImage("")}
                             >
-                              <X className="h-4 w-4" />
+                              <X className="h-3 w-3 sm:h-4 sm:w-4" />
                             </Button>
                           </div>
                         )}
@@ -1900,126 +2714,17 @@ const Admin = () => {
                     </div>
 
                     <Separator />
-                    {/* 
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <Label>Variantes do Produto *</Label>
-                          <p className="text-sm text-muted-foreground">
-                            Adicione as variantes com cor, tamanho, quantidade e imagem
-                          </p>
-                        </div>
-                        <Button type="button" onClick={addVariant} size="sm">
-                          <Plus className="w-4 h-4 mr-2" />
-                          Adicionar Variante
-                        </Button>
-                      </div>
 
-                      {variants.length === 0 && (
-                        <div className="text-center py-8 text-muted-foreground border border-dashed border-border rounded-lg">
-                          Nenhuma variante adicionada ainda
-                        </div>
-                      )}
-
-                      <div className="space-y-4">
-                        {variants.map((variant, index) => (
-                          <Card key={variant.id}>
-                            <CardContent className="pt-6">
-                              <div className="space-y-4">
-                                <div className="flex items-center justify-between mb-4">
-                                  <h4 className="font-semibold">Variante {index + 1}</h4>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => removeVariant(variant.id)}
-                                  >
-                                    <X className="h-4 w-4" />
-                                  </Button>
-                                </div>
-
-                                <div className="grid gap-4 md:grid-cols-3">
-                                  <div className="space-y-2">
-                                    <Label>Cor *</Label>
-                                    <Input
-                                      placeholder="Ex: Preto"
-                                      value={variant.color}
-                                      onChange={(e) => updateVariant(variant.id, "color", e.target.value)}
-                                    />
-                                  </div>
-                                  <div className="space-y-2">
-                                    <Label>Tamanho *</Label>
-                                    <Input
-                                      placeholder="Ex: M"
-                                      value={variant.size}
-                                      onChange={(e) => updateVariant(variant.id, "size", e.target.value)}
-                                    />
-                                  </div>
-                                  <div className="space-y-2">
-                                    <Label>Quantidade *</Label>
-                                    <Input
-                                      type="number"
-                                      min="0"
-                                      placeholder="0"
-                                      value={variant.quantity}
-                                      onChange={(e) => updateVariant(variant.id, "quantity", parseInt(e.target.value) || 0)}
-                                    />
-                                  </div>
-                                </div>
-
-                                <div className="space-y-2">
-                                  <Label>Imagem da Variante</Label>
-                                  <div className="flex items-center gap-4">
-                                    <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-accent transition-colors">
-                                      <div className="flex flex-col items-center justify-center">
-                                        <Upload className="w-6 h-6 mb-1 text-muted-foreground" />
-                                        <p className="text-xs text-muted-foreground">Upload da imagem</p>
-                                      </div>
-                                      <input
-                                        type="file"
-                                        className="hidden"
-                                        accept="image/*"
-                                        onChange={(e) => handleVariantImageUpload(variant.id, e)}
-                                      />
-                                    </label>
-                                    {variant.image && (
-                                      <div className="relative">
-                                        <img
-                                          src={variant.image}
-                                          alt="Variante"
-                                          className="w-24 h-24 object-cover rounded-lg"
-                                        />
-                                        <Button
-                                          type="button"
-                                          variant="destructive"
-                                          size="icon"
-                                          className="absolute -top-2 -right-2 h-6 w-6"
-                                          onClick={() => updateVariant(variant.id, "image", "")}
-                                        >
-                                          <X className="h-4 w-4" />
-                                        </Button>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        ))}
-                      </div>
-                    </div>
-
-                    <Separator /> */}
-
-                    <div className="flex gap-3">
-                      <Button type="submit" size="lg">
-                        <Plus className="w-5 h-5 mr-2" />
+                    <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                      <Button type="submit" size="lg" className="w-full sm:w-auto">
+                        <Plus className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
                         Cadastrar Produto
                       </Button>
                       <Button
                         type="button"
                         variant="outline"
                         size="lg"
+                        className="w-full sm:w-auto"
                         onClick={() => {
                           setProductImage("");
                           setVariants([]);
@@ -2046,17 +2751,17 @@ const Admin = () => {
           }
         }}
       >
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Detalhes do Pedido #{selectedOrder}</DialogTitle>
-            <DialogDescription>
+        <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] sm:max-h-[80vh] overflow-y-auto p-4 sm:p-6">
+          <DialogHeader className="pb-4">
+            <DialogTitle className="text-lg sm:text-xl">Detalhes do Pedido #{selectedOrder}</DialogTitle>
+            <DialogDescription className="text-xs sm:text-sm">
               Confira os produtos do seu pedido
             </DialogDescription>
           </DialogHeader>
 
           {selectedOrder &&
             (() => {
-              let order: any = null;
+              let order: OrderViewShape | null = null;
               if (
                 currentOrder &&
                 (currentOrder._id || currentOrder.id) === selectedOrder
@@ -2076,21 +2781,21 @@ const Admin = () => {
               );
 
               return (
-                <div className="space-y-6">
-                  <div className="flex justify-between items-center">
+                <div className="space-y-4 sm:space-y-6">
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 sm:gap-4">
                     <div>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-xs sm:text-sm text-muted-foreground">
                         Data do Pedido
                       </p>
-                      <p className="font-semibold">
+                      <p className="font-semibold text-sm sm:text-base">
                         {new Date(order.date).toLocaleDateString("pt-BR")}
                       </p>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                       {getStatusBadge(order.status)}
 
                       {/* Status action buttons */}
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         {
                           // possible transitions
                         }
@@ -2137,6 +2842,7 @@ const Admin = () => {
                                   handleChangeOrderStatus(order.id, t.value);
                                 }
                               }}
+                              className="text-xs sm:text-sm"
                             >
                               {t.label}
                             </Button>
@@ -2148,8 +2854,8 @@ const Admin = () => {
 
                   <Separator />
 
-                  <div className="space-y-4">
-                    <h3 className="font-semibold text-foreground">
+                  <div className="space-y-3 sm:space-y-4">
+                    <h3 className="font-semibold text-sm sm:text-base text-foreground">
                       Produtos ({order.products.length})
                     </h3>
                     {displayedProducts.map((item, index) => {
@@ -2157,7 +2863,7 @@ const Admin = () => {
                       return (
                         <div
                           key={item._id || index}
-                          className="flex gap-4 p-4 border border-border rounded-lg"
+                          className="flex gap-3 sm:gap-4 p-3 sm:p-4 border border-border rounded-lg"
                         >
                           <img
                             src={
@@ -2166,40 +2872,40 @@ const Admin = () => {
                               "https://i.pinimg.com/1200x/a7/2f/db/a72fdbea7e86c3fb70a17c166a36407b.jpg"
                             }
                             alt={product.name}
-                            className="w-20 h-20 object-cover rounded-md"
+                            className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-md flex-shrink-0"
                             onError={(e) => {
                               e.currentTarget.src =
                                 "https://i.pinimg.com/1200x/a7/2f/db/a72fdbea7e86c3fb70a17c166a36407b.jpg";
                             }}
                           />
-                          <div className="flex-1">
-                            <h4 className="font-semibold text-foreground">
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-semibold text-sm sm:text-base text-foreground break-words">
                               {product.name || "Produto não encontrado"}
                             </h4>
-                            <p className="text-sm text-muted-foreground">
+                            <p className="text-xs sm:text-sm text-muted-foreground">
                               {product.category?.name ||
                                 product.category ||
                                 "Sem categoria"}
                             </p>
                             {product.color && (
-                              <p className="text-sm text-muted-foreground">
+                              <p className="text-xs sm:text-sm text-muted-foreground">
                                 Cor: {product.color}
                               </p>
                             )}
                             {product.size && (
-                              <p className="text-sm text-muted-foreground">
+                              <p className="text-xs sm:text-sm text-muted-foreground">
                                 Tamanho: {product.size}
                               </p>
                             )}
-                            <p className="text-sm text-muted-foreground mt-1">
+                            <p className="text-xs sm:text-sm text-muted-foreground mt-1">
                               Quantidade: {item.quantity}
                             </p>
                           </div>
-                          <div className="text-right">
-                            <p className="font-bold text-foreground">
+                          <div className="text-right flex-shrink-0">
+                            <p className="font-bold text-sm sm:text-base text-foreground">
                               {(item.price * item.quantity).toFixed(2)} MZN
                             </p>
-                            <p className="text-xs text-muted-foreground">
+                            <p className="text-[10px] sm:text-xs text-muted-foreground">
                               {item.price.toFixed(2)} MZN cada
                             </p>
                           </div>
@@ -2259,9 +2965,9 @@ const Admin = () => {
 
                   <Separator />
 
-                  <div className="flex justify-between items-center">
-                    <span className="text-lg font-semibold">Total</span>
-                    <span className="text-2xl font-bold text-accent">
+                  <div className="flex justify-between items-center pt-2">
+                    <span className="text-base sm:text-lg font-semibold">Total</span>
+                    <span className="text-xl sm:text-2xl font-bold text-accent">
                       {order.total.toFixed(2)} MZN
                     </span>
                   </div>
@@ -2276,14 +2982,14 @@ const Admin = () => {
         open={confirmDialog.open}
         onOpenChange={(open) => setConfirmDialog((prev) => ({ ...prev, open }))}
       >
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>
+        <DialogContent className="max-w-[95vw] sm:max-w-lg p-4 sm:p-6">
+          <DialogHeader className="pb-4">
+            <DialogTitle className="text-lg sm:text-xl">
               {confirmDialog.action === "removeCustomer"
                 ? "Confirmar remoção"
                 : "Confirmar cancelamento"}
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-xs sm:text-sm">
               {confirmDialog.action === "removeCustomer" ? (
                 <>
                   Tem certeza que deseja remover o cliente "{confirmDialog.name}
@@ -2297,10 +3003,11 @@ const Admin = () => {
               )}
             </DialogDescription>
           </DialogHeader>
-          <div className="flex justify-end gap-2 pt-4">
+          <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-2 pt-4">
             <Button
               variant="outline"
               onClick={() => setConfirmDialog({ open: false, action: null })}
+              className="w-full sm:w-auto text-sm"
             >
               Cancelar
             </Button>
@@ -2312,6 +3019,7 @@ const Admin = () => {
               }
               onClick={handleConfirmDialog}
               disabled={isConfirming || isUpdatingStatus}
+              className="w-full sm:w-auto text-sm"
             >
               {isConfirming || isUpdatingStatus
                 ? "Processando..."
@@ -2323,27 +3031,28 @@ const Admin = () => {
 
       {/* Edit Product Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Editar Produto</DialogTitle>
-            <DialogDescription>
+        <DialogContent className="max-w-[95vw] sm:max-w-4xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
+          <DialogHeader className="pb-4">
+            <DialogTitle className="text-lg sm:text-xl">Editar Produto</DialogTitle>
+            <DialogDescription className="text-xs sm:text-sm">
               Atualize as informações do produto e suas variantes
             </DialogDescription>
           </DialogHeader>
           {editingProduct && (
-            <form onSubmit={handleUpdateProduct} className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
+            <form onSubmit={handleUpdateProduct} className="space-y-4 sm:space-y-6">
+              <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="edit-name">Nome do Produto *</Label>
+                  <Label htmlFor="edit-name" className="text-sm">Nome do Produto *</Label>
                   <Input
                     id="edit-name"
                     name="name"
                     defaultValue={editingProduct.name as string}
                     required
+                    className="text-sm"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="edit-price">Preço (MZN) *</Label>
+                  <Label htmlFor="edit-price" className="text-sm">Preço (MZN) *</Label>
                   <Input
                     id="edit-price"
                     name="price"
@@ -2351,19 +3060,20 @@ const Admin = () => {
                     step="0.01"
                     defaultValue={editingProduct.price as number}
                     required
+                    className="text-sm"
                   />
                 </div>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="edit-category">Categoria *</Label>
+                  <Label htmlFor="edit-category" className="text-sm">Categoria *</Label>
                   <Select
                     name="category"
                     defaultValue={editingProduct.category as string}
                     required
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="text-sm">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -2381,13 +3091,13 @@ const Admin = () => {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="edit-gender">Gênero *</Label>
+                  <Label htmlFor="edit-gender" className="text-sm">Gênero *</Label>
                   <Select
                     name="gender"
                     defaultValue={editingProduct.gender as string}
                     required
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="text-sm">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -2400,12 +3110,12 @@ const Admin = () => {
               </div>
 
               <div className="space-y-2">
-                <Label>Imagem Principal</Label>
-                <div className="flex items-center gap-4">
-                  <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-accent transition-colors">
-                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                      <Upload className="w-8 h-8 mb-2 text-muted-foreground" />
-                      <p className="text-sm text-muted-foreground">
+                <Label className="text-sm">Imagem Principal</Label>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">
+                  <label className="flex flex-col items-center justify-center w-full h-28 sm:h-32 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-accent transition-colors">
+                    <div className="flex flex-col items-center justify-center pt-4 sm:pt-5 pb-4 sm:pb-6">
+                      <Upload className="w-6 h-6 sm:w-8 sm:h-8 mb-2 text-muted-foreground" />
+                      <p className="text-xs sm:text-sm text-muted-foreground text-center px-2">
                         Clique para atualizar a imagem
                       </p>
                     </div>
@@ -2417,11 +3127,11 @@ const Admin = () => {
                     />
                   </label>
                   {editProductImagePreview && (
-                    <div className="relative">
+                    <div className="relative flex-shrink-0 self-center sm:self-auto">
                       <img
                         src={editProductImagePreview}
                         alt="Imagem atual"
-                        className="w-32 h-32 object-cover rounded-lg"
+                        className="w-24 h-24 sm:w-32 sm:h-32 object-cover rounded-lg"
                       />
                       <Button
                         type="button"
@@ -2430,7 +3140,7 @@ const Admin = () => {
                         className="absolute -top-2 -right-2 h-6 w-6"
                         onClick={handleResetEditImage}
                       >
-                        <X className="h-4 w-4" />
+                        <X className="h-3 w-3 sm:h-4 sm:w-4" />
                       </Button>
                     </div>
                   )}
@@ -2442,20 +3152,20 @@ const Admin = () => {
               {existingVariants.length > 0 && (
                 <div className="space-y-4">
                   <div>
-                    <Label>Variantes cadastradas</Label>
-                    <p className="text-sm text-muted-foreground">
+                    <Label className="text-sm">Variantes cadastradas</Label>
+                    <p className="text-xs sm:text-sm text-muted-foreground">
                       Consulte o estoque atual antes de criar novas variantes.
                     </p>
                   </div>
                   <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
                     {existingVariants.map((variant) => (
                       <Card key={variant._id}>
-                        <CardContent className="pt-4 flex items-center justify-between gap-4">
-                          <div>
-                            <h4 className="font-semibold">
+                        <CardContent className="pt-4 p-4 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-semibold text-sm sm:text-base">
                               {variant.color} • {variant.size}
                             </h4>
-                            <p className="text-sm text-muted-foreground">
+                            <p className="text-xs sm:text-sm text-muted-foreground">
                               SKU: {variant.sku} | Estoque: {variant.stock}
                             </p>
                           </div>
@@ -2463,7 +3173,7 @@ const Admin = () => {
                             <img
                               src={`${productionUrl}/img/variants/${variant.image}`}
                               alt={variant.sku}
-                              className="w-16 h-16 object-cover rounded-md"
+                              className="w-14 h-14 sm:w-16 sm:h-16 object-cover rounded-md flex-shrink-0"
                             />
                           )}
                         </CardContent>
@@ -2476,14 +3186,14 @@ const Admin = () => {
 
               <div className="space-y-4">
                 <div>
-                  <Label>Adicionar nova variante</Label>
-                  <p className="text-sm text-muted-foreground">
+                  <Label className="text-sm">Adicionar nova variante</Label>
+                  <p className="text-xs sm:text-sm text-muted-foreground">
                     Defina cor, tamanho, SKU, estoque e imagem.
                   </p>
                 </div>
-                <div className="grid gap-4 md:grid-cols-3">
+                <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
                   <div className="space-y-2">
-                    <Label>Cor *</Label>
+                    <Label className="text-sm">Cor *</Label>
                     <Input
                       type="color"
                       value={variantForm.color}
@@ -2493,10 +3203,11 @@ const Admin = () => {
                           color: e.target.value,
                         }))
                       }
+                      className="h-10 sm:h-12"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Tamanho *</Label>
+                    <Label className="text-sm">Tamanho *</Label>
                     <Input
                       placeholder="Ex: M"
                       value={variantForm.size}
@@ -2506,10 +3217,11 @@ const Admin = () => {
                           size: e.target.value,
                         }))
                       }
+                      className="text-sm"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label>SKU *</Label>
+                  <div className="space-y-2 sm:col-span-1 md:col-span-1">
+                    <Label className="text-sm">SKU *</Label>
                     <Input
                       placeholder="Ex: camisa-preta-m"
                       value={variantForm.sku}
@@ -2519,13 +3231,14 @@ const Admin = () => {
                           sku: e.target.value,
                         }))
                       }
+                      className="text-sm"
                     />
                   </div>
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>Estoque *</Label>
+                    <Label className="text-sm">Estoque *</Label>
                     <Input
                       type="number"
                       min="0"
@@ -2536,14 +3249,15 @@ const Admin = () => {
                           stock: parseInt(e.target.value) || 0,
                         }))
                       }
+                      className="text-sm"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Imagem da Variante *</Label>
-                    <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-accent transition-colors">
-                      <div className="flex flex-col items-center justify-center">
+                    <Label className="text-sm">Imagem da Variante *</Label>
+                    <label className="flex flex-col items-center justify-center w-full h-28 sm:h-32 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-accent transition-colors">
+                      <div className="flex flex-col items-center justify-center pt-4 sm:pt-5 pb-4 sm:pb-6">
                         <Upload className="w-6 h-6 mb-1 text-muted-foreground" />
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-xs sm:text-sm text-muted-foreground text-center px-2">
                           Upload da imagem
                         </p>
                       </div>
@@ -2558,11 +3272,11 @@ const Admin = () => {
                 </div>
 
                 {variantForm.imagePreview && (
-                  <div className="relative w-28 h-28">
+                  <div className="relative w-24 h-24 sm:w-28 sm:h-28 flex-shrink-0 self-center sm:self-auto">
                     <img
                       src={variantForm.imagePreview}
                       alt="Preview variante"
-                      className="w-28 h-28 object-cover rounded-md"
+                      className="w-24 h-24 sm:w-28 sm:h-28 object-cover rounded-md"
                     />
                     <Button
                       type="button"
@@ -2577,17 +3291,18 @@ const Admin = () => {
                         }))
                       }
                     >
-                      <X className="h-4 w-4" />
+                      <X className="h-3 w-3 sm:h-4 sm:w-4" />
                     </Button>
                   </div>
                 )}
 
-                <div className="flex justify-end gap-3">
+                <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3">
                   <Button
                     type="button"
                     variant="outline"
                     onClick={resetVariantFormState}
                     disabled={variantLoading}
+                    className="w-full sm:w-auto text-sm"
                   >
                     Limpar
                   </Button>
@@ -2595,6 +3310,7 @@ const Admin = () => {
                     type="button"
                     onClick={handleCreateVariant}
                     disabled={variantLoading}
+                    className="w-full sm:w-auto text-sm"
                   >
                     {variantLoading ? "Salvando..." : "Adicionar Variante"}
                   </Button>
@@ -2603,7 +3319,7 @@ const Admin = () => {
 
               <Separator />
 
-              <div className="flex gap-3 justify-end pt-4">
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 justify-end pt-4">
                 <Button
                   type="button"
                   variant="outline"
@@ -2614,30 +3330,12 @@ const Admin = () => {
                     setEditProductImagePreview("");
                     resetVariantFormState();
                   }}
+                  className="w-full sm:w-auto text-sm"
                 >
                   Cancelar
                 </Button>
-                <Button type="submit">
-                  <Pencil className="w-4 h-4 mr-2" />
-                  Salvar Alterações
-                </Button>
-              </div>
-              <div className="flex gap-3 justify-end pt-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setIsEditDialogOpen(false);
-                    setEditingProduct(null);
-                    setEditProductImageFile(null);
-                    setEditProductImagePreview("");
-                    resetVariantFormState();
-                  }}
-                >
-                  Cancelar
-                </Button>
-                <Button type="submit">
-                  <Pencil className="w-4 h-4 mr-2" />
+                <Button type="submit" className="w-full sm:w-auto text-sm">
+                  <Pencil className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
                   Salvar Alterações
                 </Button>
               </div>
@@ -2650,3 +3348,4 @@ const Admin = () => {
 };
 
 export default Admin;
+

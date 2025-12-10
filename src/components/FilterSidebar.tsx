@@ -109,7 +109,7 @@ export const FilterSidebar = ({
   };
 
   return (
-    <aside className="w-full lg:w-64 bg-sidebar border-r border-sidebar-border p-6 space-y-4">
+    <aside className="w-full lg:w-64 bg-sidebar border-r border-sidebar-border p-6 space-y-4 min-h-full">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl font-bold text-sidebar-foreground">Filtro</h2>
       </div>

@@ -12,12 +12,14 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Heart, Package, User, Lock, MapPin } from "lucide-react";
+import { Heart, Package, User, Lock, MapPin, Ticket, Copy, Check } from "lucide-react";
 import { mockProducts } from "@/data/products";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { updateProfile, updatePassword } from "@/features/user/userActions";
 import { useToast } from "@/hooks/use-toast";
 import { useAppSelector, useAppDispatch } from "@/app/hooks";
+import { getAllCoupons } from "@/features/coupon/cupomActions";
+import { ICoupon } from "@/features/coupon/cupomTypes";
 import {
   Pagination,
   PaginationContent,
@@ -90,11 +92,29 @@ const Profile = () => {
   );
 
   const { user } = useAppSelector((state) => state.user);
+  const { coupons, loading: couponsLoading } = useAppSelector(
+    (state) => state.coupon
+  );
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
   useEffect(() => {
-    dispatch(fetchFavorites());
-    dispatch(fetchOrders(user._id));
-  }, [dispatch]);
+    if (user?._id) {
+      dispatch(fetchFavorites());
+      dispatch(fetchOrders(user._id));
+      dispatch(getAllCoupons());
+    }
+  }, [dispatch, user?._id]);
+
+  // Debug: Log dos cupons e usuário (apenas quando necessário)
+  useEffect(() => {
+    if (coupons.length > 0 && user?._id) {
+      console.log("🔍 [Profile] Cupons carregados:", {
+        totalCoupons: coupons.length,
+        userId: user._id || user.userId,
+        coupons: coupons.map(c => ({ code: c.code, assignedTo: c.assignedTo })),
+      });
+    }
+  }, [coupons.length, user?._id]);
 
   const handleSaveProfile = async () => {
     try {
@@ -269,41 +289,119 @@ const Profile = () => {
     return <Badge variant={config.variant}>{config.label}</Badge>;
   };
 
+  // Filtrar cupons atribuídos ao usuário
+  const userCoupons = useMemo(() => {
+    if (!user?._id && !user?.userId) {
+      console.log("⚠️ [Profile] Usuário não encontrado para filtrar cupons");
+      return [];
+    }
+    
+    if (coupons.length === 0) {
+      console.log("⚠️ [Profile] Nenhum cupom disponível para filtrar");
+      return [];
+    }
+    
+    // Obter todos os possíveis IDs do usuário
+    const userIds = [
+      user._id,
+      user.userId,
+      (user as any)?.id,
+    ].filter(Boolean).map(id => String(id).trim());
+    
+    const filtered = coupons.filter((coupon: ICoupon) => {
+      if (!coupon.assignedTo) {
+        return false;
+      }
+      
+      // Converter assignedTo para string
+      const assignedTo = String(coupon.assignedTo).trim();
+      
+      // Verificar se corresponde a algum ID do usuário
+      const matches = userIds.some(userId => assignedTo === userId);
+      
+      return matches;
+    });
+    
+    // Log apenas se houver cupons filtrados ou se houver cupons mas nenhum corresponder
+    if (filtered.length > 0 || (coupons.length > 0 && filtered.length === 0)) {
+      console.log("✅ [Profile] Cupons do usuário:", {
+        total: coupons.length,
+        filtrados: filtered.length,
+        userIds,
+        cuponsFiltrados: filtered.map(c => c.code),
+      });
+    }
+    
+    return filtered;
+  }, [coupons, user?._id, user?.userId]);
+
+  // Função para copiar código do cupom
+  const handleCopyCouponCode = async (code: string) => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopiedCode(code);
+      toast({
+        title: "Código copiado!",
+        description: `Código ${code} copiado para a área de transferência`,
+      });
+      setTimeout(() => setCopiedCode(null), 2000);
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Não foi possível copiar o código",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Verificar se cupom está válido
+  const isCouponValid = (coupon: ICoupon) => {
+    if (!coupon.isActive) return false;
+    if (coupon.usedAt) return false;
+    const now = new Date();
+    const expiresAt = new Date(coupon.expiresAt);
+    return expiresAt > now;
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
 
-      <div className="container px-4 md:px-6 py-8">
+      <div className="container px-3 sm:px-4 md:px-6 py-4 sm:py-6 md:py-8">
         <div className="max-w-6xl mx-auto">
-          <div className="mb-8">
-            <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2">
+          <div className="mb-4 sm:mb-6 md:mb-8">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-foreground mb-2">
               Meu Perfil
             </h1>
-            <p className="text-muted-foreground">
+            <p className="text-sm sm:text-base text-muted-foreground">
               Gerencie suas informações e pedidos
             </p>
           </div>
 
           <Tabs defaultValue="info" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 h-auto">
-              <TabsTrigger value="info" className="gap-2">
-                <User className="h-4 w-4" />
+            <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 h-auto gap-1">
+              <TabsTrigger value="info" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
+                <User className="h-3 w-3 sm:h-4 sm:w-4" />
                 <span className="hidden sm:inline">Dados</span>
               </TabsTrigger>
-              <TabsTrigger value="favorites" className="gap-2">
-                <Heart className="h-4 w-4" />
+              <TabsTrigger value="favorites" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
+                <Heart className="h-3 w-3 sm:h-4 sm:w-4" />
                 <span className="hidden sm:inline">Favoritos</span>
               </TabsTrigger>
-              <TabsTrigger value="orders" className="gap-2">
-                <Package className="h-4 w-4" />
+              <TabsTrigger value="orders" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
+                <Package className="h-3 w-3 sm:h-4 sm:w-4" />
                 <span className="hidden sm:inline">Pedidos</span>
               </TabsTrigger>
-              <TabsTrigger value="address" className="gap-2">
-                <MapPin className="h-4 w-4" />
+              <TabsTrigger value="coupons" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
+                <Ticket className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="hidden sm:inline">Cupons</span>
+              </TabsTrigger>
+              <TabsTrigger value="address" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
+                <MapPin className="h-3 w-3 sm:h-4 sm:w-4" />
                 <span className="hidden sm:inline">Endereço</span>
               </TabsTrigger>
-              <TabsTrigger value="password" className="gap-2">
-                <Lock className="h-4 w-4" />
+              <TabsTrigger value="password" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
+                <Lock className="h-3 w-3 sm:h-4 sm:w-4" />
                 <span className="hidden sm:inline">Senha</span>
               </TabsTrigger>
             </TabsList>
@@ -545,6 +643,178 @@ const Profile = () => {
                         </PaginationItem>
                       </PaginationContent>
                     </Pagination>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Cupons */}
+            <TabsContent value="coupons" className="mt-4 sm:mt-6">
+              <Card>
+                <CardHeader className="p-4 sm:p-6">
+                  <CardTitle className="text-lg sm:text-xl">Meus Cupons</CardTitle>
+                  <CardDescription className="text-xs sm:text-sm">
+                    {userCoupons.length} cupom{userCoupons.length !== 1 ? "s" : ""} disponível{userCoupons.length !== 1 ? "eis" : ""}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-4 sm:p-6 space-y-4">
+                  {couponsLoading ? (
+                    <div className="text-center py-8 sm:py-12 text-muted-foreground text-sm sm:text-base">
+                      Carregando cupons...
+                    </div>
+                  ) : userCoupons.length === 0 ? (
+                    <div className="text-center py-8 sm:py-12 text-muted-foreground">
+                      <Ticket className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-3 sm:mb-4 opacity-50" />
+                      <p className="text-sm sm:text-base">Você não possui cupons atribuídos</p>
+                    </div>
+                  ) : (
+                    <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2">
+                      {userCoupons.map((coupon: ICoupon) => {
+                        const isValid = isCouponValid(coupon);
+                        const isExpired = new Date(coupon.expiresAt) < new Date();
+                        const isUsed = !!coupon.usedAt;
+
+                        return (
+                          <div
+                            key={coupon._id}
+                            className={`p-3 sm:p-4 border rounded-lg transition-colors ${
+                              isValid
+                                ? "border-accent bg-accent/5 hover:border-accent/80"
+                                : "border-border opacity-60"
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-2 sm:gap-3 mb-2 sm:mb-3">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <Ticket className={`h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0 ${isValid ? "text-accent" : "text-muted-foreground"}`} />
+                                  <h3 className="font-bold text-base sm:text-lg text-foreground break-words">
+                                    {coupon.code}
+                                  </h3>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Badge
+                                    variant={
+                                      isValid
+                                        ? "default"
+                                        : isUsed
+                                        ? "secondary"
+                                        : isExpired
+                                        ? "destructive"
+                                        : "outline"
+                                    }
+                                    className="text-[10px] sm:text-xs"
+                                  >
+                                    {isValid
+                                      ? "Válido"
+                                      : isUsed
+                                      ? "Usado"
+                                      : isExpired
+                                      ? "Expirado"
+                                      : "Inativo"}
+                                  </Badge>
+                                </div>
+                              </div>
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                onClick={() => handleCopyCouponCode(coupon.code)}
+                                className="flex-shrink-0 h-8 w-8 sm:h-10 sm:w-10"
+                                disabled={!isValid}
+                              >
+                                {copiedCode === coupon.code ? (
+                                  <Check className="h-3 w-3 sm:h-4 sm:w-4 text-green-600" />
+                                ) : (
+                                  <Copy className="h-3 w-3 sm:h-4 sm:w-4" />
+                                )}
+                              </Button>
+                            </div>
+
+                            <div className="space-y-1.5 sm:space-y-2 text-xs sm:text-sm">
+                              <div className="flex items-center justify-between">
+                                <span className="text-muted-foreground">Desconto:</span>
+                                <span className="font-semibold text-foreground">
+                                  {coupon.discount}
+                                  {coupon.type === "percentage" ? "%" : " MZN"}
+                                </span>
+                              </div>
+
+                              {coupon.minPurchaseAmount && (
+                                <div className="flex items-center justify-between">
+                                  <span className="text-muted-foreground">
+                                    Compra mínima:
+                                  </span>
+                                  <span className="font-medium text-foreground">
+                                    {coupon.minPurchaseAmount.toFixed(2)} MZN
+                                  </span>
+                                </div>
+                              )}
+
+                              {coupon.maxDiscountAmount &&
+                                coupon.type === "percentage" && (
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-muted-foreground">
+                                      Desconto máximo:
+                                    </span>
+                                    <span className="font-medium text-foreground">
+                                      {coupon.maxDiscountAmount.toFixed(2)} MZN
+                                    </span>
+                                  </div>
+                                )}
+
+                              <div className="flex items-center justify-between">
+                                <span className="text-muted-foreground">Válido até:</span>
+                                <span className="font-medium text-foreground">
+                                  {new Date(coupon.expiresAt).toLocaleDateString("pt-BR")}
+                                </span>
+                              </div>
+
+                              {coupon.usageLimit && (
+                                <div className="flex items-center justify-between">
+                                  <span className="text-muted-foreground">
+                                    Usos permitidos:
+                                  </span>
+                                  <span className="font-medium text-foreground">
+                                    {coupon.usageCount || 0} / {coupon.usageLimit}
+                                  </span>
+                                </div>
+                              )}
+
+                              {isUsed && coupon.usedAt && (
+                                <div className="flex items-center justify-between pt-1.5 sm:pt-2 border-t">
+                                  <span className="text-muted-foreground">Usado em:</span>
+                                  <span className="font-medium text-foreground text-[10px] sm:text-xs">
+                                    {new Date(coupon.usedAt).toLocaleDateString("pt-BR")}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+
+                            {isValid && (
+                              <div className="mt-3 sm:mt-4 pt-2 sm:pt-3 border-t">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="w-full text-xs sm:text-sm"
+                                  onClick={() => handleCopyCouponCode(coupon.code)}
+                                >
+                                  {copiedCode === coupon.code ? (
+                                    <>
+                                      <Check className="h-3 w-3 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
+                                      Código copiado!
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Copy className="h-3 w-3 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
+                                      Copiar código
+                                    </>
+                                  )}
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   )}
                 </CardContent>
               </Card>

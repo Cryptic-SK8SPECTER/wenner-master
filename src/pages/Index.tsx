@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { SlidersHorizontal } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Pagination,
   PaginationContent,
@@ -172,9 +173,99 @@ const Index = () => {
     return (
       <div className="min-h-screen bg-background">
         <Header />
-        <div className="container px-4 md:px-6 py-12">
-          <div className="flex justify-center items-center">
-            <p className="text-muted-foreground">Carregando produtos...</p>
+        
+        {/* Breadcrumb Skeleton */}
+        <div className="container px-3 sm:px-4 md:px-6 py-3 sm:py-4">
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-4 w-16" />
+            <Skeleton className="h-4 w-4 rounded-full" />
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-4 w-4 rounded-full" />
+            <Skeleton className="h-4 w-20" />
+          </div>
+        </div>
+
+        <div className="container px-3 sm:px-4 md:px-6">
+          <div className="flex gap-4 sm:gap-6">
+            {/* Desktop Sidebar Skeleton */}
+            <div className="hidden lg:block w-64">
+              <div className="bg-sidebar border-r border-sidebar-border p-6 space-y-4">
+                <Skeleton className="h-7 w-20 mb-6" />
+                {[...Array(5)].map((_, i) => (
+                  <div key={i} className="space-y-2">
+                    <Skeleton className="h-5 w-24" />
+                    <div className="space-y-2 pl-2">
+                      {[...Array(3)].map((_, j) => (
+                        <Skeleton key={j} className="h-4 w-full" />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Main Content Skeleton */}
+            <main className="flex-1 pb-12">
+              {/* Header Skeleton */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6 sm:mb-8">
+                <div className="flex-1">
+                  <Skeleton className="h-8 sm:h-10 w-32 mb-2" />
+                  <Skeleton className="h-5 w-48" />
+                </div>
+                <Skeleton className="h-9 w-20 lg:hidden" />
+              </div>
+
+              {/* Product Grid Skeleton */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+                {[...Array(6)].map((_, i) => (
+                  <div
+                    key={i}
+                    className="bg-card rounded-lg border border-border overflow-hidden"
+                  >
+                    {/* Product Image Skeleton */}
+                    <Skeleton className="aspect-square w-full" />
+                    
+                    <div className="p-4 space-y-3">
+                      {/* Product Name Skeleton */}
+                      <Skeleton className="h-5 w-3/4" />
+                      
+                      {/* Category Skeleton */}
+                      <Skeleton className="h-4 w-1/2" />
+                      
+                      {/* Price Skeleton */}
+                      <div className="flex items-center gap-2">
+                        <Skeleton className="h-6 w-24" />
+                        <Skeleton className="h-5 w-20" />
+                      </div>
+                      
+                      {/* Rating Skeleton */}
+                      <div className="flex items-center gap-2">
+                        <div className="flex gap-1">
+                          {[...Array(5)].map((_, j) => (
+                            <Skeleton key={j} className="h-3 w-3 rounded-sm" />
+                          ))}
+                        </div>
+                        <Skeleton className="h-4 w-16" />
+                      </div>
+                      
+                      {/* Button Skeleton */}
+                      <Skeleton className="h-10 w-full rounded-md" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Pagination Skeleton */}
+              <div className="mt-8 sm:mt-12">
+                <div className="flex items-center justify-center gap-2">
+                  <Skeleton className="h-9 w-20 rounded-md" />
+                  {[...Array(3)].map((_, i) => (
+                    <Skeleton key={i} className="h-9 w-9 rounded-md" />
+                  ))}
+                  <Skeleton className="h-9 w-20 rounded-md" />
+                </div>
+              </div>
+            </main>
           </div>
         </div>
       </div>
@@ -229,11 +320,13 @@ const Index = () => {
                     Filtro
                   </Button>
                 </SheetTrigger>
-                <SheetContent side="left" className="w-80 p-0">
-                  <FilterSidebar
-                    filters={filters}
-                    onFilterChange={setFilters}
-                  />
+                <SheetContent side="left" className="w-80 p-0 overflow-hidden flex flex-col max-h-screen">
+                  <div className="flex-1 overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-transparent">
+                    <FilterSidebar
+                      filters={filters}
+                      onFilterChange={setFilters}
+                    />
+                  </div>
                 </SheetContent>
               </Sheet>
             </div>
