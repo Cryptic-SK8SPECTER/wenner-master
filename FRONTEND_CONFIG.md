@@ -178,8 +178,51 @@ Após o deploy, verifique:
 ## 🐛 Troubleshooting
 
 ### Erro de CORS
-- Verifique se a URL do frontend está no CORS do backend
-- Confirme que `withCredentials: true` está configurado
+
+**Erro comum:**
+```
+Access-Control-Allow-Origin header must not be the wildcard '*' 
+when the request's credentials mode is 'include'
+```
+
+**Causa:**
+- O frontend usa `withCredentials: true` para enviar cookies/JWT
+- O backend está retornando `Access-Control-Allow-Origin: *`
+- Navegadores não permitem wildcard `*` quando `credentials: include`
+
+**Solução no Backend (Render):**
+1. Configure o CORS para aceitar o domínio específico do frontend:
+   ```javascript
+   // Exemplo com Express/CORS
+   app.use(cors({
+     origin: 'https://wenner-master.vercel.app', // Domínio específico
+     credentials: true,
+     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+     allowedHeaders: ['Content-Type', 'Authorization']
+   }));
+   ```
+
+2. **NÃO use** `origin: '*'` quando `credentials: true`
+
+3. Para múltiplos domínios, use uma função:
+   ```javascript
+   app.use(cors({
+     origin: (origin, callback) => {
+       const allowedOrigins = [
+         'https://wenner-master.vercel.app',
+         'http://localhost:8080' // desenvolvimento
+       ];
+       if (!origin || allowedOrigins.includes(origin)) {
+         callback(null, true);
+       } else {
+         callback(new Error('Not allowed by CORS'));
+       }
+     },
+     credentials: true
+   }));
+   ```
+
+4. Após configurar, faça um novo deploy no Render
 
 ### Variável de ambiente não funciona
 - Certifique-se de que a variável começa com `VITE_`

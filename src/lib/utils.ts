@@ -32,6 +32,10 @@ const baseURL = getBaseURL();
 // FormData) must let the browser set the Content-Type with the proper boundary.
 export const customFetch: AxiosInstance = axios.create({
   baseURL,
+  // IMPORTANTE: withCredentials: true requer que o backend configure CORS corretamente
+  // O backend NÃO pode usar Access-Control-Allow-Origin: *
+  // Deve especificar o domínio exato: https://wenner-master.vercel.app
+  // Ver: https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS#credentials
   withCredentials: true, // Importante para cookies/JWT
   timeout: 10000, // 10 segundos de timeout
 });
