@@ -22,10 +22,10 @@ const getBaseURL = (): string => {
   return "https://wenner-api-master.onrender.com";
 };
 
-const baseURL = getBaseURL();
-
 // Exportar URL de produção para uso em imagens e outros recursos
-export const productionUrl = getBaseURL();
+export const productionUrl: string = getBaseURL();
+
+const baseURL = getBaseURL();
 
 // Do not set a global Content-Type header here. Some requests (file uploads using
 // FormData) must let the browser set the Content-Type with the proper boundary.
