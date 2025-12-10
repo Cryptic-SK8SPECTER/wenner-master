@@ -22,11 +22,11 @@ function getBaseURL(): string {
   return "https://wenner-api-master.onrender.com";
 }
 
-const baseURL = getBaseURL();
-
 // Exportar URL de produção para uso em imagens e outros recursos
-// Usando baseURL para garantir que seja a mesma URL usada pelo customFetch
-export { baseURL as productionUrl };
+// Exportação direta e explícita para garantir compatibilidade com Rollup
+export const productionUrl: string = getBaseURL();
+
+const baseURL = getBaseURL();
 
 // Do not set a global Content-Type header here. Some requests (file uploads using
 // FormData) must let the browser set the Content-Type with the proper boundary.
