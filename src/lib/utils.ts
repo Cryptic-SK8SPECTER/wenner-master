@@ -7,7 +7,7 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 // Configuração de URLs por ambiente
-const getBaseURL = (): string => {
+function getBaseURL(): string {
   // Prioridade 1: Variável de ambiente (Vercel ou .env)
   if (import.meta.env.VITE_API_URL) {
     return import.meta.env.VITE_API_URL;
@@ -20,12 +20,13 @@ const getBaseURL = (): string => {
   
   // Prioridade 3: Produção (fallback)
   return "https://wenner-api-master.onrender.com";
-};
+}
 
 const baseURL = getBaseURL();
 
 // Exportar URL de produção para uso em imagens e outros recursos
-export const productionUrl: string = baseURL;
+// Usando baseURL para garantir que seja a mesma URL usada pelo customFetch
+export { baseURL as productionUrl };
 
 // Do not set a global Content-Type header here. Some requests (file uploads using
 // FormData) must let the browser set the Content-Type with the proper boundary.
