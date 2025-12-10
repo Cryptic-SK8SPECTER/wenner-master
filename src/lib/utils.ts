@@ -24,6 +24,9 @@ const getBaseURL = (): string => {
 
 const baseURL = getBaseURL();
 
+// Exportar URL de produção para uso em imagens e outros recursos
+export const productionUrl = getBaseURL();
+
 // Do not set a global Content-Type header here. Some requests (file uploads using
 // FormData) must let the browser set the Content-Type with the proper boundary.
 export const customFetch: AxiosInstance = axios.create({
