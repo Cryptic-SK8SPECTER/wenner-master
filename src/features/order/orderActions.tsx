@@ -109,29 +109,15 @@ export const fetchOrderById = createAsyncThunk<
 >("order/fetchOrderById", async (orderId, { rejectWithValue }) => {
   try {
     const token = localStorage.getItem("token");
-    console.log("🔍 [fetchOrderById] Buscando pedido:", orderId);
     
     const response = await customFetch.get(`/api/v1/orders/${orderId}`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
 
-    console.log("🔍 [fetchOrderById] Resposta recebida:", {
-      hasData: !!response.data,
-      hasDataData: !!response.data?.data,
-      responseDataKeys: Object.keys(response.data || {}),
-      responseDataStructure: JSON.stringify(response.data, null, 2),
-    });
 
     const orderData = response.data.data || response.data;
     
-    console.log("✅ [fetchOrderById] Dados do pedido processados:", {
-      orderId: orderData?._id || orderData?.id,
-      hasProducts: !!orderData?.products,
-      productsType: Array.isArray(orderData?.products) ? "array" : typeof orderData?.products,
-      productsLength: Array.isArray(orderData?.products) ? orderData?.products.length : "N/A",
-      orderDataKeys: Object.keys(orderData || {}),
-    });
-
+  
     return orderData;
   } catch (error) {
     if (error instanceof Error && "response" in error) {

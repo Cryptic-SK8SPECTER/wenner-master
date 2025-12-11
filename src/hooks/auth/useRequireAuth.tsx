@@ -1,20 +1,14 @@
 import { useAppSelector } from "../../app/hooks";
-import { useToast } from "@/hooks/use-toast";
-import { useNavigate } from "react-router-dom";
+import { useLoginModal } from "../../contexts/LoginModalContext";
 
 export const useRequireAuth = () => {
   const { user, isAuthenticated } = useAppSelector((state) => state.user);
-  const { toast } = useToast();
-  const navigate = useNavigate();
+  const { openLoginModal } = useLoginModal();
 
   const requireAuth = (action: () => void) => {
     if (!isAuthenticated) {
-      toast({
-        title: "É necessário estar logado",
-        description: "Faça login para executar esta ação.",
-        variant: "destructive",
-      });
-      navigate("/auth"); 
+      // Abrir modal de login e executar ação após login bem-sucedido
+      openLoginModal(action);
       return;
     }
     action();

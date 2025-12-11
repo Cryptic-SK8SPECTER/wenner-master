@@ -108,7 +108,7 @@ const Profile = () => {
   // Debug: Log dos cupons e usuário (apenas quando necessário)
   useEffect(() => {
     if (coupons.length > 0 && user?._id) {
-      console.log("🔍 [Profile] Cupons carregados:", {
+      ("🔍 [Profile] Cupons carregados:", {
         totalCoupons: coupons.length,
         userId: user._id || user.userId,
         coupons: coupons.map(c => ({ code: c.code, assignedTo: c.assignedTo })),
@@ -268,8 +268,6 @@ const Profile = () => {
     await dispatch(fetchOrderById(orderId));
   };
 
-  console.log(" Your Orders ", orders);
-
   const getStatusBadge = (status: string) => {
     const statusMap: Record<
       string,
@@ -292,12 +290,10 @@ const Profile = () => {
   // Filtrar cupons atribuídos ao usuário
   const userCoupons = useMemo(() => {
     if (!user?._id && !user?.userId) {
-      console.log("⚠️ [Profile] Usuário não encontrado para filtrar cupons");
       return [];
     }
     
     if (coupons.length === 0) {
-      console.log("⚠️ [Profile] Nenhum cupom disponível para filtrar");
       return [];
     }
     
@@ -322,15 +318,6 @@ const Profile = () => {
       return matches;
     });
     
-    // Log apenas se houver cupons filtrados ou se houver cupons mas nenhum corresponder
-    if (filtered.length > 0 || (coupons.length > 0 && filtered.length === 0)) {
-      console.log("✅ [Profile] Cupons do usuário:", {
-        total: coupons.length,
-        filtrados: filtered.length,
-        userIds,
-        cuponsFiltrados: filtered.map(c => c.code),
-      });
-    }
     
     return filtered;
   }, [coupons, user?._id, user?.userId]);

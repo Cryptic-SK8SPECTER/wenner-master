@@ -41,31 +41,12 @@ const AllReviews = () => {
   const productSlug = searchParams.get("slug");
   const orderId = searchParams.get("orderId");
   
-  // DEBUG: Log dos parâmetros da URL
-  console.log("🔍 [AllReviews] Parâmetros da URL:", {
-    productId,
-    productSlug,
-    orderId,
-    allParams: Object.fromEntries(searchParams.entries()),
-  });
   
   const { reviews, loading } = useAppSelector((state) => state.review);
   const { currentProduct } = useAppSelector((state) => state.product);
   const { currentOrder, orders } = useAppSelector((state) => state.order);
   const { isAuthenticated, user } = useAppSelector((state) => state.user);
   
-  // DEBUG: Log do estado inicial
-  console.log("🔍 [AllReviews] Estado inicial:", {
-    isAuthenticated,
-    userId: user?._id,
-    hasCurrentProduct: !!currentProduct,
-    currentProductId: currentProduct?._id,
-    hasCurrentOrder: !!currentOrder,
-    currentOrderId: currentOrder?._id,
-    ordersCount: orders.length,
-    reviewsCount: reviews.length,
-    loading,
-  });
   
   const [filter, setFilter] = useState<"all" | number>("all");
   const [sort, setSort] = useState<"recent" | "helpful">("recent");
@@ -79,7 +60,6 @@ const AllReviews = () => {
   // Buscar pedidos do usuário para verificar se pode avaliar
   useEffect(() => {
     if (isAuthenticated && user?._id) {
-      console.log("🔍 [AllReviews] Buscando pedidos do usuário:", user._id);
       dispatch(fetchOrders(user._id));
     } else {
       console.log("⚠️ [AllReviews] Não autenticado ou sem userId, não buscando pedidos");
@@ -89,7 +69,6 @@ const AllReviews = () => {
   // Buscar pedido se tiver orderId
   useEffect(() => {
     if (orderId) {
-      console.log("🔍 [AllReviews] Buscando pedido por orderId:", orderId);
       dispatch(fetchOrderById(orderId));
     } else {
       console.log("ℹ️ [AllReviews] Sem orderId na URL");
@@ -103,51 +82,12 @@ const AllReviews = () => {
     // Se currentOrder tem uma propriedade 'data', usar ela (estrutura aninhada da API)
     const order = (currentOrder as any)?.data || currentOrder;
     
-    console.log("🔍 [AllReviews] Normalizando currentOrder:", {
-      hasData: !!(currentOrder as any)?.data,
-      orderId: order._id || order.id,
-      hasProducts: !!order.products,
-      productsType: Array.isArray(order.products) ? "array" : typeof order.products,
-      productsLength: Array.isArray(order.products) ? order.products.length : "N/A",
-    });
-    
     return order;
   }, [currentOrder]);
-
-  // DEBUG: Monitorar mudanças no currentOrder
-  useEffect(() => {
-    if (currentOrder) {
-      const order = actualOrder || currentOrder;
-      console.log("🔍 [AllReviews] currentOrder atualizado:", {
-        orderId: order._id || order.id,
-        hasProducts: !!order.products,
-        productsType: Array.isArray(order.products) ? "array" : typeof order.products,
-        productsLength: Array.isArray(order.products) ? order.products.length : "N/A",
-        productsStructure: order.products ? JSON.stringify(order.products, null, 2) : "null/undefined",
-        fullOrderStructure: JSON.stringify(currentOrder, null, 2),
-        normalizedOrderStructure: JSON.stringify(order, null, 2),
-      });
-      
-      // Verificar estrutura de cada produto se existir
-      if (Array.isArray(order.products) && order.products.length > 0) {
-        console.log("🔍 [AllReviews] Estrutura do primeiro produto:", {
-          firstProduct: order.products[0],
-          firstProductKeys: Object.keys(order.products[0] || {}),
-          firstProductProduct: order.products[0]?.product,
-          firstProductProductType: typeof order.products[0]?.product,
-          firstProductProductIsObject: typeof order.products[0]?.product === "object",
-          firstProductProductId: (order.products[0]?.product as any)?._id,
-        });
-      }
-    } else {
-      console.log("ℹ️ [AllReviews] currentOrder ainda não disponível");
-    }
-  }, [currentOrder, actualOrder]);
 
   // Buscar produto se tiver slug
   useEffect(() => {
     if (productSlug) {
-      console.log("🔍 [AllReviews] Buscando produto por slug:", productSlug);
       dispatch(fetchProductBySlug(productSlug));
     } else {
       console.log("ℹ️ [AllReviews] Sem productSlug na URL");
@@ -159,80 +99,43 @@ const AllReviews = () => {
     // Usar actualOrder (normalizado) em vez de currentOrder diretamente
     const order = actualOrder || currentOrder;
     
-    console.log("🔍 [AllReviews] useMemo orderProducts executado:", {
-      hasOrderId: !!orderId,
-      orderId,
-      hasCurrentOrder: !!currentOrder,
-      hasActualOrder: !!actualOrder,
-      currentOrderId: currentOrder?._id || currentOrder?.id,
-      actualOrderId: order?._id || order?.id,
-      hasProducts: !!order?.products,
-      productsIsArray: Array.isArray(order?.products),
-      productsLength: Array.isArray(order?.products) ? order?.products.length : "N/A",
-      productsType: typeof order?.products,
-    });
-    
+   
     if (!orderId) {
-      console.log("❌ [AllReviews] Sem orderId, retornando array vazio");
       return [];
     }
     
+    // [AllReviews] Sem order (actualOrder/currentOrder), retornando array vazio
     if (!order) {
-      console.log("❌ [AllReviews] Sem order (actualOrder/currentOrder), retornando array vazio");
       return [];
     }
     
+    // [AllReviews] order.products é null/undefined:
     if (!order.products) {
-      console.log("❌ [AllReviews] order.products é null/undefined:", {
-        orderKeys: Object.keys(order),
-        orderStructure: JSON.stringify(order, null, 2),
-      });
       return [];
     }
     
+    // [AllReviews] order.products não é um array:
     if (!Array.isArray(order.products)) {
-      console.log("❌ [AllReviews] order.products não é um array:", {
-        type: typeof order.products,
-        value: order.products,
-      });
       return [];
     }
     
+    //[AllReviews] order.products é um array vazio
     if (order.products.length === 0) {
-      console.log("⚠️ [AllReviews] order.products é um array vazio");
       return [];
     }
     
-    console.log("✅ [AllReviews] Processando produtos do pedido:", {
-      orderId,
-      productsCount: order.products.length,
-      products: order.products,
-    });
-    
+   
     // Obter produtos únicos (por productId)
     const uniqueProducts = new Map<string, any>();
     order.products.forEach((orderProduct, index) => {
-      console.log(`🔍 [AllReviews] Processando orderProduct[${index}]:`, {
-        orderProduct,
-        orderProductKeys: Object.keys(orderProduct || {}),
-        hasProduct: !!orderProduct.product,
-        productType: typeof orderProduct.product,
-        productIsObject: typeof orderProduct.product === "object" && orderProduct.product !== null,
-        productValue: orderProduct.product,
-      });
       
       let productId: string | null = null;
       
       if (typeof orderProduct.product === "string") {
         productId = orderProduct.product;
-        console.log(`✅ [AllReviews] orderProduct[${index}].product é string:`, productId);
       } else if (orderProduct.product && typeof orderProduct.product === "object") {
         productId = (orderProduct.product as any)?._id || (orderProduct.product as any)?.id || null;
-        console.log(`✅ [AllReviews] orderProduct[${index}].product é objeto:`, {
-          productId,
-          productObject: orderProduct.product,
-          productObjectKeys: Object.keys(orderProduct.product),
-        });
+     
       } else {
         console.log(`❌ [AllReviews] orderProduct[${index}].product tem tipo inválido:`, {
           type: typeof orderProduct.product,
@@ -248,7 +151,6 @@ const AllReviews = () => {
           slug: (orderProduct.product as any)?.slug || "",
         };
         
-        console.log(`✅ [AllReviews] Adicionando produto único:`, productData);
         uniqueProducts.set(productId, productData);
       } else if (!productId) {
         console.log(`⚠️ [AllReviews] orderProduct[${index}] não tem productId válido, pulando`);
@@ -258,32 +160,18 @@ const AllReviews = () => {
     });
     
     const uniqueProductsArray = Array.from(uniqueProducts.values());
-    console.log("✅ [AllReviews] Produtos únicos extraídos:", {
-      count: uniqueProductsArray.length,
-      products: uniqueProductsArray,
-    });
     
     return uniqueProductsArray;
   }, [orderId, currentOrder, actualOrder]);
 
   // Produto atual para avaliação (do pedido ou do productId)
   const currentProductForReview = useMemo(() => {
-    console.log("🔍 [AllReviews] Determinando produto atual para avaliação:", {
-      orderId,
-      orderProductsCount: orderProducts.length,
-      selectedProductIndex,
-      hasCurrentProduct: !!currentProduct,
-      currentProductId: currentProduct?._id,
-      productId,
-    });
     
     if (orderId && orderProducts.length > 0) {
       const selectedProduct = orderProducts[selectedProductIndex] || orderProducts[0];
-      console.log("✅ [AllReviews] Produto selecionado do pedido:", selectedProduct);
       return selectedProduct;
     }
     if (currentProduct) {
-      console.log("✅ [AllReviews] Usando currentProduct do Redux:", currentProduct);
       return currentProduct;
     }
     if (productId) {
@@ -294,36 +182,18 @@ const AllReviews = () => {
         imageCover: "",
         slug: "",
       } as any;
-      console.log("✅ [AllReviews] Usando productId como fallback:", fallbackProduct);
       return fallbackProduct;
     }
-    console.log("⚠️ [AllReviews] Nenhum produto encontrado, retornando null");
     return null;
   }, [orderId, orderProducts, selectedProductIndex, currentProduct, productId]);
 
   const product = currentProductForReview;
   
-  // DEBUG: Log do produto final
-  useEffect(() => {
-    console.log("🔍 [AllReviews] Produto final determinado:", {
-      product,
-      productId: product?._id,
-      productName: product?.name,
-      isValidObjectId: product?._id && product._id !== "1" && product._id.length > 10,
-    });
-  }, [product]);
 
   // Verificar se o usuário tem um pedido entregue com este produto
   const canReviewProduct = useMemo(() => {
-    console.log("🔍 [AllReviews] Verificando se pode avaliar produto:", {
-      isAuthenticated,
-      userId: user?._id,
-      productId: product?._id,
-      ordersCount: orders.length,
-    });
     
     if (!isAuthenticated || !user?._id || !product?._id) {
-      console.log("❌ [AllReviews] Não pode avaliar - faltam dados básicos");
       return false;
     }
     
@@ -349,13 +219,6 @@ const AllReviews = () => {
         return orderProductId === product?._id;
       });
       
-      if (hasProduct) {
-        console.log("✅ [AllReviews] Pedido entregue encontrado com o produto:", {
-          orderId: normalizedOrder._id || normalizedOrder.id,
-          orderStatus: normalizedOrder.status,
-          productId: product._id,
-        });
-      }
       
       return hasProduct;
     });
@@ -371,7 +234,6 @@ const AllReviews = () => {
   // Verificar se o usuário já avaliou este produto
   const hasUserReviewed = useMemo(() => {
     if (!isAuthenticated || !user?._id) {
-      console.log("ℹ️ [AllReviews] Não autenticado, não verificando reviews existentes");
       return false;
     }
     
@@ -386,48 +248,23 @@ const AllReviews = () => {
       const matchesUser = reviewUserId === user._id;
       const matchesProduct = product?._id && reviewProductId === product._id;
       
-      if (matchesUser && matchesProduct) {
-        console.log("✅ [AllReviews] Usuário já avaliou este produto:", {
-          reviewId: review._id,
-          reviewRating: review.rating,
-        });
-      }
-      
       return matchesUser && matchesProduct;
     });
     
-    console.log(userHasReviewed 
-      ? "✅ [AllReviews] Usuário JÁ AVALIOU este produto" 
-      : "ℹ️ [AllReviews] Usuário ainda NÃO AVALIOU este produto"
-    );
     
     return userHasReviewed;
   }, [isAuthenticated, user?._id, reviews, product?._id]);
 
   // Buscar reviews quando tiver productId ou quando o produto for carregado
   useEffect(() => {
-    console.log("🔍 [AllReviews] Verificando se deve buscar reviews:", {
-      isAuthenticated,
-      hasProduct: !!product,
-      productId: product?._id,
-      productIdFromUrl: productId,
-      selectedProductIndex,
-    });
+   
     
     if (isAuthenticated && product?._id) {
       // Verificar se o _id é um ObjectId válido (não pode ser "1" ou valores inválidos)
       const idToFetch = product._id;
       const isValidObjectId = idToFetch && idToFetch !== "1" && idToFetch.length > 10;
       
-      console.log("🔍 [AllReviews] Validação do productId:", {
-        idToFetch,
-        isValidObjectId,
-        length: idToFetch?.length,
-        isNotOne: idToFetch !== "1",
-      });
-      
       if (isValidObjectId) {
-        console.log("✅ [AllReviews] Buscando reviews para productId:", idToFetch);
         dispatch(getAllReviews(idToFetch));
       } else {
         console.log("❌ [AllReviews] productId inválido, não buscando reviews:", {
@@ -436,7 +273,6 @@ const AllReviews = () => {
         });
       }
     } else if (isAuthenticated && productId && productId !== "1" && productId.length > 10) {
-      console.log("✅ [AllReviews] Buscando reviews para productId da URL:", productId);
       dispatch(getAllReviews(productId));
     } else {
       console.log("⚠️ [AllReviews] Não buscando reviews:", {

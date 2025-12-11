@@ -77,7 +77,6 @@ export const validateCoupon = createAsyncThunk<
 >("coupon/validate", async (data, { rejectWithValue }) => {
   try {
     const response = await customFetch.post(`${API_URL}/validate`, data);
-    console.log("API Response:", response); 
     return response.data.data;
   } catch (error: any) {
     return rejectWithValue(error.response?.data?.message || "Cupom inválido");

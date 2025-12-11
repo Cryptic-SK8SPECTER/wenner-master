@@ -30,7 +30,6 @@ const Index = () => {
     (state) => state.product
   );
 
-  console.log("Products ", products);
 
   const maxPrice =
     products.length > 0

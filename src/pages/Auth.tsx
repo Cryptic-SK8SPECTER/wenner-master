@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { useAppDispatch } from "../app/hooks"; // hooks tipados
+import { useAppDispatch, useAppSelector } from "../app/hooks"; // hooks tipados
 import {
   loginUser,
   signupUser,
@@ -92,7 +92,7 @@ const Auth = () => {
       loginSchema.parse({ email, password });
       setIsLoading(true);
 
-      await dispatch(loginUser({ email, password })).unwrap();
+      const user = await dispatch(loginUser({ email, password })).unwrap();
 
       toast({
         title: "Login realizado com sucesso",
@@ -100,7 +100,13 @@ const Auth = () => {
       });
 
       setIsLoading(false);
-      navigate("/");
+      
+      // Redirecionar baseado no role do usuário
+      if (user?.role === "admin") {
+        navigate("/admin");
+      } else {
+        navigate("/");
+      }
     } catch (error: unknown) {
       setIsLoading(false);
       if (error instanceof z.ZodError) {

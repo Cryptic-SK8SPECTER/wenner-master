@@ -410,20 +410,22 @@ const Header = () => {
                 </NavLink>
               )}
 
-              {/* Carrinho - Sempre visível */}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="relative"
-                onClick={() => setCartOpen(true)}
-              >
-                <ShoppingCart className="h-5 w-5" />
-                {totalItems > 0 && (
-                  <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 bg-primary text-primary-foreground text-[10px] font-semibold">
-                    {totalItems > 99 ? "99+" : totalItems}
-                  </Badge>
-                )}
-              </Button>
+              {/* Carrinho - Oculto para admin */}
+              {user?.role !== "admin" && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="relative"
+                  onClick={() => setCartOpen(true)}
+                >
+                  <ShoppingCart className="h-5 w-5" />
+                  {totalItems > 0 && (
+                    <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 bg-primary text-primary-foreground text-[10px] font-semibold">
+                      {totalItems > 99 ? "99+" : totalItems}
+                    </Badge>
+                  )}
+                </Button>
+              )}
 
               {/* Notifications Dropdown */}
               <DropdownMenu open={notificationsOpen} onOpenChange={setNotificationsOpen}>

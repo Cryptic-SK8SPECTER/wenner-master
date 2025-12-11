@@ -40,6 +40,8 @@ import {
   fetchFavorites,
 } from "@/features/favorite/favoriteActions";
 import { selectIsFavorite } from "@/features/favorite/favoriteSlice";
+import { createOrder } from "@/features/order/orderActions";
+import { createNotification } from "@/features/notification/notificationActions";
 
 const couponSchema = z.object({
   code: z
@@ -117,6 +119,9 @@ const ProductDetails = () => {
   const { favorites, loading: favoritesLoading } = useAppSelector(
     (state) => state.favorites
   );
+
+  const { loading: orderLoading } = useAppSelector((state) => state.order);
+  const { user: reduxUser } = useAppSelector((state) => state.user);
 
   const { user, requireAuth } = useRequireAuth();
   const { addItem } = useCart();
@@ -458,8 +463,8 @@ const ProductDetails = () => {
     });
   };
 
-  const handleBuyNow = () => {
-    requireAuth(() => {
+  const handleBuyNow = async () => {
+    requireAuth(async () => {
       if (!selectedColor) {
         showToast({
           title: "Selecione uma cor",
@@ -468,10 +473,96 @@ const ProductDetails = () => {
         });
         return;
       }
-      showToast({
-        title: "Processando compra...",
-        description: "Redirecionando para o checkout.",
-      });
+
+      if (!currentProduct?._id) {
+        showToast({
+          title: "Erro",
+          description: "Produto não encontrado.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Criar payload do pedido
+      const payload = {
+        products: [
+          {
+            product: currentProduct._id,
+            quantity: quantity,
+            price: finalPrice / quantity, // Preço unitário
+            color: selectedColor,
+            size: selectedSize,
+          },
+        ],
+        discount: validatedCoupon ? validatedCoupon.discountValue : 0,
+        paymentMethod: "cartao",
+        totalPrice: finalPrice,
+        notes: "",
+      };
+
+      try {
+        showToast({
+          title: "Processando compra...",
+          description: "Aguarde enquanto criamos seu pedido.",
+        });
+
+        const resultAction = await dispatch(createOrder(payload as any));
+
+        if (createOrder.fulfilled.match(resultAction)) {
+          const order = resultAction.payload;
+          const orderId = order?._id || order?.id;
+
+          // Criar notificação após pedido criado com sucesso
+          if (reduxUser?._id && orderId) {
+            try {
+              await dispatch(
+                createNotification({
+                  title: "Pedido Realizado",
+                  message: `Seu pedido #${orderId.slice(-6)} foi criado com sucesso. Total: ${finalPrice.toFixed(2)} MZN`,
+                  type: "Pedido",
+                  user: reduxUser._id,
+                  order: orderId,
+                })
+              ).unwrap();
+            } catch (notificationError) {
+              // Não bloquear o fluxo se a notificação falhar
+              console.error("Erro ao criar notificação:", notificationError);
+            }
+          }
+
+          showToast({
+            title: "Pedido realizado!",
+            description: `Seu pedido foi criado com sucesso. Total: ${finalPrice.toFixed(2)} MZN`,
+          });
+
+          // Limpar cupom validado se houver
+          if (validatedCoupon) {
+            dispatch(clearValidatedCoupon());
+          }
+
+          // Redirecionar para a página de pedidos ou home
+          setTimeout(() => {
+            navigate("/");
+          }, 2000);
+        } else {
+          const apiPayload: any = (resultAction as any).payload;
+          const msg =
+            apiPayload?.message ||
+            (resultAction as any).error?.message ||
+            "Erro ao criar pedido";
+          showToast({
+            title: "Erro",
+            description: msg,
+            variant: "destructive",
+          });
+        }
+      } catch (err: any) {
+        showToast({
+          title: "Erro",
+          description: err?.message || "Erro ao criar pedido",
+          variant: "destructive",
+        });
+      }
     });
   };
 
@@ -926,8 +1017,9 @@ const ProductDetails = () => {
               variant="secondary"
               className="w-full"
               onClick={handleBuyNow}
+              disabled={orderLoading}
             >
-              Comprar Agora
+              {orderLoading ? "Processando..." : "Comprar Agora"}
             </Button>
           </div>
         </div>

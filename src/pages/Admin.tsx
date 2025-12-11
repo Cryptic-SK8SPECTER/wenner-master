@@ -889,38 +889,17 @@ const Admin = () => {
         // A API retorna { data: { ... } }, então precisamos acessar orderResult.data
         const actualOrder = (orderResult as any)?.data || orderResult;
         orderData = actualOrder;
-        
-        // DEBUG: Log completo da estrutura do pedido
-        console.log("🔍 DEBUG - Estrutura completa do pedido:", JSON.stringify({
-          orderId,
-          orderResult,
-          hasData: !!(orderResult as any)?.data,
-          actualOrder,
-          userType: typeof actualOrder.user,
-          userValue: actualOrder.user,
-          userIsObject: typeof actualOrder.user === "object",
-          userIsString: typeof actualOrder.user === "string",
-          userIsNull: actualOrder.user === null,
-          userIsUndefined: actualOrder.user === undefined,
-        }, null, 2));
+       
         
         // Extrair userId - tentar múltiplas formas
         if (actualOrder.user) {
           if (typeof actualOrder.user === "string") {
             userId = actualOrder.user;
-            console.log("✅ userId extraído como string:", userId);
           } else if (typeof actualOrder.user === "object" && actualOrder.user !== null) {
             // Tentar todas as propriedades possíveis
             const userObj = actualOrder.user as any;
             userId = userObj._id || userObj.id || userObj.userId || null;
-            console.log("✅ userId extraído do objeto:", { 
-              extractedUserId: userId, 
-              _id: userObj._id, 
-              id: userObj.id, 
-              userIdProp: userObj.userId,
-              fullObjectKeys: Object.keys(userObj),
-              fullObject: userObj 
-            });
+         
           }
         } else {
           console.warn("⚠️ actualOrder.user está vazio/null/undefined");
@@ -928,54 +907,35 @@ const Admin = () => {
         
         // Se ainda não encontrou userId, tentar de outras fontes
         if (!userId) {
-          console.warn("⚠️ userId não encontrado no pedido, tentando outras fontes...");
           
           // Tentar do currentOrder
           if (currentOrder && (currentOrder._id === orderId || currentOrder.id === orderId)) {
-            console.log("🔍 Tentando extrair userId do currentOrder:", currentOrder);
             if (typeof currentOrder.user === "string") {
               userId = currentOrder.user;
-              console.log("✅ userId encontrado no currentOrder (string):", userId);
             } else if (currentOrder.user && typeof currentOrder.user === "object") {
               const userObj = currentOrder.user as any;
               userId = userObj._id || userObj.id || userObj.userId || null;
-              console.log("✅ userId encontrado no currentOrder (object):", userId);
             }
           }
           
           // Tentar da lista de pedidos
           if (!userId) {
             const orderFromList = allOrders.find((o) => o.id === orderId || o._id === orderId);
-            console.log("🔍 Tentando extrair userId da lista de pedidos:", orderFromList);
             if (orderFromList && orderFromList.user) {
               if (typeof orderFromList.user === "string") {
                 userId = orderFromList.user;
-                console.log("✅ userId encontrado na lista (string):", userId);
               } else if (typeof orderFromList.user === "object") {
                 const userObj = orderFromList.user as any;
                 userId = userObj._id || userObj.id || userObj.userId || null;
-                console.log("✅ userId encontrado na lista (object):", userId);
               }
             }
           }
         }
         
-        console.log("📦 Resumo do pedido:", { 
-          orderId, 
-          userId, 
-          hasProducts: !!actualOrder?.products?.length,
-          productsCount: actualOrder?.products?.length || 0,
-          orderDataKeys: actualOrder ? Object.keys(actualOrder) : [],
-          productsStructure: actualOrder?.products
-        });
+       
       } catch (fetchError: any) {
         console.error("❌ Erro ao buscar pedido:", fetchError);
-        console.error("❌ Detalhes do erro:", {
-          message: fetchError?.message,
-          response: fetchError?.response?.data,
-          status: fetchError?.response?.status,
-          statusText: fetchError?.response?.statusText,
-        });
+       
         toast({
           title: "Erro",
           description: `Não foi possível buscar os dados do pedido: ${fetchError?.message || "Erro desconhecido"}`,
@@ -1062,7 +1022,6 @@ const Admin = () => {
               order: orderId,
             })
           ).unwrap();
-          console.log("✅ Notificação de status criada:", notificationData.type);
         } catch (notificationError: any) {
           console.error("❌ Erro ao criar notificação de status:", notificationError);
           toast({
@@ -1084,11 +1043,7 @@ const Admin = () => {
             const updatedOrderResult = await dispatch(fetchOrderById(orderId)).unwrap();
             // A API retorna { data: { ... } }, então precisamos acessar orderResult.data
             finalOrderData = (updatedOrderResult as any)?.data || updatedOrderResult;
-            console.log("📦 Pedido atualizado buscado:", { 
-              hasProducts: !!finalOrderData?.products?.length,
-              productsCount: finalOrderData?.products?.length || 0,
-              products: finalOrderData?.products
-            });
+       
           } catch (e: any) {
             console.error("❌ Erro ao buscar pedido atualizado:", e);
           }
@@ -1099,19 +1054,15 @@ const Admin = () => {
             // Obter produtos únicos do pedido
             const uniqueProducts = new Map<string, { id: string; name: string }>();
             
-            console.log("🔍 Processando produtos do pedido:", finalOrderData.products);
             
             finalOrderData.products.forEach((orderProduct: any) => {
-              console.log("🔍 Processando orderProduct:", orderProduct);
               
               // Tentar obter o ID do produto
               let productId: string | null = null;
               if (typeof orderProduct.product === "string") {
                 productId = orderProduct.product;
-                console.log("✅ productId extraído como string:", productId);
               } else if (orderProduct.product && typeof orderProduct.product === "object") {
                 productId = (orderProduct.product as any)?._id || (orderProduct.product as any)?.id || null;
-                console.log("✅ productId extraído do objeto:", productId);
               } else {
                 console.warn("⚠️ orderProduct.product não é string nem objeto:", orderProduct.product);
               }
@@ -1136,7 +1087,6 @@ const Admin = () => {
               }
             });
 
-            console.log(`📦 Produtos únicos encontrados: ${uniqueProducts.size}`);
 
             // Criar uma notificação para cada produto único
             let notificationsCreated = 0;
@@ -1152,17 +1102,11 @@ const Admin = () => {
                   })
                 ).unwrap();
                 notificationsCreated++;
-                console.log(`✅ Notificação de avaliação criada para: ${productInfo.name}`);
               } catch (productNotificationError: any) {
                 console.error(`❌ Erro ao criar notificação de avaliação para ${productInfo.name}:`, productNotificationError);
               }
             }
             
-            if (notificationsCreated > 0) {
-              console.log(`✅ Total de ${notificationsCreated} notificação(ões) de avaliação criada(s)`);
-            } else {
-              console.warn("⚠️ Nenhuma notificação de avaliação foi criada");
-            }
           } catch (e: any) {
             console.error("❌ Erro ao processar produtos para avaliação:", e);
             toast({
