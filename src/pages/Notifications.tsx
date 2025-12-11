@@ -12,7 +12,7 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
-import { getAllNotifications, updateNotification } from "@/features/notification/notificationActions";
+import { getAllNotifications, updateNotification, markAllAsRead as markAllAsReadAction } from "@/features/notification/notificationActions";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale/pt-BR";
 import { useNavigate } from "react-router-dom";
@@ -144,18 +144,10 @@ const Notifications = () => {
   };
 
   const markAllAsRead = async () => {
-    const unreadNotifications = userNotifications.filter((n) => !n.isRead);
     try {
-      await Promise.all(
-        unreadNotifications.map((notification) =>
-          dispatch(
-            updateNotification({
-              id: notification._id,
-              data: { isRead: true, readAt: new Date().toISOString() },
-            })
-          ).unwrap()
-        )
-      );
+      await dispatch(markAllAsReadAction()).unwrap();
+      // Recarregar notificações para garantir sincronização
+      await dispatch(getAllNotifications());
     } catch (error) {
       console.error("Erro ao marcar todas como lidas:", error);
     }
@@ -181,6 +173,14 @@ const Notifications = () => {
       await markAsRead(notification._id);
     }
 
+    // Se for notificação de cupom/promoção, navegar para aba de cupons no perfil
+    if (notification.type === "Promoção" || 
+        notification.title.toLowerCase().includes("cupom") ||
+        notification.message.toLowerCase().includes("cupom")) {
+      navigate("/profile?tab=coupons");
+      return;
+    }
+
     // Se for notificação de pedido entregue ou avaliação, navegar para página de avaliações
     if (notification.order) {
       // Verificar se é notificação de entrega ou avaliação
@@ -203,18 +203,18 @@ const Notifications = () => {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      <main className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 md:py-8">
-        <div className="max-w-2xl mx-auto">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-4 sm:mb-6">
-            <div className="flex items-center gap-2 sm:gap-3">
+      <main className="container mx-auto px-2 sm:px-4 py-3 sm:py-6 md:py-8">
+        <div className="max-w-2xl mx-auto w-full">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4 mb-3 sm:mb-6">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
               <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                 <Bell className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
               </div>
-              <div>
-                <h1 className="text-xl sm:text-2xl font-bold text-foreground">
+              <div className="min-w-0 flex-1">
+                <h1 className="text-lg sm:text-2xl font-bold text-foreground truncate">
                   Notificações
                 </h1>
-                <p className="text-xs sm:text-sm text-muted-foreground">
+                <p className="text-[11px] sm:text-sm text-muted-foreground truncate">
                   {unreadCount > 0 ? `${unreadCount} não lidas` : "Todas lidas"}
                 </p>
               </div>
@@ -224,9 +224,9 @@ const Notifications = () => {
                 variant="outline"
                 size="sm"
                 onClick={markAllAsRead}
-                className="gap-2 w-full sm:w-auto text-xs sm:text-sm"
+                className="gap-1.5 sm:gap-2 w-full sm:w-auto text-[11px] sm:text-sm h-8 sm:h-9 shrink-0"
               >
-                <Check className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                <Check className="h-3 w-3 sm:h-4 sm:w-4" />
                 <span className="hidden sm:inline">Marcar todas como lidas</span>
                 <span className="sm:hidden">Marcar todas</span>
               </Button>
@@ -235,13 +235,13 @@ const Notifications = () => {
 
           <div className="bg-card border border-border rounded-lg sm:rounded-xl overflow-hidden shadow-sm">
             {loading ? (
-              <div className="flex items-center justify-center py-8 sm:py-12">
+              <div className="flex items-center justify-center py-6 sm:py-12">
                 <p className="text-xs sm:text-sm text-muted-foreground">
                   Carregando notificações...
                 </p>
               </div>
             ) : sortedNotifications.length === 0 ? (
-              <div className="flex items-center justify-center py-8 sm:py-12">
+              <div className="flex items-center justify-center py-6 sm:py-12">
                 <p className="text-xs sm:text-sm text-muted-foreground">
                   Nenhuma notificação
                 </p>
@@ -256,7 +256,7 @@ const Notifications = () => {
                   <div
                     key={notification._id}
                     onClick={() => handleNotificationClick(notification)}
-                    className={`flex items-start gap-2 sm:gap-3 md:gap-4 p-3 sm:p-4 md:p-5 cursor-pointer transition-all duration-200 hover:bg-muted/50 active:bg-muted/70 ${
+                    className={`flex items-start gap-2 sm:gap-3 md:gap-4 p-2.5 sm:p-4 md:p-5 cursor-pointer transition-all duration-200 hover:bg-muted/50 active:bg-muted/70 touch-manipulation ${
                       isUnread ? "bg-primary/[0.02]" : ""
                     } ${
                       index !== paginatedNotifications.length - 1
@@ -265,16 +265,16 @@ const Notifications = () => {
                     }`}
                   >
                     <div
-                      className={`flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-full ${iconStyles.iconBg} flex items-center justify-center`}
+                      className={`flex-shrink-0 w-9 h-9 sm:w-12 sm:h-12 rounded-full ${iconStyles.iconBg} flex items-center justify-center`}
                     >
                       <IconComponent
-                        className={`h-5 w-5 sm:h-6 sm:w-6 ${iconStyles.iconColor}`}
+                        className={`h-4 w-4 sm:h-6 sm:w-6 ${iconStyles.iconColor}`}
                       />
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2 mb-1">
+                    <div className="flex-1 min-w-0 overflow-hidden">
+                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1 sm:gap-2 mb-1">
                         <span
-                          className={`text-sm sm:text-base font-semibold break-words ${
+                          className={`text-xs sm:text-base font-semibold break-words line-clamp-2 ${
                             isUnread
                               ? "text-foreground"
                               : "text-muted-foreground"
@@ -282,9 +282,9 @@ const Notifications = () => {
                         >
                           {notification.title}
                         </span>
-                        <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+                        <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0 self-start sm:self-center">
                           {isUnread && (
-                            <span className="w-2 h-2 sm:w-2.5 sm:h-2.5 bg-primary rounded-full animate-pulse"></span>
+                            <span className="w-2 h-2 sm:w-2.5 sm:h-2.5 bg-primary rounded-full animate-pulse flex-shrink-0"></span>
                           )}
                           <span className="text-[10px] sm:text-xs text-muted-foreground whitespace-nowrap">
                             {formatRelativeTime(notification.createdAt)}
@@ -292,7 +292,7 @@ const Notifications = () => {
                         </div>
                       </div>
                       <p
-                        className={`text-xs sm:text-sm leading-relaxed break-words ${
+                        className={`text-[11px] sm:text-sm leading-relaxed break-words line-clamp-3 ${
                           isUnread
                             ? "text-muted-foreground"
                             : "text-muted-foreground/70"
@@ -309,13 +309,13 @@ const Notifications = () => {
 
           {/* Paginação */}
           {totalPages > 1 && (
-            <div className="mt-4 sm:mt-6 flex justify-center">
+            <div className="mt-3 sm:mt-6 flex justify-center overflow-x-auto">
               <Pagination>
-                <PaginationContent className="flex-wrap gap-1 sm:gap-0">
+                <PaginationContent className="flex-wrap gap-0.5 sm:gap-1 min-w-0">
                   <PaginationItem>
                     <PaginationPrevious
                       onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
-                      className={`text-xs sm:text-sm ${
+                      className={`text-[10px] sm:text-sm h-7 w-7 sm:h-10 sm:w-10 ${
                         currentPage === 1
                           ? "pointer-events-none opacity-50"
                           : "cursor-pointer"
@@ -323,39 +323,46 @@ const Notifications = () => {
                     />
                   </PaginationItem>
 
-                  {/* Primeira página */}
+                  {/* Primeira página - ocultar em mobile se houver muitas páginas */}
                   {currentPage > 2 && (
                     <>
-                      <PaginationItem>
+                      <PaginationItem className="hidden sm:block">
                         <PaginationLink
                           onClick={() => handlePageChange(1)}
-                          className="cursor-pointer text-xs sm:text-sm h-8 w-8 sm:h-10 sm:w-10"
+                          className="cursor-pointer text-[10px] sm:text-sm h-7 w-7 sm:h-10 sm:w-10"
                         >
                           1
                         </PaginationLink>
                       </PaginationItem>
                       {currentPage > 3 && (
-                        <PaginationItem>
-                          <PaginationEllipsis className="h-8 w-8 sm:h-10 sm:w-10" />
+                        <PaginationItem className="hidden sm:block">
+                          <PaginationEllipsis className="h-7 w-7 sm:h-10 sm:w-10" />
                         </PaginationItem>
                       )}
                     </>
                   )}
 
-                  {/* Páginas ao redor da atual */}
+                  {/* Páginas ao redor da atual - mostrar apenas página atual e adjacentes em mobile */}
                   {[...Array(totalPages)].map((_, i) => {
                     const page = i + 1;
-                    if (
+                    // Em mobile, mostrar apenas: página atual, anterior e próxima (se existirem)
+                    // Em desktop, mostrar: primeira, última, atual e adjacentes
+                    const isMobileVisible = 
+                      page === currentPage || 
+                      page === currentPage - 1 || 
+                      page === currentPage + 1;
+                    const isDesktopVisible = 
                       page === 1 ||
                       page === totalPages ||
-                      (page >= currentPage - 1 && page <= currentPage + 1)
-                    ) {
+                      (page >= currentPage - 1 && page <= currentPage + 1);
+                    
+                    if (isMobileVisible || isDesktopVisible) {
                       return (
-                        <PaginationItem key={page}>
+                        <PaginationItem key={page} className={isMobileVisible ? "" : "hidden sm:block"}>
                           <PaginationLink
                             onClick={() => handlePageChange(page)}
                             isActive={currentPage === page}
-                            className="cursor-pointer text-xs sm:text-sm h-8 w-8 sm:h-10 sm:w-10"
+                            className="cursor-pointer text-[10px] sm:text-sm h-7 w-7 sm:h-10 sm:w-10"
                           >
                             {page}
                           </PaginationLink>
@@ -366,26 +373,26 @@ const Notifications = () => {
                       page === currentPage + 2
                     ) {
                       return (
-                        <PaginationItem key={page}>
-                          <PaginationEllipsis className="h-8 w-8 sm:h-10 sm:w-10" />
+                        <PaginationItem key={page} className="hidden sm:block">
+                          <PaginationEllipsis className="h-7 w-7 sm:h-10 sm:w-10" />
                         </PaginationItem>
                       );
                     }
                     return null;
                   })}
 
-                  {/* Última página */}
+                  {/* Última página - ocultar em mobile se houver muitas páginas */}
                   {currentPage < totalPages - 1 && (
                     <>
                       {currentPage < totalPages - 2 && (
-                        <PaginationItem>
-                          <PaginationEllipsis className="h-8 w-8 sm:h-10 sm:w-10" />
+                        <PaginationItem className="hidden sm:block">
+                          <PaginationEllipsis className="h-7 w-7 sm:h-10 sm:w-10" />
                         </PaginationItem>
                       )}
-                      <PaginationItem>
+                      <PaginationItem className="hidden sm:block">
                         <PaginationLink
                           onClick={() => handlePageChange(totalPages)}
-                          className="cursor-pointer text-xs sm:text-sm h-8 w-8 sm:h-10 sm:w-10"
+                          className="cursor-pointer text-[10px] sm:text-sm h-7 w-7 sm:h-10 sm:w-10"
                         >
                           {totalPages}
                         </PaginationLink>
@@ -398,7 +405,7 @@ const Notifications = () => {
                       onClick={() =>
                         handlePageChange(Math.min(totalPages, currentPage + 1))
                       }
-                      className={`text-xs sm:text-sm ${
+                      className={`text-[10px] sm:text-sm h-7 w-7 sm:h-10 sm:w-10 ${
                         currentPage === totalPages
                           ? "pointer-events-none opacity-50"
                           : "cursor-pointer"
@@ -412,7 +419,7 @@ const Notifications = () => {
 
           {/* Informação de paginação */}
           {sortedNotifications.length > 0 && (
-            <div className="mt-3 sm:mt-4 text-center text-xs sm:text-sm text-muted-foreground px-2">
+            <div className="mt-2 sm:mt-4 text-center text-[10px] sm:text-sm text-muted-foreground px-2">
               Mostrando {startIndex + 1}-
               {Math.min(endIndex, sortedNotifications.length)} de{" "}
               {sortedNotifications.length} notificações

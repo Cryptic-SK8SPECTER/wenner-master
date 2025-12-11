@@ -6,6 +6,7 @@ import {
   fetchOrderById,
   updateOrder,
   deleteOrder,
+  confirmOrderReceived,
 } from "./orderActions";
 
 const initialState: OrdersState = {
@@ -141,6 +142,36 @@ const orderSlice = createSlice({
           typeof action.payload === "object" && action.payload
             ? (action.payload as any).message || "Erro ao deletar pedido"
             : "Erro ao deletar pedido";
+      });
+
+    // Confirm Order Received
+    builder
+      .addCase(confirmOrderReceived.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(
+        confirmOrderReceived.fulfilled,
+        (state, action: PayloadAction<Order>) => {
+          state.loading = false;
+          const index = state.orders.findIndex(
+            (order) => order._id === action.payload._id
+          );
+          if (index !== -1) {
+            state.orders[index] = action.payload;
+          }
+          if (state.currentOrder?._id === action.payload._id) {
+            state.currentOrder = action.payload;
+          }
+          state.error = null;
+        }
+      )
+      .addCase(confirmOrderReceived.rejected, (state, action) => {
+        state.loading = false;
+        state.error =
+          typeof action.payload === "object" && action.payload
+            ? (action.payload as any).message || "Erro ao confirmar recebimento"
+            : "Erro ao confirmar recebimento";
       });
   },
 });

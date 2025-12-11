@@ -247,7 +247,16 @@ export const ProductCard = ({ product }: ProductCardProps) => {
         return;
       }
 
-      // Se não tem variantes, adicionar diretamente
+      // Se não tem variantes, verificar se há estoque disponível
+      // Se o produto tem variantes mas nenhuma foi selecionada, não pode adicionar sem variante
+      const variants = product.variants || product.variations || [];
+      if (variants.length > 0) {
+        // Se há variantes, deve selecionar uma
+        setIsVariantDialogOpen(true);
+        return;
+      }
+
+      // Se não tem variantes, adicionar diretamente (produto sem variantes)
       const productId = product.id || product._id;
       if (!productId) return;
       
@@ -294,6 +303,36 @@ export const ProductCard = ({ product }: ProductCardProps) => {
         });
         return;
       }
+
+      // Validar estoque da variante selecionada
+      if (selectedVariant) {
+        const stock = selectedVariant.stock ?? 0;
+        if (stock <= 0) {
+          toast({
+            title: "Produto fora de estoque",
+            description: "Esta variante não está disponível no momento.",
+            variant: "destructive",
+          });
+          return;
+        }
+      } else if (selectedColor || selectedSize) {
+        // Se há seleção mas não encontrou variante, verificar estoque em todas as variantes
+        const variants = product.variants || product.variations || [];
+        const matchingVariant = variants.find(
+          (v) => 
+            (!selectedColor || v.color === selectedColor) &&
+            (!selectedSize || v.size === selectedSize)
+        );
+        
+        if (matchingVariant && (matchingVariant.stock ?? 0) <= 0) {
+          toast({
+            title: "Produto fora de estoque",
+            description: "Esta variante não está disponível no momento.",
+            variant: "destructive",
+          });
+          return;
+        }
+      }
     }
 
     // Usar preço e imagem da variante se disponível, senão usar do produto
@@ -331,7 +370,10 @@ export const ProductCard = ({ product }: ProductCardProps) => {
   }, [product.colors]);
 
   return (
-    <div className="group relative bg-card rounded-lg overflow-hidden shadow-card hover:shadow-card-hover transition-all duration-300 cursor-pointer">
+    <div 
+      className="group relative bg-card rounded-lg overflow-hidden shadow-card hover:shadow-card-hover transition-all duration-300 cursor-pointer"
+      onClick={handleCardClick}
+    >
       {/* Image Container */}
       <div className="relative aspect-[3/3] overflow-hidden bg-muted">
         <img
@@ -375,7 +417,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
       </div>
 
       {/* Product Info */}
-      <div onClick={handleCardClick} className="p-4">
+      <div className="p-4">
         <h3 className="font-medium text-card-foreground mb-1 line-clamp-1">
           {product.name}
         </h3>
@@ -496,21 +538,39 @@ export const ProductCard = ({ product }: ProductCardProps) => {
                         )}
                       </Label>
                       <div className="flex flex-wrap gap-2">
-                        {availableSizes.map((size) => (
-                          <button
-                            key={size}
-                            type="button"
-                            onClick={() => setSelectedSize(size)}
-                            className={cn(
-                              "px-4 py-2 rounded-md border-2 transition-all text-sm font-medium",
-                              selectedSize === size
-                                ? "border-primary bg-primary text-primary-foreground"
-                                : "border-border hover:border-primary/50"
-                            )}
-                          >
-                            {size}
-                          </button>
-                        ))}
+                        {availableSizes.map((size) => {
+                          // Verificar estoque para esta combinação de cor e tamanho
+                          const variantForSize = (product.variants || product.variations || []).find(
+                            (v) => v.color === selectedColor && v.size === size
+                          );
+                          const stock = variantForSize?.stock ?? 0;
+                          const isOutOfStock = stock <= 0;
+
+                          return (
+                            <button
+                              key={size}
+                              type="button"
+                              onClick={() => !isOutOfStock && setSelectedSize(size)}
+                              disabled={isOutOfStock}
+                              className={cn(
+                                "px-4 py-2 rounded-md border-2 transition-all text-sm font-medium relative",
+                                isOutOfStock
+                                  ? "border-muted bg-muted text-muted-foreground cursor-not-allowed opacity-50"
+                                  : selectedSize === size
+                                  ? "border-primary bg-primary text-primary-foreground"
+                                  : "border-border hover:border-primary/50"
+                              )}
+                              title={isOutOfStock ? "Fora de estoque" : `${stock} disponível(eis)`}
+                            >
+                              {size}
+                              {isOutOfStock && (
+                                <span className="absolute -top-1 -right-1 text-[10px] bg-destructive text-destructive-foreground rounded-full w-4 h-4 flex items-center justify-center">
+                                  ×
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
                   ) : selectedColor ? (
@@ -524,14 +584,27 @@ export const ProductCard = ({ product }: ProductCardProps) => {
                 </>
               )}
 
-              {/* Preview do Preço */}
-              <div className="pt-4 border-t">
+              {/* Preview do Preço e Estoque */}
+              <div className="pt-4 border-t space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Preço:</span>
                   <span className="text-lg font-bold">
                     {(selectedVariant?.price || product.priceDiscount || product.price).toFixed(2)} MZN
                   </span>
                 </div>
+                {selectedVariant && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Estoque:</span>
+                    <span className={cn(
+                      "text-sm font-medium",
+                      (selectedVariant.stock ?? 0) > 0 ? "text-green-600" : "text-destructive"
+                    )}>
+                      {(selectedVariant.stock ?? 0) > 0 
+                        ? `${selectedVariant.stock} disponível(eis)`
+                        : "Fora de estoque"}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -548,8 +621,13 @@ export const ProductCard = ({ product }: ProductCardProps) => {
             >
               Cancelar
             </Button>
-            <Button onClick={handleConfirmAddToCart}>
-              Adicionar ao Carrinho
+            <Button 
+              onClick={handleConfirmAddToCart}
+              disabled={selectedVariant && (selectedVariant.stock ?? 0) <= 0}
+            >
+              {selectedVariant && (selectedVariant.stock ?? 0) <= 0
+                ? "Fora de Estoque"
+                : "Adicionar ao Carrinho"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -5,6 +5,7 @@ import {
   SalesByStatusItem,
   TopClientItem,
   SalesByPeriodItem,
+  ProductSalesItem,
 } from "./reportTypes";
 
 const getErrorMessage = (error: unknown): string => {
@@ -205,6 +206,62 @@ export const fetchSalesByPeriod = createAsyncThunk<
       params,
     });
     return res.data.data ?? res.data ?? [];
+  } catch (error) {
+    if (error instanceof Error && "response" in error) {
+      const axiosError = error as any;
+      return rejectWithValue(
+        axiosError.response?.data || {
+          status: "error",
+          message: getErrorMessage(error),
+        }
+      );
+    }
+    return rejectWithValue({
+      status: "error",
+      message: getErrorMessage(error),
+    });
+  }
+});
+
+export const fetchTopProducts = createAsyncThunk<
+  ProductSalesItem[],
+  void,
+  { rejectValue: ApiResponse }
+>("report/fetchTopProducts", async (_, { rejectWithValue }) => {
+  try {
+    const token = localStorage.getItem("token");
+    const res = await customFetch.get("/api/v1/reports/top-products", {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    return res.data.data?.topProducts ?? res.data.topProducts ?? [];
+  } catch (error) {
+    if (error instanceof Error && "response" in error) {
+      const axiosError = error as any;
+      return rejectWithValue(
+        axiosError.response?.data || {
+          status: "error",
+          message: getErrorMessage(error),
+        }
+      );
+    }
+    return rejectWithValue({
+      status: "error",
+      message: getErrorMessage(error),
+    });
+  }
+});
+
+export const fetchLeastSoldProducts = createAsyncThunk<
+  ProductSalesItem[],
+  void,
+  { rejectValue: ApiResponse }
+>("report/fetchLeastSoldProducts", async (_, { rejectWithValue }) => {
+  try {
+    const token = localStorage.getItem("token");
+    const res = await customFetch.get("/api/v1/reports/least-sold-products", {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    return res.data.data?.leastSoldProducts ?? res.data.leastSoldProducts ?? [];
   } catch (error) {
     if (error instanceof Error && "response" in error) {
       const axiosError = error as any;

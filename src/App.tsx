@@ -1,3 +1,4 @@
+import React from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -6,6 +7,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { CartProvider } from "./contexts/CartContext";
 import { LoginModalProvider } from "./contexts/LoginModalContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import ErrorBoundary from "./components/ErrorBoundary";
 import Index from "./pages/Index";
 import ProductDetails from "./pages/ProductDetails";
 import Profile from "./pages/Profile";
@@ -18,41 +20,112 @@ import NotFound from "./pages/NotFound";
 import { store } from "./app/index";
 import { Provider } from "react-redux";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
+
+// Wrapper component to isolate errors per route
+const RouteErrorBoundary = ({ children }: { children: React.ReactNode }) => (
+  <ErrorBoundary>{children}</ErrorBoundary>
+);
 
 const App = () => (
-  <Provider store={store}>
-    <QueryClientProvider client={queryClient}>
-      <CartProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <LoginModalProvider>
-              <Routes>
-                <Route path="/" element={<Index />} />
-                <Route path="/product/:slug" element={<ProductDetails />} />
-                <Route path="/profile" element={<Profile />} />
-                <Route path="/auth" element={<Auth />} />
-                <Route
-                  path="/admin"
-                  element={
-                    <ProtectedRoute requiredRole="admin">
-                      <Admin />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route path="/notificacoes" element={<Notifications />} />
-                <Route path="/avaliacoes" element={<AllReviews />} />
-                {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </LoginModalProvider>
-          </BrowserRouter>
-        </TooltipProvider>
-      </CartProvider>
-    </QueryClientProvider>
-  </Provider>
+  <ErrorBoundary>
+    <Provider store={store}>
+      <QueryClientProvider client={queryClient}>
+        <CartProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <LoginModalProvider>
+                <Routes>
+                  <Route
+                    path="/"
+                    element={
+                      <RouteErrorBoundary>
+                        <Index />
+                      </RouteErrorBoundary>
+                    }
+                  />
+                  <Route
+                    path="/product/:slug"
+                    element={
+                      <RouteErrorBoundary>
+                        <ProductDetails />
+                      </RouteErrorBoundary>
+                    }
+                  />
+                  <Route
+                    path="/profile"
+                    element={
+                      <RouteErrorBoundary>
+                        <ProtectedRoute requireAuth={true}>
+                          <Profile />
+                        </ProtectedRoute>
+                      </RouteErrorBoundary>
+                    }
+                  />
+                  <Route
+                    path="/auth"
+                    element={
+                      <RouteErrorBoundary>
+                        <Auth />
+                      </RouteErrorBoundary>
+                    }
+                  />
+                  <Route
+                    path="/admin"
+                    element={
+                      <RouteErrorBoundary>
+                        <ProtectedRoute requiredRole={["admin", "manager"]}>
+                          <Admin />
+                        </ProtectedRoute>
+                      </RouteErrorBoundary>
+                    }
+                  />
+                  <Route
+                    path="/notificacoes"
+                    element={
+                      <RouteErrorBoundary>
+                        <ProtectedRoute requireAuth={true}>
+                          <Notifications />
+                        </ProtectedRoute>
+                      </RouteErrorBoundary>
+                    }
+                  />
+                  <Route
+                    path="/avaliacoes"
+                    element={
+                      <RouteErrorBoundary>
+                        <ProtectedRoute requireAuth={true}>
+                          <AllReviews />
+                        </ProtectedRoute>
+                      </RouteErrorBoundary>
+                    }
+                  />
+                  {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                  <Route
+                    path="*"
+                    element={
+                      <RouteErrorBoundary>
+                        <NotFound />
+                      </RouteErrorBoundary>
+                    }
+                  />
+                </Routes>
+              </LoginModalProvider>
+            </BrowserRouter>
+          </TooltipProvider>
+        </CartProvider>
+      </QueryClientProvider>
+    </Provider>
+  </ErrorBoundary>
 );
 
 export default App;

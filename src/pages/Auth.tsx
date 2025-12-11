@@ -25,21 +25,84 @@ import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
 import Logo from "@/components/Logo";
 
+// Validação de telefone de Moçambique
+const mozambiquePhoneRegex = /^(\+258)?[89]\d{8}$/;
+
+const validateMozambiquePhone = (phone: string): boolean => {
+  // Remove espaços e caracteres especiais
+  const cleaned = phone.replace(/[\s\-\(\)]/g, "");
+  
+  // Verifica se começa com +258 seguido de 9 dígitos começando com 8 ou 9
+  if (cleaned.startsWith("+258")) {
+    return /^\+258[89]\d{8}$/.test(cleaned);
+  }
+  
+  // Verifica se tem 9 dígitos começando com 8 ou 9
+  if (cleaned.length === 9) {
+    return /^[89]\d{8}$/.test(cleaned);
+  }
+  
+  // Verifica se tem 8 dígitos começando com 8 ou 9 (formato antigo)
+  if (cleaned.length === 8) {
+    return /^[89]\d{7}$/.test(cleaned);
+  }
+  
+  return false;
+};
+
 const loginSchema = z.object({
-  email: z.string().trim().email({ message: "Email inválido" }),
+  email: z
+    .string()
+    .trim()
+    .min(1, { message: "Email é obrigatório" })
+    .email({ message: "Email inválido. Exemplo: exemplo@email.com" }),
   password: z
     .string()
+    .min(1, { message: "Senha é obrigatória" })
     .min(6, { message: "Senha deve ter no mínimo 6 caracteres" }),
 });
 
 const signupSchema = z
   .object({
-    email: z.string().trim().email({ message: "Email inválido" }),
+    name: z
+      .string()
+      .trim()
+      .min(1, { message: "Nome é obrigatório" })
+      .min(2, { message: "Nome deve ter no mínimo 2 caracteres" })
+      .max(100, { message: "Nome deve ter no máximo 100 caracteres" })
+      .regex(/^[a-zA-ZÀ-ÿ\s'\-\.]+$/, {
+        message: "Nome contém caracteres inválidos",
+      }),
+    email: z
+      .string()
+      .trim()
+      .min(1, { message: "Email é obrigatório" })
+      .email({ message: "Email inválido. Exemplo: exemplo@email.com" }),
+    phone: z
+      .string()
+      .trim()
+      .min(1, { message: "Contacto é obrigatório" })
+      .refine(
+        (phone) => validateMozambiquePhone(phone),
+        {
+          message:
+            "Contacto inválido. Use o formato: +258841234567 ou 841234567",
+        }
+      ),
     password: z
       .string()
-      .min(6, { message: "Senha deve ter no mínimo 6 caracteres" }),
-    confirmPassword: z.string(),
-    phone: z.string().min(9, { message: "Contacto é obrigatório" }),
+      .min(1, { message: "Senha é obrigatória" })
+      .min(8, { message: "Senha deve ter no mínimo 8 caracteres" })
+      .regex(/[A-Z]/, {
+        message: "Senha deve conter pelo menos uma letra maiúscula",
+      })
+      .regex(/[a-z]/, {
+        message: "Senha deve conter pelo menos uma letra minúscula",
+      })
+      .regex(/[0-9]/, {
+        message: "Senha deve conter pelo menos um número",
+      }),
+    confirmPassword: z.string().min(1, { message: "Confirmação de senha é obrigatória" }),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: "As senhas não coincidem",
@@ -50,8 +113,18 @@ const resetPasswordSchema = z
   .object({
     password: z
       .string()
-      .min(6, { message: "Senha deve ter no mínimo 6 caracteres" }),
-    confirmPassword: z.string(),
+      .min(1, { message: "Senha é obrigatória" })
+      .min(8, { message: "Senha deve ter no mínimo 8 caracteres" })
+      .regex(/[A-Z]/, {
+        message: "Senha deve conter pelo menos uma letra maiúscula",
+      })
+      .regex(/[a-z]/, {
+        message: "Senha deve conter pelo menos uma letra minúscula",
+      })
+      .regex(/[0-9]/, {
+        message: "Senha deve conter pelo menos um número",
+      }),
+    confirmPassword: z.string().min(1, { message: "Confirmação de senha é obrigatória" }),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: "As senhas não coincidem",
@@ -102,7 +175,7 @@ const Auth = () => {
       setIsLoading(false);
       
       // Redirecionar baseado no role do usuário
-      if (user?.role === "admin") {
+      if (user?.role === "admin" || user?.role === "manager") {
         navigate("/admin");
       } else {
         navigate("/");
@@ -150,7 +223,7 @@ const Auth = () => {
     const confirmPassword = formData.get("confirmPassword") as string;
 
     try {
-      signupSchema.parse({ email, password, confirmPassword, phone });
+      signupSchema.parse({ name, email, password, confirmPassword, phone });
       setIsLoading(true);
 
       await dispatch(
@@ -291,10 +364,12 @@ const Auth = () => {
             onValueChange={(v) => setActiveTab(v as any)}
             className="w-full"
           >
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="login">Login</TabsTrigger>
-              <TabsTrigger value="signup">Cadastrar</TabsTrigger>
-            </TabsList>
+            {activeTab !== "reset" && (
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="login">Login</TabsTrigger>
+                <TabsTrigger value="signup">Cadastrar</TabsTrigger>
+              </TabsList>
+            )}
 
             <TabsContent value="login">
               <form onSubmit={handleLogin} className="space-y-4">
@@ -354,47 +429,57 @@ const Auth = () => {
                   label="Contacto"
                   id="signup-phone"
                   name="phone"
-                  type="text"
-                  placeholder="Informe o seu contacto"
+                  type="tel"
+                  placeholder="+258841234567 ou 841234567"
                   required
                   disabled={isLoading}
                   icon={Phone}
                   iconPosition="right"
+                  maxLength={13}
+                  pattern="(\+258)?[89]\d{8}"
+                  title="Formato: +258841234567 ou 841234567 (9 dígitos começando com 8 ou 9)"
                 />
                 <InputField
                   label="Email"
                   id="signup-email"
                   name="email"
                   type="email"
-                  placeholder="Informe o seu email"
+                  placeholder="exemplo@email.com"
                   required
                   disabled={isLoading}
                   icon={Mail}
                   iconPosition="right"
                 />
 
-                <InputField
-                  label="Senha"
-                  id="signup-password"
-                  name="password"
-                  type="password"
-                  placeholder="••••••••"
-                  required
-                  disabled={isLoading}
-                  icon={Lock}
-                  iconPosition="right"
-                />
+                <div className="space-y-1">
+                  <InputField
+                    label="Senha"
+                    id="signup-password"
+                    name="password"
+                    type="password"
+                    placeholder="Mínimo 8 caracteres"
+                    required
+                    disabled={isLoading}
+                    icon={Lock}
+                    iconPosition="right"
+                    minLength={8}
+                  />
+                  <p className="text-xs text-muted-foreground px-1">
+                    Deve conter: letra maiúscula, minúscula e número
+                  </p>
+                </div>
 
                 <InputField
                   label="Confirmar Senha"
                   id="signup-confirm-password"
                   name="confirmPassword"
                   type="password"
-                  placeholder="••••••••"
+                  placeholder="Digite a senha novamente"
                   required
                   disabled={isLoading}
                   icon={Lock}
                   iconPosition="right"
+                  minLength={8}
                 />
 
                 <Button type="submit" className="w-full" disabled={isLoading}>
@@ -464,28 +549,35 @@ const Auth = () => {
                   }}
                   className="space-y-4"
                 >
-                  <InputField
-                    label="Nova Senha"
-                    id="reset-password"
-                    name="password"
-                    type="password"
-                    placeholder="••••••••"
-                    required
-                    disabled={loadingReset}
-                    icon={Lock}
-                    iconPosition="right"
-                  />
+                  <div className="space-y-1">
+                    <InputField
+                      label="Nova Senha"
+                      id="reset-password"
+                      name="password"
+                      type="password"
+                      placeholder="Mínimo 8 caracteres"
+                      required
+                      disabled={loadingReset}
+                      icon={Lock}
+                      iconPosition="right"
+                      minLength={8}
+                    />
+                    <p className="text-xs text-muted-foreground px-1">
+                      Deve conter: letra maiúscula, minúscula e número
+                    </p>
+                  </div>
 
                   <InputField
                     label="Confirmar Senha"
                     id="reset-confirm-password"
                     name="confirmPassword"
                     type="password"
-                    placeholder="••••••••"
+                    placeholder="Digite a senha novamente"
                     required
                     disabled={loadingReset}
                     icon={Lock}
                     iconPosition="right"
+                    minLength={8}
                   />
 
                   <div className="flex justify-between items-center">

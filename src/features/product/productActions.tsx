@@ -51,22 +51,25 @@ export const createProduct = createAsyncThunk<ApiResponse, FormData>(
       const token = localStorage.getItem("token");
 
       if (!token) {
-        dispatch(logoutUser());
         return rejectWithValue({ message: "Faça login para continuar" });
       }
 
       const response = await customFetch.post("/api/v1/products", formData, {
         headers: {
           Authorization: `Bearer ${token}`,
+          // Não definir Content-Type manualmente - o browser define automaticamente com boundary para FormData
         },
       });
 
+      // O backend retorna: { status: 'success', data: { data: doc } }
       return response.data;
     } catch (err: unknown) {
       const error = err as {
         response?: { status?: number; data?: Record<string, unknown> };
+        message?: string;
       };
 
+      // Só fazer logout se realmente for 401 (não autorizado)
       if (error?.response?.status === 401) {
         dispatch(logoutUser());
         return rejectWithValue({
@@ -74,8 +77,13 @@ export const createProduct = createAsyncThunk<ApiResponse, FormData>(
         });
       }
 
+      // Para outros erros, retornar a mensagem de erro sem fazer logout
       const apiErrorBody = error?.response?.data ?? null;
-      const message = apiErrorBody?.message ?? "Erro ao criar produto";
+      const message = 
+        (apiErrorBody?.message as string) || 
+        error?.message || 
+        "Erro ao criar produto";
+      
       return rejectWithValue(apiErrorBody ?? { message });
     }
   }

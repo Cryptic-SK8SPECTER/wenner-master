@@ -7,6 +7,7 @@ import {
   createNotification,
   updateNotification,
   deleteNotification,
+  markAllAsRead,
 } from "./notificationActions";
 
 const initialState: NotificationState = {
@@ -146,6 +147,39 @@ const notificationSlice = createSlice({
         }
       })
       .addCase(deleteNotification.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+        state.success = false;
+      });
+
+    // ================================
+    // MARK ALL AS READ
+    // ================================
+    builder
+      .addCase(markAllAsRead.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+        state.success = false;
+      })
+      .addCase(markAllAsRead.fulfilled, (state) => {
+        state.loading = false;
+        state.success = true;
+        // Marcar todas as notificações como lidas
+        state.notifications = state.notifications.map((notification) => ({
+          ...notification,
+          isRead: true,
+          readAt: new Date().toISOString(),
+        }));
+        // Atualizar selecionada se existir
+        if (state.selectedNotification) {
+          state.selectedNotification = {
+            ...state.selectedNotification,
+            isRead: true,
+            readAt: new Date().toISOString(),
+          };
+        }
+      })
+      .addCase(markAllAsRead.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
         state.success = false;

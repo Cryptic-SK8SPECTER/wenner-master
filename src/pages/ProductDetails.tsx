@@ -32,7 +32,7 @@ import { z } from "zod";
 import { useCart } from "@/contexts/CartContext";
 import { useToast } from "@/hooks/use-toast";
 import { productionUrl } from "@/lib/utils";
-import { validateCoupon, clearValidatedCoupon } from "@/features/coupon/cupomActions";
+import { validateCoupon, clearValidatedCoupon, useCoupon } from "@/features/coupon/cupomActions";
 import { clearCouponError } from "@/features/coupon/cupomSlice";
 import {
   addToFavorites,
@@ -144,11 +144,18 @@ const ProductDetails = () => {
   useEffect(() => {
     if (slug) {
       dispatch(fetchProductBySlug(slug));
+      // Rolar para o topo quando o slug mudar (ao clicar em produto relacionado)
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      // Limpar erros de cupom ao mudar de produto
+      dispatch(clearCouponError());
+      dispatch(clearValidatedCoupon());
+      setCouponCode("");
     }
 
     // Limpar produto atual ao desmontar
     return () => {
       dispatch(clearCurrentProduct());
+      dispatch(clearCouponError());
     };
   }, [dispatch, slug]);
 
@@ -188,17 +195,11 @@ const ProductDetails = () => {
     }
   }, [error, showToast]);
 
-  // Atualize o useEffect para limpar erros de cupom:
+  // Limpar erros de cupom ao montar o componente
   useEffect(() => {
-    if (couponError) {
-      showToast({
-        variant: "destructive",
-        title: "Erro no cupom",
-        description: couponError,
-      });
-      dispatch(clearCouponError());
-    }
-  }, [couponError, showToast, dispatch]);
+    // Limpar erros de cupom ao montar para evitar mostrar erros de ações anteriores
+    dispatch(clearCouponError());
+  }, [dispatch]);
 
   // Loading state
   if (loading) {
@@ -445,6 +446,36 @@ const ProductDetails = () => {
         });
         return;
       }
+
+      // Validar estoque se houver variante selecionada
+      if (selectedColor || selectedSize) {
+        const matchingVariant = variants.find(
+          (v) => 
+            (!selectedColor || v.color === selectedColor) &&
+            (!selectedSize || v.size === selectedSize)
+        );
+
+        if (matchingVariant) {
+          const availableStock = matchingVariant.stock || 0;
+          if (availableStock < quantity) {
+            showToast({
+              title: "Estoque insuficiente",
+              description: `Apenas ${availableStock} unidade(s) disponível(eis) para esta variante.`,
+              variant: "destructive",
+            });
+            return;
+          }
+        } else if (variants.length > 0) {
+          // Se há variantes mas não encontrou a selecionada
+          showToast({
+            title: "Variante não encontrada",
+            description: "A variante selecionada não está disponível.",
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+
       for (let i = 0; i < quantity; i++) {
         addItem({
           id: product._id,
@@ -481,6 +512,34 @@ const ProductDetails = () => {
           variant: "destructive",
         });
         return;
+      }
+
+      // Validar estoque se houver variante selecionada
+      if (selectedColor || selectedSize) {
+        const matchingVariant = variants.find(
+          (v) => 
+            (!selectedColor || v.color === selectedColor) &&
+            (!selectedSize || v.size === selectedSize)
+        );
+
+        if (matchingVariant) {
+          const availableStock = matchingVariant.stock || 0;
+          if (availableStock < quantity) {
+            showToast({
+              title: "Estoque insuficiente",
+              description: `Apenas ${availableStock} unidade(s) disponível(eis) para esta variante.`,
+              variant: "destructive",
+            });
+            return;
+          }
+        } else if (variants.length > 0) {
+          showToast({
+            title: "Variante não encontrada",
+            description: "A variante selecionada não está disponível.",
+            variant: "destructive",
+          });
+          return;
+        }
       }
 
       // Criar payload do pedido
@@ -527,6 +586,22 @@ const ProductDetails = () => {
             } catch (notificationError) {
               // Não bloquear o fluxo se a notificação falhar
               console.error("Erro ao criar notificação:", notificationError);
+            }
+          }
+
+          // Marcar cupom como usado se houver um cupom validado
+          if (validatedCoupon && validatedCoupon.coupon.code) {
+            try {
+              await dispatch(
+                useCoupon({
+                  code: validatedCoupon.coupon.code,
+                  userId: reduxUser?._id,
+                })
+              ).unwrap();
+            } catch (useCouponError) {
+              // Não bloquear o fluxo se falhar ao marcar cupom como usado
+              // Mas logar o erro para debug
+              console.error("Erro ao marcar cupom como usado:", useCouponError);
             }
           }
 
@@ -927,20 +1002,38 @@ const ProductDetails = () => {
                 Tamanho: {selectedSize || "Selecione"}
               </h3>
               <div className="flex gap-2 flex-wrap">
-                {availableSizes.map((size) => (
-                  <button
-                    key={size}
-                    onClick={() => handleSizeSelect(size)}
-                    className={cn(
-                      "px-4 sm:px-6 py-1.5 sm:py-2 rounded-md border-2 text-sm sm:text-base font-medium transition-all hover:border-primary",
-                      selectedSize === size
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "border-border bg-card text-card-foreground"
-                    )}
-                  >
-                    {size}
-                  </button>
-                ))}
+                {availableSizes.map((size) => {
+                  // Verificar estoque para esta combinação de cor e tamanho
+                  const variantForSize = variants.find(
+                    (v) => v.color === selectedColor && v.size === size
+                  );
+                  const stock = variantForSize?.stock ?? 0;
+                  const isOutOfStock = stock <= 0;
+
+                  return (
+                    <button
+                      key={size}
+                      onClick={() => !isOutOfStock && handleSizeSelect(size)}
+                      disabled={isOutOfStock}
+                      className={cn(
+                        "px-4 sm:px-6 py-1.5 sm:py-2 rounded-md border-2 text-sm sm:text-base font-medium transition-all relative",
+                        isOutOfStock
+                          ? "border-muted bg-muted text-muted-foreground cursor-not-allowed opacity-50"
+                          : selectedSize === size
+                          ? "border-primary bg-primary text-primary-foreground hover:border-primary"
+                          : "border-border bg-card text-card-foreground hover:border-primary"
+                      )}
+                      title={isOutOfStock ? "Fora de estoque" : `${stock} disponível(eis)`}
+                    >
+                      {size}
+                      {isOutOfStock && (
+                        <span className="absolute -top-1 -right-1 text-[10px] bg-destructive text-destructive-foreground rounded-full w-4 h-4 flex items-center justify-center">
+                          ×
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -967,6 +1060,7 @@ const ProductDetails = () => {
                   size="icon"
                   className="h-9 w-9 sm:h-10 sm:w-10"
                   onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                  disabled={quantity <= 1}
                 >
                   <Minus className="w-4 h-4" />
                 </Button>
@@ -977,20 +1071,87 @@ const ProductDetails = () => {
                   variant="outline"
                   size="icon"
                   className="h-9 w-9 sm:h-10 sm:w-10"
-                  onClick={() => setQuantity(quantity + 1)}
+                  onClick={() => {
+                    // Limitar quantidade ao estoque disponível
+                    const matchingVariant = variants.find(
+                      (v) => 
+                        (!selectedColor || v.color === selectedColor) &&
+                        (!selectedSize || v.size === selectedSize)
+                    );
+                    const maxStock = matchingVariant?.stock ?? 999;
+                    setQuantity(Math.min(quantity + 1, maxStock));
+                  }}
+                  disabled={
+                    (() => {
+                      const matchingVariant = variants.find(
+                        (v) => 
+                          (!selectedColor || v.color === selectedColor) &&
+                          (!selectedSize || v.size === selectedSize)
+                      );
+                      const maxStock = matchingVariant?.stock ?? 999;
+                      return quantity >= maxStock;
+                    })()
+                  }
                 >
                   <Plus className="w-4 h-4" />
                 </Button>
               </div>
+              {/* Mostrar estoque disponível */}
+              {selectedColor && selectedSize && (() => {
+                const matchingVariant = variants.find(
+                  (v) => v.color === selectedColor && v.size === selectedSize
+                );
+                const stock = matchingVariant?.stock ?? 0;
+                return stock > 0 ? (
+                  <p className="text-xs sm:text-sm text-muted-foreground mt-2">
+                    {stock} unidade(s) disponível(eis) em estoque
+                  </p>
+                ) : (
+                  <p className="text-xs sm:text-sm text-destructive mt-2">
+                    Fora de estoque
+                  </p>
+                );
+              })()}
             </div>
 
             <Separator />
 
             {/* Action Buttons */}
             <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-              <Button size="lg" className="flex-1 w-full sm:w-auto p-3" onClick={handleAddToCart}>
+              <Button 
+                size="lg" 
+                className="flex-1 w-full sm:w-auto p-3" 
+                onClick={handleAddToCart}
+                disabled={
+                  (() => {
+                    if (selectedColor || selectedSize) {
+                      const matchingVariant = variants.find(
+                        (v) => 
+                          (!selectedColor || v.color === selectedColor) &&
+                          (!selectedSize || v.size === selectedSize)
+                      );
+                      return (matchingVariant?.stock ?? 0) <= 0;
+                    }
+                    return false;
+                  })()
+                }
+              >
                 <ShoppingCart className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span className="text-sm sm:text-base">Adicionar ao Carrinho</span>
+                <span className="text-sm sm:text-base">
+                  {(() => {
+                    if (selectedColor || selectedSize) {
+                      const matchingVariant = variants.find(
+                        (v) => 
+                          (!selectedColor || v.color === selectedColor) &&
+                          (!selectedSize || v.size === selectedSize)
+                      );
+                      return (matchingVariant?.stock ?? 0) <= 0
+                        ? "Fora de Estoque"
+                        : "Adicionar ao Carrinho";
+                    }
+                    return "Adicionar ao Carrinho";
+                  })()}
+                </span>
               </Button>
               <Button
                 size="lg"
@@ -1017,9 +1178,36 @@ const ProductDetails = () => {
               variant="secondary"
               className="w-full"
               onClick={handleBuyNow}
-              disabled={orderLoading}
+              disabled={
+                orderLoading ||
+                (() => {
+                  if (selectedColor || selectedSize) {
+                    const matchingVariant = variants.find(
+                      (v) => 
+                        (!selectedColor || v.color === selectedColor) &&
+                        (!selectedSize || v.size === selectedSize)
+                    );
+                    return (matchingVariant?.stock ?? 0) < quantity;
+                  }
+                  return false;
+                })()
+              }
             >
-              {orderLoading ? "Processando..." : "Comprar Agora"}
+              {orderLoading 
+                ? "Processando..." 
+                : (() => {
+                    if (selectedColor || selectedSize) {
+                      const matchingVariant = variants.find(
+                        (v) => 
+                          (!selectedColor || v.color === selectedColor) &&
+                          (!selectedSize || v.size === selectedSize)
+                      );
+                      return (matchingVariant?.stock ?? 0) < quantity
+                        ? "Estoque Insuficiente"
+                        : "Comprar Agora";
+                    }
+                    return "Comprar Agora";
+                  })()}
             </Button>
           </div>
         </div>

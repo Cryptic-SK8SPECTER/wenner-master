@@ -4,6 +4,7 @@ import { CouponState } from "./cupomTypes";
 import {
   createCoupon,
   getAllCoupons,
+  getMyCoupons,
   getCouponById,
   validateCoupon,
   useCoupon,
@@ -59,7 +60,7 @@ const couponSlice = createSlice({
       });
 
     // ================================
-    // Buscar todos os cupons
+    // Buscar todos os cupons (admin)
     // ================================
     builder
       .addCase(getAllCoupons.pending, (state) => {
@@ -71,6 +72,23 @@ const couponSlice = createSlice({
         state.coupons = action.payload;
       })
       .addCase(getAllCoupons.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      });
+
+    // ================================
+    // Buscar cupons do usuário autenticado
+    // ================================
+    builder
+      .addCase(getMyCoupons.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(getMyCoupons.fulfilled, (state, action) => {
+        state.loading = false;
+        state.coupons = action.payload;
+      })
+      .addCase(getMyCoupons.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       });

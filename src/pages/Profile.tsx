@@ -12,13 +12,13 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Heart, Package, User, Lock, MapPin, Ticket, Copy, Check } from "lucide-react";
+import { Heart, Package, User, Lock, MapPin, Ticket, Copy, Check, Loader2 } from "lucide-react";
 import { mockProducts } from "@/data/products";
 import { useState, useEffect, useMemo } from "react";
 import { updateProfile, updatePassword } from "@/features/user/userActions";
 import { useToast } from "@/hooks/use-toast";
 import { useAppSelector, useAppDispatch } from "@/app/hooks";
-import { getAllCoupons } from "@/features/coupon/cupomActions";
+import { getAllCoupons, getMyCoupons } from "@/features/coupon/cupomActions";
 import { ICoupon } from "@/features/coupon/cupomTypes";
 import {
   Pagination,
@@ -39,17 +39,26 @@ import {
   fetchFavorites,
   removeFromFavorites,
 } from "@/features/favorite/favoriteActions";
-import { fetchOrders, fetchOrderById } from "@/features/order/orderActions";
+import { fetchOrders, fetchOrderById, confirmOrderReceived } from "@/features/order/orderActions";
 import { Order } from "@/features/order/orderTypes";
 import { productionUrl } from "@/lib/utils";
 import ProductImage from "../components/ProductImage";
+import { useSearchParams } from "react-router-dom";
+
+const validTabs = ["info", "favorites", "orders", "coupons", "address", "password"];
 
 const Profile = () => {
   const { toast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [favoritesPage, setFavoritesPage] = useState(1);
   const [ordersPage, setOrdersPage] = useState(1);
   const [selectedOrder, setSelectedOrder] = useState<string | null>(null);
   const [orderDetailsPage, setOrderDetailsPage] = useState(1);
+  
+  // Obter tab inicial da query string
+  const tabFromQuery = searchParams.get("tab");
+  const initialTab = tabFromQuery && validTabs.includes(tabFromQuery) ? tabFromQuery : "info";
+  const [activeTab, setActiveTab] = useState(initialTab);
 
   const itemsPerPage = 4;
   const orderDetailsItemsPerPage = 3;
@@ -80,6 +89,7 @@ const Profile = () => {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   const dispatch = useAppDispatch();
 
@@ -97,13 +107,29 @@ const Profile = () => {
   );
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
+  // Verificar se o usuário é admin
+  const isAdmin = user?.role === "admin";
+
+  // Sincronizar tab com query params quando a página carregar ou query mudar
   useEffect(() => {
-    if (user?._id) {
+    const tabFromQuery = searchParams.get("tab");
+    if (tabFromQuery && validTabs.includes(tabFromQuery) && tabFromQuery !== activeTab) {
+      setActiveTab(tabFromQuery);
+    }
+  }, [searchParams, activeTab]);
+
+  useEffect(() => {
+    if (user?._id && !isAdmin) {
+      // Admin não precisa carregar favoritos, pedidos e cupons
       dispatch(fetchFavorites());
       dispatch(fetchOrders(user._id));
+      // Usuários não-admin usam getMyCoupons para ver apenas seus cupons
+      dispatch(getMyCoupons());
+    } else if (user?._id && isAdmin) {
+      // Admin pode ver todos os cupons
       dispatch(getAllCoupons());
     }
-  }, [dispatch, user?._id]);
+  }, [dispatch, user?._id, isAdmin]);
 
   // Debug: Log dos cupons e usuário (apenas quando necessário)
   useEffect(() => {
@@ -168,6 +194,7 @@ const Profile = () => {
       return;
     }
 
+    setIsChangingPassword(true);
     try {
       await dispatch(
         updatePassword({
@@ -194,6 +221,8 @@ const Profile = () => {
         description: errorMsg,
         variant: "destructive",
       });
+    } finally {
+      setIsChangingPassword(false);
     }
   };
 
@@ -268,6 +297,31 @@ const Profile = () => {
     await dispatch(fetchOrderById(orderId));
   };
 
+  const handleConfirmReceived = async (orderId: string) => {
+    try {
+      await dispatch(confirmOrderReceived(orderId)).unwrap();
+      toast({
+        title: "Pedido confirmado!",
+        description: "Você confirmou o recebimento do pedido. Obrigado!",
+        variant: "default",
+      });
+      // Recarregar pedidos para atualizar o status
+      if (user?._id) {
+        await dispatch(fetchOrders(user._id));
+      }
+      // Se o pedido estiver aberto no diálogo, atualizar
+      if (selectedOrder === orderId) {
+        await dispatch(fetchOrderById(orderId));
+      }
+    } catch (error: any) {
+      toast({
+        title: "Erro",
+        description: error?.message || "Não foi possível confirmar o recebimento.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     const statusMap: Record<
       string,
@@ -288,7 +342,15 @@ const Profile = () => {
   };
 
   // Filtrar cupons atribuídos ao usuário
+  // Se for admin, mostra todos os cupons; caso contrário, mostra apenas os atribuídos
   const userCoupons = useMemo(() => {
+    if (isAdmin) {
+      // Admin vê todos os cupons
+      return coupons;
+    }
+    
+    // Para usuários não-admin, a API já retorna apenas os cupons atribuídos
+    // Mas vamos manter a filtragem como fallback de segurança
     if (!user?._id && !user?.userId) {
       return [];
     }
@@ -318,9 +380,8 @@ const Profile = () => {
       return matches;
     });
     
-    
     return filtered;
-  }, [coupons, user?._id, user?.userId]);
+  }, [coupons, user?._id, user?.userId, isAdmin]);
 
   // Função para copiar código do cupom
   const handleCopyCouponCode = async (code: string) => {
@@ -365,24 +426,36 @@ const Profile = () => {
             </p>
           </div>
 
-          <Tabs defaultValue="info" className="w-full">
-            <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 h-auto gap-1">
+          <Tabs value={activeTab} onValueChange={(value) => {
+            setActiveTab(value);
+            // Atualizar query params quando mudar de tab
+            if (value !== "info") {
+              setSearchParams({ tab: value });
+            } else {
+              setSearchParams({});
+            }
+          }} className="w-full">
+            <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-3' : 'grid-cols-3 md:grid-cols-6'} h-auto gap-1`}>
               <TabsTrigger value="info" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
                 <User className="h-3 w-3 sm:h-4 sm:w-4" />
                 <span className="hidden sm:inline">Dados</span>
               </TabsTrigger>
-              <TabsTrigger value="favorites" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
-                <Heart className="h-3 w-3 sm:h-4 sm:w-4" />
-                <span className="hidden sm:inline">Favoritos</span>
-              </TabsTrigger>
-              <TabsTrigger value="orders" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
-                <Package className="h-3 w-3 sm:h-4 sm:w-4" />
-                <span className="hidden sm:inline">Pedidos</span>
-              </TabsTrigger>
-              <TabsTrigger value="coupons" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
-                <Ticket className="h-3 w-3 sm:h-4 sm:w-4" />
-                <span className="hidden sm:inline">Cupons</span>
-              </TabsTrigger>
+              {!isAdmin && (
+                <>
+                  <TabsTrigger value="favorites" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
+                    <Heart className="h-3 w-3 sm:h-4 sm:w-4" />
+                    <span className="hidden sm:inline">Favoritos</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="orders" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
+                    <Package className="h-3 w-3 sm:h-4 sm:w-4" />
+                    <span className="hidden sm:inline">Pedidos</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="coupons" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
+                    <Ticket className="h-3 w-3 sm:h-4 sm:w-4" />
+                    <span className="hidden sm:inline">Cupons</span>
+                  </TabsTrigger>
+                </>
+              )}
               <TabsTrigger value="address" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
                 <MapPin className="h-3 w-3 sm:h-4 sm:w-4" />
                 <span className="hidden sm:inline">Endereço</span>
@@ -435,8 +508,9 @@ const Profile = () => {
               </Card>
             </TabsContent>
 
-            {/* Favoritos */}
-            <TabsContent value="favorites" className="mt-6">
+            {/* Favoritos - Oculto para admin */}
+            {!isAdmin && (
+              <TabsContent value="favorites" className="mt-6">
               <Card>
                 <CardHeader>
                   <CardTitle>Produtos Favoritos</CardTitle>
@@ -482,7 +556,7 @@ const Profile = () => {
                           }
                           aria-label="Remover dos favoritos"
                         >
-                          <Heart className="h-5 w-5 text-accent fill-accent hover:text-destructive hover:fill-destructive" />
+                          <Heart className="h-5 w-5 text-accent fill-accent" />
                         </Button>
                       </div>
                     ))}
@@ -536,10 +610,12 @@ const Profile = () => {
                   )}
                 </CardContent>
               </Card>
-            </TabsContent>
+              </TabsContent>
+            )}
 
-            {/* Pedidos */}
-            <TabsContent value="orders" className="mt-6">
+            {/* Pedidos - Oculto para admin */}
+            {!isAdmin && (
+              <TabsContent value="orders" className="mt-6">
               <Card>
                 <CardHeader>
                   <CardTitle>Meus Pedidos</CardTitle>
@@ -571,16 +647,28 @@ const Profile = () => {
                             {order.items} {order.items === 1 ? "item" : "itens"}
                           </div>
                           <div className="text-lg font-bold text-foreground">
-                            {order.total} MZN
+                            {order.total.toFixed(2)} MZN
                           </div>
                         </div>
-                        <Button
-                          variant="outline"
-                          className="w-full mt-3"
-                          onClick={() => handleSelectOrder(order.id)}
-                        >
-                          Ver Detalhes
-                        </Button>
+                        <div className="flex gap-2 mt-3">
+                          <Button
+                            variant="outline"
+                            className="flex-1"
+                            onClick={() => handleSelectOrder(order.id)}
+                          >
+                            Ver Detalhes
+                          </Button>
+                          {order.status === "enviado" && (
+                            <Button
+                              variant="default"
+                              className="flex-1"
+                              onClick={() => handleConfirmReceived(order.id)}
+                            >
+                              <Check className="h-4 w-4 mr-2" />
+                              Confirmar Recebimento
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -633,10 +721,12 @@ const Profile = () => {
                   )}
                 </CardContent>
               </Card>
-            </TabsContent>
+              </TabsContent>
+            )}
 
-            {/* Cupons */}
-            <TabsContent value="coupons" className="mt-4 sm:mt-6">
+            {/* Cupons - Oculto para admin */}
+            {!isAdmin && (
+              <TabsContent value="coupons" className="mt-4 sm:mt-6">
               <Card>
                 <CardHeader className="p-4 sm:p-6">
                   <CardTitle className="text-lg sm:text-xl">Meus Cupons</CardTitle>
@@ -805,7 +895,8 @@ const Profile = () => {
                   )}
                 </CardContent>
               </Card>
-            </TabsContent>
+              </TabsContent>
+            )}
 
             {/* Endereço */}
             <TabsContent value="address" className="mt-6">
@@ -893,7 +984,19 @@ const Profile = () => {
                       onChange={(e) => setConfirmPassword(e.target.value)}
                     />
                   </div>
-                  <Button onClick={handleChangePassword}>Alterar Senha</Button>
+                  <Button 
+                    onClick={handleChangePassword}
+                    disabled={isChangingPassword}
+                  >
+                    {isChangingPassword ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Alterando...
+                      </>
+                    ) : (
+                      "Alterar Senha"
+                    )}
+                  </Button>
                 </CardContent>
               </Card>
             </TabsContent>
@@ -1080,7 +1183,7 @@ const Profile = () => {
                           )}{" "}
                         itens):
                       </span>
-                      <span className="text-foreground">{order.total} MZN</span>
+                      <span className="text-foreground">{order.total.toFixed(2)} MZN</span>
                     </div>
 
                     {order.priceDiscount > 0 && (
@@ -1095,7 +1198,7 @@ const Profile = () => {
                     <div className="flex justify-between items-center pt-2">
                       <span className="text-lg font-semibold">Preço Total</span>
                       <span className="text-2xl font-bold text-accent">
-                        {order.total} MZN
+                        {order.total.toFixed(2)} MZN
                       </span>
                     </div>
                   </div>
@@ -1105,6 +1208,25 @@ const Profile = () => {
                     <div className="mt-4 p-3 bg-muted rounded-md">
                       <p className="text-sm font-semibold mb-1">Observações:</p>
                       <p className="text-sm text-foreground">{order.notes}</p>
+                    </div>
+                  )}
+
+                  {/* Botão de confirmação de recebimento */}
+                  {order.status === "enviado" && (
+                    <div className="mt-4 pt-4 border-t border-border">
+                      <div className="bg-primary/10 p-4 rounded-lg mb-4">
+                        <p className="text-sm text-foreground mb-2">
+                          Seu pedido foi enviado e está a caminho. Por favor, confirme o recebimento quando o pedido chegar.
+                        </p>
+                      </div>
+                      <Button
+                        variant="default"
+                        className="w-full"
+                        onClick={() => handleConfirmReceived(order.id)}
+                      >
+                        <Check className="h-4 w-4 mr-2" />
+                        Confirmar Recebimento do Pedido
+                      </Button>
                     </div>
                   )}
                 </div>

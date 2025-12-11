@@ -59,13 +59,9 @@ customFetch.interceptors.request.use(
 customFetch.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
-      // Token expirado ou inválido
-      localStorage.removeItem("token");
-      localStorage.removeItem("user");
-      // Redirecionar para login se necessário
-      // window.location.href = '/auth';
-    }
+    // Não remover token automaticamente aqui
+    // Deixar as actions tratarem o logout para evitar problemas
+    // O interceptor apenas rejeita a promise para que as actions possam tratar
     return Promise.reject(error);
   }
 );

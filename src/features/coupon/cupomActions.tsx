@@ -32,7 +32,7 @@ export const createCoupon = createAsyncThunk<
 });
 
 // ================================
-// Buscar todos os cupons
+// Buscar todos os cupons (apenas admin)
 // ================================
 export const getAllCoupons = createAsyncThunk<
   ICoupon[],
@@ -45,6 +45,24 @@ export const getAllCoupons = createAsyncThunk<
   } catch (error: any) {
     return rejectWithValue(
       error.response?.data?.message || "Erro ao buscar cupons"
+    );
+  }
+});
+
+// ================================
+// Buscar cupons do usuário autenticado
+// ================================
+export const getMyCoupons = createAsyncThunk<
+  ICoupon[],
+  void,
+  { rejectValue: string }
+>("coupon/getMyCoupons", async (_, { rejectWithValue }) => {
+  try {
+    const response = await customFetch.get(`${API_URL}/my-coupons`);
+    return response.data.data.data || [];
+  } catch (error: any) {
+    return rejectWithValue(
+      error.response?.data?.message || "Erro ao buscar seus cupons"
     );
   }
 });

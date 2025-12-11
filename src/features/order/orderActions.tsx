@@ -209,3 +209,46 @@ export const deleteOrder = createAsyncThunk<
     });
   }
 });
+
+/**
+ * Confirm order received by client
+ * PATCH /api/v1/orders/:id/confirm-received
+ */
+export const confirmOrderReceived = createAsyncThunk<
+  Order,
+  string,
+  {
+    rejectValue: ApiResponse;
+  }
+>("order/confirmOrderReceived", async (orderId, { rejectWithValue }) => {
+  try {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      return rejectWithValue({ status: "fail", message: "Not authenticated" });
+    }
+
+    const response = await customFetch.patch(
+      `/api/v1/orders/${orderId}/confirm-received`,
+      {},
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      }
+    );
+
+    return response.data.data?.order || response.data.data || response.data;
+  } catch (error) {
+    if (error instanceof Error && "response" in error) {
+      const axiosError = error as any;
+      return rejectWithValue(
+        axiosError.response?.data || {
+          status: "error",
+          message: getErrorMessage(error),
+        }
+      );
+    }
+    return rejectWithValue({
+      status: "error",
+      message: getErrorMessage(error),
+    });
+  }
+});

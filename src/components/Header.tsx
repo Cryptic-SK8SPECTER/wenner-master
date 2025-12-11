@@ -184,6 +184,15 @@ const Header = () => {
       await handleMarkAsRead(notification._id);
     }
 
+    // Se for notificação de cupom/promoção, navegar para aba de cupons no perfil
+    if (notification.type === "Promoção" || 
+        notification.title.toLowerCase().includes("cupom") ||
+        notification.message.toLowerCase().includes("cupom")) {
+      navigate("/profile?tab=coupons");
+      setNotificationsOpen(false);
+      return;
+    }
+
     // Se for notificação de pedido entregue ou avaliação, navegar para página de avaliações
     if (notification.order) {
       // Verificar se é notificação de entrega ou avaliação

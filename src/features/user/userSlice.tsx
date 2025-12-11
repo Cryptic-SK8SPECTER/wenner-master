@@ -7,6 +7,7 @@ import {
   updatePassword,
   updateUserRole,
   deleteUser,
+  deactivateUser,
   fetchUsers,
   forgotPassword,
   resetPassword,
@@ -123,21 +124,26 @@ const userSlice = createSlice({
         state.loading = false;
         state.error = action.payload as string;
       })
-      // Delete User
-      .addCase(deleteUser.pending, (state) => {
+      // Deactivate User (deleteUser é um alias, então ambos usam os mesmos handlers)
+      .addCase(deactivateUser.pending, (state) => {
         state.loading = true;
       })
-      .addCase(deleteUser.fulfilled, (state, action) => {
-        const userId = action.payload;
-        state.users = state.users.filter(
-          (user) => user._id !== userId && user.userId !== userId
+      .addCase(deactivateUser.fulfilled, (state, action) => {
+        const updatedUser = action.payload;
+        const index = state.users.findIndex(
+          (user) => user._id === updatedUser._id || user.userId === updatedUser._id
         );
+        if (index !== -1) {
+          // Atualizar usuário ao invés de remover
+          state.users[index] = { ...state.users[index], ...updatedUser, active: false };
+        }
         state.loading = false;
       })
-      .addCase(deleteUser.rejected, (state, action) => {
+      .addCase(deactivateUser.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       })
+      // deleteUser é um alias de deactivateUser, então os handlers acima se aplicam a ambos
       // Forgot Password
       .addCase(forgotPassword.pending, (state) => {
         state.loading = true;

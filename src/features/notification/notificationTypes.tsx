@@ -6,7 +6,7 @@ export interface INotification {
   order?: string; // ObjectId referenciando Order (opcional)
   title: string; // required
   message: string; // required
-  type:  'Pedido', 'Entregue', 'Cancelado', 'Sistema', 'Avaliação' , 'Aprovado', 'Rejeitado', 'Outro';
+  type:  'Pedido' | 'Entregue' | 'Cancelado' | 'Sistema' | 'Avaliação' | 'Aprovado' | 'Rejeitado' | 'Promoção' | 'Outro';
   isRead: boolean; // default: false
   isDelivered: boolean; // default: false
   createdAt: string; // Date
@@ -24,7 +24,7 @@ export interface NotificationState {
 export interface ICreateNotificationRequest {
   title: string; // required
   message: string; // required
-  type: "Pedido" | "Entregue" | "Cancelado" | "Sistema" | "Avaliação" | "Aprovado" | "Rejeitado" | "Outro"; // required
+  type: "Pedido" | "Entregue" | "Cancelado" | "Sistema" | "Avaliação" | "Aprovado" | "Rejeitado" | "Promoção" | "Outro"; // required
   user?: string; // ObjectId do usuário (será definido pelo backend se não fornecido)
   order?: string; // ObjectId do pedido (opcional)
 }

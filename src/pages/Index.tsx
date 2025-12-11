@@ -3,7 +3,7 @@ import  Header  from "../components/Header";
 import { ProductCard } from "@/components/ProductCard";
 import { Button } from "@/components/ui/button";
 import { SlidersHorizontal } from "lucide-react";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -57,6 +57,32 @@ const Index = () => {
   useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery]);
+
+  // Track previous categories to detect changes
+  const prevCategoriesRef = useRef<string[]>([]);
+
+  // Reset colors when category changes
+  useEffect(() => {
+    const prevCategories = prevCategoriesRef.current;
+    const currentCategories = filters.categories;
+    
+    // Verifica se a categoria realmente mudou (comparando arrays)
+    const categoriesChanged = 
+      prevCategories.length !== currentCategories.length ||
+      prevCategories.some((cat) => !currentCategories.includes(cat)) ||
+      currentCategories.some((cat) => !prevCategories.includes(cat));
+    
+    // Se a categoria mudou e há cores selecionadas, resetar cores
+    if (categoriesChanged && filters.colors.length > 0) {
+      setFilters((prevFilters) => ({
+        ...prevFilters,
+        colors: [],
+      }));
+    }
+    
+    // Atualizar a referência para a próxima comparação
+    prevCategoriesRef.current = [...currentCategories];
+  }, [filters.categories]);
 
   // Show error toast if there's an error
   useEffect(() => {

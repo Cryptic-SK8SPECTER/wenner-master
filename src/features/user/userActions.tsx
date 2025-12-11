@@ -255,11 +255,11 @@ export const updateUserRole = createAsyncThunk<
   }
 });
 
-export const deleteUser = createAsyncThunk<
-  string,
+export const deactivateUser = createAsyncThunk<
+  User,
   string,
   { rejectValue: string }
->("users/deleteUser", async (userId, { rejectWithValue, dispatch }) => {
+>("users/deactivateUser", async (userId, { rejectWithValue, dispatch }) => {
   try {
     const token = localStorage.getItem("token");
 
@@ -268,13 +268,15 @@ export const deleteUser = createAsyncThunk<
       return rejectWithValue("Faça login para continuar.");
     }
 
-    await customFetch.delete(`/api/v1/users/${userId}`, {
+    const response = await customFetch.delete(`/api/v1/users/${userId}`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
     });
 
-    return userId;
+    // Retornar o usuário atualizado ao invés do ID
+    const user = response.data?.data?.data || response.data?.data;
+    return user;
   } catch (err: unknown) {
     const error = err as {
       response?: { status?: number; data?: Record<string, unknown> };
@@ -284,10 +286,13 @@ export const deleteUser = createAsyncThunk<
     const message: string =
       (error?.response?.data?.message as string) ||
       error?.message ||
-      "Erro ao deletar usuário";
+      "Erro ao desativar usuário";
     return rejectWithValue(message);
   }
 });
+
+// Manter deleteUser para compatibilidade, mas agora desativa
+export const deleteUser = deactivateUser;
 
 export const forgotPassword = createAsyncThunk<
   void,

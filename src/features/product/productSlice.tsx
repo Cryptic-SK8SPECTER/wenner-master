@@ -94,17 +94,30 @@ const productSlice = createSlice({
         state.error = null;
       })
       .addCase(createProduct.fulfilled, (state, action) => {
-        // CORREÇÃO: action.payload é ApiResponse, não Product
-        if (action.payload.data) {
-          state.products.push(action.payload.data);
-          state.filteredProducts.push(action.payload.data);
+        // Backend retorna: { status: 'success', data: { data: doc } }
+        // action.payload é response.data, então action.payload.data.data é o produto
+        const product = action.payload?.data?.data || action.payload?.data;
+        if (product) {
+          const normalizedProduct = {
+            ...product,
+            id: product._id || product.id,
+          };
+          state.products.push(normalizedProduct);
+          state.filteredProducts.push(normalizedProduct);
         }
         state.loading = false;
         state.error = null;
       })
       .addCase(createProduct.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload as string;
+        // action.payload pode ser um objeto com message ou uma string
+        const errorMessage = 
+          typeof action.payload === 'object' && action.payload?.message
+            ? action.payload.message
+            : typeof action.payload === 'string'
+            ? action.payload
+            : "Erro ao criar produto";
+        state.error = errorMessage;
       })
       // Update Product
       .addCase(updateProduct.pending, (state) => {

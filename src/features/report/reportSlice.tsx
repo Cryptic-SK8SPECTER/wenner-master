@@ -7,6 +7,8 @@ import {
   fetchDeliveryRate,
   fetchSalesByStatus,
   fetchTopClients,
+  fetchTopProducts,
+  fetchLeastSoldProducts,
   fetchSalesByPeriod,
 } from "./reportActions";
 
@@ -17,6 +19,8 @@ const initialState: ReportState = {
   deliveryRate: 0,
   salesByStatus: [],
   topClients: [],
+  topProducts: [],
+  leastSoldProducts: [],
   salesByPeriod: [],
   loading: false,
   error: null,
@@ -109,6 +113,34 @@ const reportSlice = createSlice({
         state.loading = false;
         state.error =
           action.payload?.message || "Erro ao obter principais clientes";
+      })
+
+      .addCase(fetchTopProducts.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchTopProducts.fulfilled, (state, action) => {
+        state.loading = false;
+        state.topProducts = action.payload;
+      })
+      .addCase(fetchTopProducts.rejected, (state, action) => {
+        state.loading = false;
+        state.error =
+          action.payload?.message || "Erro ao obter produtos mais comprados";
+      })
+
+      .addCase(fetchLeastSoldProducts.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchLeastSoldProducts.fulfilled, (state, action) => {
+        state.loading = false;
+        state.leastSoldProducts = action.payload;
+      })
+      .addCase(fetchLeastSoldProducts.rejected, (state, action) => {
+        state.loading = false;
+        state.error =
+          action.payload?.message || "Erro ao obter produtos menos comprados";
       })
 
       .addCase(fetchSalesByPeriod.pending, (state) => {

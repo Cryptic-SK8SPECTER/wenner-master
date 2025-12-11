@@ -1,4 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { Navigate } from "react-router-dom";
+import jsPDF from "jspdf";
 import { Skeleton } from "@/components/ui/skeleton";
 import Header from "../components/Header";
 import { Button } from "@/components/ui/button";
@@ -45,6 +47,7 @@ import {
   Gift,
   Check,
   Copy,
+  FileDown,
 } from "lucide-react";
 import { mockProducts } from "@/data/products";
 import { Product, ProductVariation } from "@/features/product/productTypes";
@@ -97,14 +100,18 @@ import {
   fetchDeliveryRate,
   fetchSalesByStatus,
   fetchTopClients,
+  fetchTopProducts,
+  fetchLeastSoldProducts,
   fetchSalesByPeriod,
 } from "@/features/report/reportActions";
 import { Order, OrderStatus } from "@/features/order/orderTypes";
 import { productionUrl } from "@/lib/utils";
-import Cupom from "../features/coupon/cupomTypes";
-import { createCoupon, getAllCoupons } from "@/features/coupon/cupomActions";
+import { createCoupon, getAllCoupons, updateCoupon, deleteCoupon } from "@/features/coupon/cupomActions";
 import { ICoupon } from "@/features/coupon/cupomTypes";
 import { resetCouponState } from "@/features/coupon/cupomSlice";
+import { getAllReviews, deleteReview } from "@/features/reviews/reviewActions";
+import { IReview } from "@/features/reviews/reviewTypes";
+import { Star, MessageSquare } from "lucide-react";
 
 type ProductVariant = {
   id: string;
@@ -150,9 +157,11 @@ const createEmptyVariantForm = (): VariantFormState => ({
 const Admin = () => {
   const { toast } = useToast();
   const dispatch = useAppDispatch();
+  const reportRef = useRef<HTMLDivElement>(null);
   const [orderFilter, setOrderFilter] = useState<string>("all");
   const [activeTab, setActiveTab] = useState<string>("orders");
   const [reportsLoaded, setReportsLoaded] = useState(false);
+  const [isExportingPDF, setIsExportingPDF] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [productImage, setProductImage] = useState<string>("");
   const [productImageFile, setProductImageFile] = useState<File | null>(null);
@@ -178,7 +187,7 @@ const Admin = () => {
   // Confirmation dialog state for destructive actions
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean;
-    action: null | "removeCustomer" | "cancelOrder" | "deleteProduct";
+    action: null | "removeCustomer" | "cancelOrder" | "deleteProduct" | "deleteCoupon";
     id?: string;
     name?: string;
   }>({ open: false, action: null });
@@ -188,7 +197,14 @@ const Admin = () => {
   );
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Customer | null>(null);
-  const [coupons, setCoupons] = useState<Cupom[]>([]);
+  const [coupons, setCoupons] = useState<ICoupon[]>([]);
+  const [reviewsPage, setReviewsPage] = useState(1);
+  const [reviewSearchTerm, setReviewSearchTerm] = useState("");
+  const [couponsPage, setCouponsPage] = useState(1);
+  const [couponSearchTerm, setCouponSearchTerm] = useState("");
+  const [editingCoupon, setEditingCoupon] = useState<ICoupon | null>(null);
+  const [isEditCouponDialogOpen, setIsEditCouponDialogOpen] = useState(false);
+  const [isCreateCouponDialogOpen, setIsCreateCouponDialogOpen] = useState(false);
 
   const {
     coupons: apiCoupons,
@@ -196,6 +212,12 @@ const Admin = () => {
     error: couponError,
     success: couponSuccess,
   } = useAppSelector((state) => state.coupon);
+  
+  const {
+    reviews,
+    loading: reviewsLoading,
+    error: reviewsError,
+  } = useAppSelector((state) => state.review);
 
   //  do formulário de cupom
   const [couponForm, setCouponForm] = useState({
@@ -206,12 +228,34 @@ const Admin = () => {
     minPurchaseAmount: "",
     maxDiscountAmount: "",
     usageLimit: "1", // Limite de uso padrão
+    assignedTo: "", // Cliente atribuído (opcional)
   });
 
-  // Carregar cupons quando entrar na aba de relatórios
+  // Carregar cupons quando entrar na aba de relatórios ou cupons
   useEffect(() => {
-    if (activeTab === "reports") {
+    if (activeTab === "reports" || activeTab === "coupons") {
       dispatch(getAllCoupons());
+    }
+  }, [activeTab, dispatch]);
+
+  // Carregar usuários quando entrar na aba de cupons
+  useEffect(() => {
+    if (activeTab === "coupons") {
+      dispatch(fetchUsers());
+    }
+  }, [activeTab, dispatch]);
+
+  // Carregar reviews quando entrar na aba de reviews
+  useEffect(() => {
+    if (activeTab === "reviews") {
+      dispatch(getAllReviews(undefined));
+    }
+  }, [activeTab, dispatch]);
+
+  // Carregar produtos quando entrar na aba de produtos
+  useEffect(() => {
+    if (activeTab === "products") {
+      dispatch(fetchProducts());
     }
   }, [activeTab, dispatch]);
 
@@ -231,6 +275,7 @@ const Admin = () => {
         minPurchaseAmount: "",
         maxDiscountAmount: "",
         usageLimit: "1",
+        assignedTo: "",
       });
       setSelectedClient(null);
       // Resetar o estado de sucesso para evitar que o toast apareça novamente
@@ -332,7 +377,25 @@ const Admin = () => {
     users,
     loading: usersLoading,
     error: usersError,
+    user: currentUser,
   } = useAppSelector((state) => state.user);
+
+  // Verificar se o usuário é manager
+  const isManager = currentUser?.role === "manager";
+  const isAdmin = currentUser?.role === "admin";
+
+  // Verificação de segurança adicional: apenas admin e manager podem acessar
+  if (!isAuthenticated || !currentUser) {
+    return <Navigate to="/auth" replace />;
+  }
+
+  if (currentUser.active === false) {
+    return <Navigate to="/auth" replace />;
+  }
+
+  if (!isAdmin && !isManager) {
+    return <Navigate to="/" replace />;
+  }
   const {
     orders,
     currentOrder,
@@ -349,6 +412,8 @@ const Admin = () => {
     deliveryRate,
     salesByStatus,
     topClients,
+    topProducts,
+    leastSoldProducts,
     salesByPeriod,
     loading: reportLoading,
     error: reportError,
@@ -407,9 +472,9 @@ const Admin = () => {
     loadOrders();
   }, [dispatch]);
 
-  // Load report data when the Reports tab is opened (once)
+  // Load report data when the Reports tab is opened (once) - apenas para admin
   useEffect(() => {
-    if (activeTab !== "reports" || reportsLoaded) return;
+    if (isManager || activeTab !== "reports" || reportsLoaded) return;
 
     const loadReports = async () => {
       try {
@@ -419,6 +484,8 @@ const Admin = () => {
         await dispatch(fetchDeliveryRate()).unwrap();
         await dispatch(fetchSalesByStatus()).unwrap();
         await dispatch(fetchTopClients()).unwrap();
+        await dispatch(fetchTopProducts()).unwrap();
+        await dispatch(fetchLeastSoldProducts()).unwrap();
         await dispatch(fetchSalesByPeriod()).unwrap();
         setReportsLoaded(true);
       } catch (err) {
@@ -428,7 +495,7 @@ const Admin = () => {
     };
 
     loadReports();
-  }, [activeTab, reportsLoaded, dispatch]);
+  }, [activeTab, reportsLoaded, dispatch, isManager]);
 
   const formatCustomerAddress = (address?: {
     street: string;
@@ -597,6 +664,297 @@ const Admin = () => {
           (s) => s.status === "entregue" || s.status === "delivered"
         )?.count ?? computedDeliveredOrders
       : computedDeliveredOrders;
+
+  const handleExportPDF = async () => {
+    setIsExportingPDF(true);
+    try {
+      const pdf = new jsPDF("p", "mm", "a4");
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 15;
+      let yPosition = margin;
+      const lineHeight = 7;
+      const sectionSpacing = 10;
+
+      // Cores
+      const primaryColor = [0, 0, 0]; // Preto
+      const secondaryColor = [128, 128, 128]; // Cinza
+      const accentColor = [59, 130, 246]; // Azul
+
+      // Função auxiliar para adicionar nova página se necessário
+      const checkPageBreak = (requiredHeight: number) => {
+        if (yPosition + requiredHeight > pageHeight - margin) {
+          pdf.addPage();
+          yPosition = margin;
+          return true;
+        }
+        return false;
+      };
+
+      // Função para adicionar texto com estilo
+      const addText = (
+        text: string,
+        x: number,
+        y: number,
+        fontSize: number,
+        isBold: boolean = false,
+        color: number[] = primaryColor,
+        align?: "left" | "center" | "right"
+      ) => {
+        pdf.setFontSize(fontSize);
+        pdf.setFont("helvetica", isBold ? "bold" : "normal");
+        pdf.setTextColor(color[0], color[1], color[2]);
+        if (align) {
+          pdf.text(text, x, y, { align });
+        } else {
+          pdf.text(text, x, y);
+        }
+      };
+
+      // Função para adicionar linha horizontal
+      const addLine = (y: number) => {
+        pdf.setDrawColor(200, 200, 200);
+        pdf.line(margin, y, pageWidth - margin, y);
+      };
+
+      // Cabeçalho
+      pdf.setFillColor(0, 0, 0);
+      pdf.rect(0, 0, pageWidth, 40, "F");
+      
+      addText("DASHBOARD", margin, 25, 24, true, [255, 255, 255]);
+      addText("Relatório de Vendas e Análises", margin, 33, 10, false, [255, 255, 255]);
+      
+      const date = new Date();
+      const dateStr = date.toLocaleDateString("pt-BR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      });
+      const timeStr = date.toLocaleTimeString("pt-BR", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      addText(`Gerado em: ${dateStr} às ${timeStr}`, pageWidth - margin, 33, 9, false, [255, 255, 255], "right");
+      
+      yPosition = 50;
+
+      // Resumo Executivo
+      addText("RESUMO EXECUTIVO", margin, yPosition, 14, true);
+      yPosition += lineHeight + 2;
+      addLine(yPosition);
+      yPosition += sectionSpacing;
+
+      const summaryData = [
+        { label: "Receita Total", value: `${totalRevenue.toFixed(2)} MZN` },
+        { label: "Ticket Médio", value: `${averageTicket.toFixed(2)} MZN` },
+        { label: "Total de Pedidos", value: totalOrdersValue.toString() },
+        { label: "Taxa de Entrega", value: `${deliveryRate.toFixed(1)}%` },
+      ];
+
+      const summaryColWidth = (pageWidth - 2 * margin) / 2;
+      summaryData.forEach((item, index) => {
+        const col = index % 2;
+        const row = Math.floor(index / 2);
+        const x = margin + col * summaryColWidth;
+        const y = yPosition + row * (lineHeight + 5);
+
+        addText(item.label, x, y, 9, false, secondaryColor);
+        addText(item.value, x, y + 5, 12, true);
+      });
+
+      yPosition += 30;
+
+      // Vendas por Status
+      checkPageBreak(40);
+      addText("VENDAS POR STATUS", margin, yPosition, 14, true);
+      yPosition += lineHeight + 2;
+      addLine(yPosition);
+      yPosition += sectionSpacing;
+
+      // Cabeçalho da tabela
+      pdf.setFillColor(240, 240, 240);
+      pdf.rect(margin, yPosition - 5, pageWidth - 2 * margin, 8, "F");
+      addText("Status", margin + 2, yPosition, 9, true);
+      addText("Quantidade", margin + 60, yPosition, 9, true);
+      addText("Valor Total", margin + 100, yPosition, 9, true);
+      addText("Percentual", pageWidth - margin - 25, yPosition, 9, true, undefined, "right");
+      yPosition += 10;
+
+      const statusLabels: Record<string, string> = {
+        pendente: "Pendente",
+        confirmado: "Confirmado",
+        enviado: "Enviado",
+        entregue: "Entregue",
+        cancelado: "Cancelado",
+      };
+
+      const statusColors: Record<string, number[]> = {
+        pendente: [128, 128, 128],
+        confirmado: [0, 0, 0],
+        enviado: [0, 0, 0],
+        entregue: [34, 197, 94],
+        cancelado: [239, 68, 68],
+      };
+
+      const statusData = salesByStatus && salesByStatus.length > 0
+        ? salesByStatus
+        : ["pendente", "confirmado", "enviado", "entregue", "cancelado"].map((status) => {
+            const ordersWithStatus = allOrders.filter((o) => o.status === status);
+            const total = ordersWithStatus.reduce((sum, o) => sum + o.total, 0);
+            return {
+              status,
+              count: ordersWithStatus.length,
+              total,
+            };
+          });
+
+      statusData.forEach((item: any) => {
+        checkPageBreak(10);
+        const percentage = ((item.count / (totalOrdersValue || 1)) * 100).toFixed(1);
+        const statusLabel = statusLabels[item.status] || item.status;
+        const statusColor = statusColors[item.status] || secondaryColor;
+
+        addText(statusLabel, margin + 2, yPosition, 9, false, statusColor);
+        addText(item.count.toString(), margin + 60, yPosition, 9);
+        addText(`${item.total.toFixed(2)} MZN`, margin + 100, yPosition, 9);
+        addText(`${percentage}%`, pageWidth - margin - 2, yPosition, 9, false, undefined, "right");
+        yPosition += lineHeight + 2;
+      });
+
+      yPosition += sectionSpacing;
+
+      // Principais Clientes
+      checkPageBreak(40);
+      addText("PRINCIPAIS CLIENTES", margin, yPosition, 14, true);
+      yPosition += lineHeight + 2;
+      addLine(yPosition);
+      yPosition += sectionSpacing;
+
+      pdf.setFillColor(240, 240, 240);
+      pdf.rect(margin, yPosition - 5, pageWidth - 2 * margin, 8, "F");
+      addText("Cliente", margin + 2, yPosition, 9, true);
+      addText("Pedidos", margin + 100, yPosition, 9, true);
+      addText("Total Gasto", margin + 130, yPosition, 9, true);
+      addText("Último Pedido", pageWidth - margin - 2, yPosition, 9, true, undefined, "right");
+      yPosition += 10;
+
+      const clientsToShow = topClients && topClients.length > 0
+        ? topClients.slice(0, 5)
+        : customersFromApi
+            .sort((a, b) => b.totalSpent - a.totalSpent)
+            .slice(0, 5);
+
+      clientsToShow.forEach((client: any) => {
+        checkPageBreak(10);
+        const clientName = client.clientName || client.name || "N/A";
+        const lastOrder = client.lastOrder
+          ? new Date(client.lastOrder).toLocaleDateString("pt-BR")
+          : "N/A";
+
+        addText(clientName, margin + 2, yPosition, 9);
+        addText((client.totalOrders || 0).toString(), margin + 100, yPosition, 9);
+        addText(`${(client.totalSpent || 0).toFixed(2)} MZN`, margin + 130, yPosition, 9);
+        addText(lastOrder, pageWidth - margin - 2, yPosition, 9, false, undefined, "right");
+        yPosition += lineHeight + 2;
+      });
+
+      yPosition += sectionSpacing;
+
+      // Produtos Mais Comprados
+      checkPageBreak(40);
+      addText("PRODUTOS MAIS COMPRADOS", margin, yPosition, 14, true);
+      yPosition += lineHeight + 2;
+      addLine(yPosition);
+      yPosition += sectionSpacing;
+
+      pdf.setFillColor(240, 240, 240);
+      pdf.rect(margin, yPosition - 5, pageWidth - 2 * margin, 8, "F");
+      addText("Produto", margin + 2, yPosition, 9, true);
+      addText("Categoria", margin + 80, yPosition, 9, true);
+      addText("Quantidade", margin + 130, yPosition, 9, true);
+      addText("Receita", pageWidth - margin - 2, yPosition, 9, true, undefined, "right");
+      yPosition += 10;
+
+      if (topProducts && topProducts.length > 0) {
+        topProducts.forEach((product: any) => {
+          checkPageBreak(10);
+          addText(product.productName || "N/A", margin + 2, yPosition, 9);
+          addText(product.category || "N/A", margin + 80, yPosition, 9, false, secondaryColor);
+          addText((product.totalQuantity || 0).toString(), margin + 130, yPosition, 9);
+          addText(`${(product.totalRevenue || 0).toFixed(2)} MZN`, pageWidth - margin - 2, yPosition, 9, false, undefined, "right");
+          yPosition += lineHeight + 2;
+        });
+      } else {
+        addText("Nenhum produto encontrado", margin + 2, yPosition, 9, false, secondaryColor);
+        yPosition += lineHeight;
+      }
+
+      yPosition += sectionSpacing;
+
+      // Produtos Menos Comprados
+      checkPageBreak(40);
+      addText("PRODUTOS MENOS COMPRADOS", margin, yPosition, 14, true);
+      yPosition += lineHeight + 2;
+      addLine(yPosition);
+      yPosition += sectionSpacing;
+
+      pdf.setFillColor(240, 240, 240);
+      pdf.rect(margin, yPosition - 5, pageWidth - 2 * margin, 8, "F");
+      addText("Produto", margin + 2, yPosition, 9, true);
+      addText("Categoria", margin + 80, yPosition, 9, true);
+      addText("Quantidade", margin + 130, yPosition, 9, true);
+      addText("Receita", pageWidth - margin - 2, yPosition, 9, true, undefined, "right");
+      yPosition += 10;
+
+      if (leastSoldProducts && leastSoldProducts.length > 0) {
+        leastSoldProducts.forEach((product: any) => {
+          checkPageBreak(10);
+          addText(product.productName || "N/A", margin + 2, yPosition, 9);
+          addText(product.category || "N/A", margin + 80, yPosition, 9, false, secondaryColor);
+          addText((product.totalQuantity || 0).toString(), margin + 130, yPosition, 9);
+          addText(`${(product.totalRevenue || 0).toFixed(2)} MZN`, pageWidth - margin - 2, yPosition, 9, false, undefined, "right");
+          yPosition += lineHeight + 2;
+        });
+      } else {
+        addText("Nenhum produto encontrado", margin + 2, yPosition, 9, false, secondaryColor);
+        yPosition += lineHeight;
+      }
+
+      // Rodapé
+      const totalPages = pdf.internal.pages.length - 1;
+      for (let i = 1; i <= totalPages; i++) {
+        pdf.setPage(i);
+        pdf.setFontSize(8);
+        pdf.setTextColor(128, 128, 128);
+        pdf.text(
+          `Página ${i} de ${totalPages}`,
+          pageWidth / 2,
+          pageHeight - 10,
+          { align: "center" }
+        );
+      }
+
+      // Gerar nome do arquivo com data
+      const dateFileName = date.toLocaleDateString("pt-BR").replace(/\//g, "-");
+      const fileName = `relatorio-${dateFileName}.pdf`;
+
+      pdf.save(fileName);
+
+      toast({
+        title: "Sucesso!",
+        description: "Relatório exportado com sucesso.",
+      });
+    } catch (error) {
+      console.error("Erro ao exportar PDF:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível exportar o relatório.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExportingPDF(false);
+    }
+  };
 
   const handleRemoveCustomer = async (customerId: string, name: string) => {
     // Open confirmation dialog instead of using window.confirm
@@ -995,7 +1353,7 @@ const Admin = () => {
         },
         enviado: {
           title: "Pedido Enviado",
-          message: `Seu pedido #${orderId.slice(-8)} foi enviado e está a caminho.`,
+          message: `Seu pedido #${orderId.slice(-8)} foi enviado e está a caminho. Por favor, confirme o recebimento quando o pedido chegar.`,
           type: "Pedido",
         },
         entregue: {
@@ -1154,10 +1512,10 @@ const Admin = () => {
       if (confirmDialog.action === "removeCustomer" && confirmDialog.id) {
         await dispatch(deleteUser(confirmDialog.id)).unwrap();
         toast({
-          title: "Cliente removido",
+          title: "Cliente desativado",
           description: `"${
             confirmDialog.name || ""
-          }" foi removido com sucesso.`,
+          }" foi desativado com sucesso.`,
         });
       } else if (confirmDialog.action === "cancelOrder" && confirmDialog.id) {
         await handleChangeOrderStatus(confirmDialog.id, "cancelado");
@@ -1169,6 +1527,13 @@ const Admin = () => {
             confirmDialog.name || ""
           }" foi removido do catálogo.`,
         });
+      } else if (confirmDialog.action === "deleteCoupon" && confirmDialog.id) {
+        await dispatch(deleteCoupon(confirmDialog.id)).unwrap();
+        toast({
+          title: "Cupom removido",
+          description: `O cupom "${confirmDialog.name || ""}" foi removido.`,
+        });
+        await dispatch(getAllCoupons());
       }
     } catch (err: unknown) {
       const errorMessage =
@@ -1233,12 +1598,18 @@ const Admin = () => {
         description: `${productData.name} foi adicionado com sucesso.`,
       });
 
+      // Recarregar produtos após criar
+      await dispatch(fetchProducts());
+
       e.currentTarget.reset();
       setProductImage("");
-    } catch (error) {
-      console.log("resposta   :", error);
-      const errorMsg =
-        error instanceof Error ? error.message : "Erro ao cadastrar produto";
+      setProductImageFile(null);
+    } catch (error: any) {
+      console.error("Erro ao cadastrar produto:", error);
+      // O erro pode vir como objeto com message ou como string
+      const errorMsg = 
+        error?.message || 
+        (typeof error === 'string' ? error : "Erro ao cadastrar produto");
       toast({
         title: "Erro",
         description: errorMsg,
@@ -1268,23 +1639,37 @@ const Admin = () => {
             defaultValue="orders"
             className="w-full"
           >
-            <TabsList className="grid w-full grid-cols-5 h-auto p-1 overflow-x-auto">
+            <TabsList className={`grid w-full ${isManager ? 'grid-cols-4' : 'grid-cols-7'} h-auto p-1 overflow-x-auto`}>
               <TabsTrigger value="orders" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
                 <ShoppingBag className="h-3 w-3 sm:h-4 sm:w-4" />
                 <span className="hidden sm:inline">Pedidos</span>
               </TabsTrigger>
-              <TabsTrigger value="customers" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
-                <Users className="h-3 w-3 sm:h-4 sm:w-4" />
-                <span className="hidden sm:inline">Clientes</span>
-              </TabsTrigger>
-              <TabsTrigger value="reports" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
-                <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4" />
-                <span className="hidden sm:inline">Relatórios</span>
-              </TabsTrigger>
+              {!isManager && (
+                <TabsTrigger value="customers" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
+                  <Users className="h-3 w-3 sm:h-4 sm:w-4" />
+                  <span className="hidden sm:inline">Clientes</span>
+                </TabsTrigger>
+              )}
+              {!isManager && (
+                <TabsTrigger value="reports" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
+                  <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4" />
+                  <span className="hidden sm:inline">Relatórios</span>
+                </TabsTrigger>
+              )}
               <TabsTrigger value="products" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
                 <Package className="h-3 w-3 sm:h-4 sm:w-4" />
                 <span className="hidden sm:inline">Produtos</span>
               </TabsTrigger>
+              <TabsTrigger value="reviews" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
+                <MessageSquare className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="hidden sm:inline">Comentários</span>
+              </TabsTrigger>
+              {!isManager && (
+                <TabsTrigger value="coupons" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
+                  <Ticket className="h-3 w-3 sm:h-4 sm:w-4" />
+                  <span className="hidden sm:inline">Cupons</span>
+                </TabsTrigger>
+              )}
               <TabsTrigger value="add-product" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
                 <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
                 <span className="hidden sm:inline">Novo</span>
@@ -1482,8 +1867,9 @@ const Admin = () => {
               </Card>
             </TabsContent>
 
-            {/* Customers Tab */}
-            <TabsContent value="customers" className="mt-6">
+            {/* Customers Tab - Apenas para admin */}
+            {!isManager && (
+              <TabsContent value="customers" className="mt-6">
               <Card>
                 <CardHeader className="p-4 sm:p-6">
                   <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -1686,7 +2072,7 @@ const Admin = () => {
                                             >
                                               <div>
                                                 <p className="font-medium">
-                                                  Pedido #{order.id}
+                                                  Pedido #{order.id?.slice(-8)}
                                                 </p>
                                                 <p className="text-sm text-muted-foreground">
                                                   {new Date(
@@ -1714,6 +2100,8 @@ const Admin = () => {
                               onClick={() =>
                                 handleRemoveCustomer(customer.id, customer.name)
                               }
+                              aria-label="Desativar cliente"
+                              title="Desativar cliente"
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -1788,11 +2176,40 @@ const Admin = () => {
                   )}
                 </CardContent>
               </Card>
-            </TabsContent>
+              </TabsContent>
+            )}
 
-            {/* Reports Tab */}
-            <TabsContent value="reports" className="mt-6">
-              <div className="space-y-6">
+            {/* Reports Tab - Apenas para admin */}
+            {!isManager && (
+              <TabsContent value="reports" className="mt-6">
+              <div className="space-y-6" ref={reportRef}>
+                {/* Header com botão de exportar */}
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
+                  <div>
+                    <h2 className="text-2xl sm:text-3xl font-bold text-foreground">Dashboard</h2>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Visão geral das vendas e relatórios
+                    </p>
+                  </div>
+                  <Button
+                    onClick={handleExportPDF}
+                    disabled={isExportingPDF || reportLoading}
+                    className="bg-black text-white hover:bg-black/90 gap-2 px-4 py-2 h-auto"
+                    data-export-button
+                  >
+                    {isExportingPDF ? (
+                      <>
+                        <span className="animate-spin">⏳</span>
+                        Exportando...
+                      </>
+                    ) : (
+                      <>
+                        <FileDown className="h-4 w-4" />
+                        Exportar Relatório
+                      </>
+                    )}
+                  </Button>
+                </div>
                 {/* Summary Cards */}
                 <div className="grid gap-3 sm:gap-4 grid-cols-2 md:grid-cols-2 lg:grid-cols-4">
                   <Card>
@@ -1987,25 +2404,39 @@ const Admin = () => {
                   </CardHeader>
                   <CardContent className="p-4 sm:p-6">
                     <div className="overflow-x-auto">
-                      <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Cliente</TableHead>
-                          <TableHead className="text-right">Pedidos</TableHead>
-                          <TableHead className="text-right">
-                            Total Gasto
-                          </TableHead>
-                          <TableHead className="text-right">
-                            Último Pedido
-                          </TableHead>
-                          <TableHead className="text-center">
-                            Cupons Atribuídos
-                          </TableHead>
-                          <TableHead className="text-right">Ações</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {topClients && topClients.length > 0
+                      {reportLoading ? (
+                        <div className="space-y-4">
+                          {[...Array(5)].map((_, idx) => (
+                            <div key={idx} className="flex items-center gap-4">
+                              <Skeleton className="h-12 flex-1" />
+                              <Skeleton className="h-12 w-20" />
+                              <Skeleton className="h-12 w-24" />
+                              <Skeleton className="h-12 w-28" />
+                              <Skeleton className="h-12 w-24" />
+                              <Skeleton className="h-12 w-32" />
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Cliente</TableHead>
+                            <TableHead className="text-right">Pedidos</TableHead>
+                            <TableHead className="text-right">
+                              Total Gasto
+                            </TableHead>
+                            <TableHead className="text-right">
+                              Último Pedido
+                            </TableHead>
+                            <TableHead className="text-center">
+                              Cupons Atribuídos
+                            </TableHead>
+                            <TableHead className="text-right">Ações</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {topClients && topClients.length > 0
                           ? topClients.slice(0, 5).map((c, idx) => (
                               <TableRow key={c.id || `topClient-${idx}`}>
                                 <TableCell className="font-medium">
@@ -2327,6 +2758,7 @@ const Admin = () => {
                                               minPurchaseAmount: "",
                                               maxDiscountAmount: "",
                                               usageLimit: "1",
+                                              assignedTo: "",
                                             });
                                           }}
                                           disabled={couponLoading}
@@ -2382,13 +2814,167 @@ const Admin = () => {
                                   </TableCell>
                                 </TableRow>
                               ))}
-                      </TableBody>
-                    </Table>
+                        </TableBody>
+                      </Table>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Top Products */}
+                <Card>
+                  <CardHeader className="p-4 sm:p-6">
+                    <CardTitle className="text-lg sm:text-xl">Produtos Mais Comprados</CardTitle>
+                    <CardDescription className="text-xs sm:text-sm">
+                      Top 5 produtos com maior volume de vendas
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="p-4 sm:p-6">
+                    <div className="overflow-x-auto">
+                      {reportLoading ? (
+                        <div className="space-y-4">
+                          {[...Array(5)].map((_, idx) => (
+                            <div key={idx} className="flex items-center gap-4">
+                              <Skeleton className="h-16 w-16 rounded-md" />
+                              <Skeleton className="h-12 flex-1" />
+                              <Skeleton className="h-12 w-24" />
+                              <Skeleton className="h-12 w-28" />
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Produto</TableHead>
+                              <TableHead className="text-right">Quantidade Vendida</TableHead>
+                              <TableHead className="text-right">Receita Total</TableHead>
+                              <TableHead className="text-right">Pedidos</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {topProducts && topProducts.length > 0 ? (
+                              topProducts.map((product, idx) => (
+                                <TableRow key={product.productId || `topProduct-${idx}`}>
+                                  <TableCell>
+                                    <div className="flex items-center gap-3">
+                                      <img
+                                        src={`${productionUrl}/img/products/${product.productImage}`}
+                                        alt={product.productName}
+                                        className="h-12 w-12 object-cover rounded-md"
+                                        onError={(e) => {
+                                          e.currentTarget.src = "https://i.pinimg.com/1200x/a7/2f/db/a72fdbea7e86c3fb70a17c166a36407b.jpg";
+                                        }}
+                                      />
+                                      <div>
+                                        <p className="font-medium">{product.productName}</p>
+                                        <p className="text-xs text-muted-foreground">{product.category}</p>
+                                      </div>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="text-right font-semibold">
+                                    {product.totalQuantity}
+                                  </TableCell>
+                                  <TableCell className="text-right font-semibold text-accent">
+                                    {product.totalRevenue.toFixed(2)} MZN
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    {product.orderCount}
+                                  </TableCell>
+                                </TableRow>
+                              ))
+                            ) : (
+                              <TableRow>
+                                <TableCell colSpan={4} className="text-center text-muted-foreground">
+                                  Nenhum produto encontrado
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </TableBody>
+                        </Table>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Least Sold Products */}
+                <Card>
+                  <CardHeader className="p-4 sm:p-6">
+                    <CardTitle className="text-lg sm:text-xl">Produtos Menos Comprados</CardTitle>
+                    <CardDescription className="text-xs sm:text-sm">
+                      Produtos com menor volume de vendas
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="p-4 sm:p-6">
+                    <div className="overflow-x-auto">
+                      {reportLoading ? (
+                        <div className="space-y-4">
+                          {[...Array(5)].map((_, idx) => (
+                            <div key={idx} className="flex items-center gap-4">
+                              <Skeleton className="h-16 w-16 rounded-md" />
+                              <Skeleton className="h-12 flex-1" />
+                              <Skeleton className="h-12 w-24" />
+                              <Skeleton className="h-12 w-28" />
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Produto</TableHead>
+                              <TableHead className="text-right">Quantidade Vendida</TableHead>
+                              <TableHead className="text-right">Receita Total</TableHead>
+                              <TableHead className="text-right">Pedidos</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {leastSoldProducts && leastSoldProducts.length > 0 ? (
+                              leastSoldProducts.map((product, idx) => (
+                                <TableRow key={product.productId || `leastProduct-${idx}`}>
+                                  <TableCell>
+                                    <div className="flex items-center gap-3">
+                                      <img
+                                        src={`${productionUrl}/img/products/${product.productImage}`}
+                                        alt={product.productName}
+                                        className="h-12 w-12 object-cover rounded-md"
+                                        onError={(e) => {
+                                          e.currentTarget.src = "https://i.pinimg.com/1200x/a7/2f/db/a72fdbea7e86c3fb70a17c166a36407b.jpg";
+                                        }}
+                                      />
+                                      <div>
+                                        <p className="font-medium">{product.productName}</p>
+                                        <p className="text-xs text-muted-foreground">{product.category}</p>
+                                      </div>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="text-right font-semibold">
+                                    {product.totalQuantity}
+                                  </TableCell>
+                                  <TableCell className="text-right font-semibold text-accent">
+                                    {product.totalRevenue.toFixed(2)} MZN
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    {product.orderCount}
+                                  </TableCell>
+                                </TableRow>
+                              ))
+                            ) : (
+                              <TableRow>
+                                <TableCell colSpan={4} className="text-center text-muted-foreground">
+                                  Nenhum produto encontrado
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </TableBody>
+                        </Table>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
               </div>
-            </TabsContent>
+              </TabsContent>
+            )}
 
             {/* Products Tab */}
             <TabsContent value="products" className="mt-6">
@@ -2532,6 +3118,531 @@ const Admin = () => {
               </Card>
             </TabsContent>
 
+            {/* Reviews Tab */}
+            <TabsContent value="reviews" className="mt-6">
+              <Card>
+                <CardHeader className="p-4 sm:p-6">
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                    <div>
+                      <CardTitle className="text-lg sm:text-xl">Comentários dos Clientes</CardTitle>
+                      <CardDescription className="text-xs sm:text-sm">
+                        {reviews.length} comentário{reviews.length !== 1 ? "s" : ""} no total
+                      </CardDescription>
+                    </div>
+                    <div className="relative w-full md:w-64">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Buscar comentários..."
+                        value={reviewSearchTerm}
+                        onChange={(e) => setReviewSearchTerm(e.target.value)}
+                        className="pl-10 text-sm"
+                      />
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-4 sm:p-6">
+                  {reviewsLoading ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      Carregando comentários...
+                    </div>
+                  ) : reviewsError ? (
+                    <div className="text-center py-8 text-destructive">
+                      {reviewsError}
+                    </div>
+                  ) : (
+                    <>
+                      <div className="space-y-3 sm:space-y-4">
+                        {(() => {
+                          // Filtrar reviews por termo de busca
+                          const filteredReviews = reviews.filter((review) => {
+                            if (!reviewSearchTerm) return true;
+                            const searchLower = reviewSearchTerm.toLowerCase();
+                            const userName = typeof review.user === "object" 
+                              ? review.user?.name || "" 
+                              : "";
+                            const reviewText = review.review?.toLowerCase() || "";
+                            const productName = products.find(p => p._id === review.product)?.name || "";
+                            return (
+                              userName.toLowerCase().includes(searchLower) ||
+                              reviewText.includes(searchLower) ||
+                              productName.toLowerCase().includes(searchLower)
+                            );
+                          });
+
+                          // Paginação
+                          const totalReviewsPages = Math.ceil(filteredReviews.length / itemsPerPage);
+                          const startIndex = (reviewsPage - 1) * itemsPerPage;
+                          const endIndex = startIndex + itemsPerPage;
+                          const paginatedReviews = filteredReviews.slice(startIndex, endIndex);
+
+                          return (
+                            <>
+                              {paginatedReviews.length === 0 ? (
+                                <div className="text-center py-12 text-muted-foreground">
+                                  {reviewSearchTerm 
+                                    ? "Nenhum comentário encontrado" 
+                                    : "Nenhum comentário ainda"}
+                                </div>
+                              ) : (
+                                paginatedReviews.map((review) => {
+                                  const user = typeof review.user === "object" 
+                                    ? review.user 
+                                    : null;
+                                  const userName = user?.name || "Usuário Anônimo";
+                                  const userPhoto = user?.photo;
+                                  const product = products.find(p => p._id === review.product);
+                                  const productName = product?.name || "Produto não encontrado";
+
+                                  return (
+                                    <div
+                                      key={review._id}
+                                      className="flex gap-3 sm:gap-4 p-3 sm:p-4 border border-border rounded-lg hover:border-accent transition-colors"
+                                    >
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-start justify-between gap-2 sm:gap-4 mb-2">
+                                          <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2 mb-1">
+                                              <h3 className="font-semibold text-sm sm:text-base text-foreground">
+                                                {userName}
+                                              </h3>
+                                              <div className="flex items-center gap-0.5">
+                                                {[...Array(5)].map((_, i) => (
+                                                  <Star
+                                                    key={i}
+                                                    className={`w-3 h-3 sm:w-4 sm:h-4 ${
+                                                      i < review.rating
+                                                        ? "fill-accent text-accent"
+                                                        : "text-muted"
+                                                    }`}
+                                                  />
+                                                ))}
+                                              </div>
+                                            </div>
+                                            <p className="text-xs sm:text-sm text-muted-foreground mb-2">
+                                              Produto: <span className="font-medium">{productName}</span>
+                                            </p>
+                                            <p className="text-xs sm:text-sm text-muted-foreground">
+                                              {new Date(review.createdAt).toLocaleDateString("pt-BR", {
+                                                day: "2-digit",
+                                                month: "2-digit",
+                                                year: "numeric",
+                                                hour: "2-digit",
+                                                minute: "2-digit",
+                                              })}
+                                            </p>
+                                          </div>
+                                          <Button
+                                            variant="outline"
+                                            size="icon"
+                                            onClick={async () => {
+                                              if (
+                                                window.confirm(
+                                                  "Tem certeza que deseja excluir este comentário?"
+                                                )
+                                              ) {
+                                                try {
+                                                  await dispatch(deleteReview(review._id)).unwrap();
+                                                  toast({
+                                                    title: "Comentário excluído",
+                                                    description: "O comentário foi removido com sucesso.",
+                                                  });
+                                                  // Recarregar reviews
+                                                  dispatch(getAllReviews(undefined));
+                                                } catch (error: any) {
+                                                  toast({
+                                                    title: "Erro",
+                                                    description: error || "Erro ao excluir comentário",
+                                                    variant: "destructive",
+                                                  });
+                                                }
+                                              }
+                                            }}
+                                            className="h-8 w-8 sm:h-10 sm:w-10 flex-shrink-0"
+                                          >
+                                            <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
+                                          </Button>
+                                        </div>
+                                        <p className="text-sm sm:text-base text-foreground leading-relaxed">
+                                          {review.review}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  );
+                                })
+                              )}
+
+                              {/* Pagination for Reviews */}
+                              {filteredReviews.length > itemsPerPage && (
+                                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 pt-4">
+                                  <p className="text-xs sm:text-sm text-muted-foreground text-center sm:text-left">
+                                    Mostrando {(reviewsPage - 1) * itemsPerPage + 1} a{" "}
+                                    {Math.min(
+                                      reviewsPage * itemsPerPage,
+                                      filteredReviews.length
+                                    )}{" "}
+                                    de {filteredReviews.length} comentários
+                                  </p>
+                                  <div className="flex items-center gap-1 sm:gap-2 flex-wrap justify-center">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() =>
+                                        setReviewsPage((p) => Math.max(1, p - 1))
+                                      }
+                                      disabled={reviewsPage === 1}
+                                      className="text-xs sm:text-sm"
+                                    >
+                                      Anterior
+                                    </Button>
+                                    <div className="flex items-center gap-1 overflow-x-auto">
+                                      {Array.from(
+                                        { length: totalReviewsPages },
+                                        (_, i) => i + 1
+                                      ).map((page) => (
+                                        <Button
+                                          key={page}
+                                          variant={
+                                            page === reviewsPage ? "default" : "outline"
+                                          }
+                                          size="sm"
+                                          onClick={() => setReviewsPage(page)}
+                                          className="w-8 h-8 sm:w-10 sm:h-10 text-xs sm:text-sm"
+                                        >
+                                          {page}
+                                        </Button>
+                                      ))}
+                                    </div>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() =>
+                                        setReviewsPage((p) =>
+                                          Math.min(totalReviewsPages, p + 1)
+                                        )
+                                      }
+                                      disabled={reviewsPage === totalReviewsPages}
+                                      className="text-xs sm:text-sm"
+                                    >
+                                      Próxima
+                                    </Button>
+                                  </div>
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </div>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Coupons Tab - Apenas para admin */}
+            {!isManager && (
+              <TabsContent value="coupons" className="mt-6">
+              <Card>
+                <CardHeader className="p-4 sm:p-6">
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                    <div>
+                      <CardTitle className="text-lg sm:text-xl">Gestão de Cupons</CardTitle>
+                      <CardDescription className="text-xs sm:text-sm">
+                        {apiCoupons.length} cupom{apiCoupons.length !== 1 ? "s" : ""} cadastrado{apiCoupons.length !== 1 ? "s" : ""}
+                      </CardDescription>
+                    </div>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <div className="relative flex-1 sm:w-64">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input
+                          placeholder="Buscar cupons..."
+                          value={couponSearchTerm}
+                          onChange={(e) => setCouponSearchTerm(e.target.value)}
+                          className="pl-10 text-sm"
+                        />
+                      </div>
+                      <Button
+                        onClick={() => {
+                          setCouponForm({
+                            code: "",
+                            discount: "",
+                            type: "percentage",
+                            expiresAt: "",
+                            minPurchaseAmount: "",
+                            maxDiscountAmount: "",
+                            usageLimit: "1",
+                            assignedTo: "",
+                          });
+                          setEditingCoupon(null);
+                          setIsCreateCouponDialogOpen(true);
+                        }}
+                        className="gap-2"
+                      >
+                        <Plus className="h-4 w-4" />
+                        <span className="hidden sm:inline">Novo Cupom</span>
+                        <span className="sm:hidden">Novo</span>
+                      </Button>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-4 sm:p-6">
+                  {couponLoading ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      Carregando cupons...
+                    </div>
+                  ) : (
+                    <>
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Código</TableHead>
+                              <TableHead>Tipo</TableHead>
+                              <TableHead className="text-right">Desconto</TableHead>
+                              <TableHead>Cliente</TableHead>
+                              <TableHead>Status</TableHead>
+                              <TableHead>Válido até</TableHead>
+                              <TableHead className="text-right">Usos</TableHead>
+                              <TableHead className="text-right">Ações</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {(() => {
+                              // Filtrar cupons por termo de busca
+                              const filteredCoupons = apiCoupons.filter((coupon) => {
+                                if (!couponSearchTerm) return true;
+                                const searchLower = couponSearchTerm.toLowerCase();
+                                return (
+                                  coupon.code.toLowerCase().includes(searchLower) ||
+                                  coupon.type.toLowerCase().includes(searchLower)
+                                );
+                              });
+
+                              // Paginação
+                              const totalCouponsPages = Math.ceil(filteredCoupons.length / itemsPerPage);
+                              const startIndex = (couponsPage - 1) * itemsPerPage;
+                              const endIndex = startIndex + itemsPerPage;
+                              const paginatedCoupons = filteredCoupons.slice(startIndex, endIndex);
+
+                              return (
+                                <>
+                                  {paginatedCoupons.length === 0 ? (
+                                    <TableRow>
+                                      <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                                        {couponSearchTerm
+                                          ? "Nenhum cupom encontrado"
+                                          : "Nenhum cupom cadastrado"}
+                                      </TableCell>
+                                    </TableRow>
+                                  ) : (
+                                    paginatedCoupons.map((coupon) => {
+                                      const isExpired = new Date(coupon.expiresAt) < new Date();
+                                      const isUsed = !!coupon.usedAt;
+                                      const isActive = coupon.isActive && !isExpired;
+
+                                      return (
+                                        <TableRow key={coupon._id}>
+                                          <TableCell className="font-medium">
+                                            <div className="flex items-center gap-2">
+                                              <span>{coupon.code}</span>
+                                              <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-6 w-6"
+                                                onClick={() => {
+                                                  navigator.clipboard.writeText(coupon.code);
+                                                  toast({
+                                                    title: "Copiado!",
+                                                    description: `Código ${coupon.code} copiado`,
+                                                  });
+                                                }}
+                                              >
+                                                <Copy className="h-3 w-3" />
+                                              </Button>
+                                            </div>
+                                          </TableCell>
+                                          <TableCell>
+                                            <Badge variant="outline">
+                                              {coupon.type === "percentage" ? "Percentual" : "Fixo"}
+                                            </Badge>
+                                          </TableCell>
+                                          <TableCell className="text-right font-semibold">
+                                            {coupon.discount}
+                                            {coupon.type === "percentage" ? "%" : " MZN"}
+                                          </TableCell>
+                                          <TableCell>
+                                            {coupon.assignedTo ? (
+                                              (() => {
+                                                const assignedUser = users.find(
+                                                  (u) => u._id === coupon.assignedTo || u.userId === coupon.assignedTo
+                                                );
+                                                return assignedUser ? (
+                                                  <span className="text-xs sm:text-sm">
+                                                    {assignedUser.name}
+                                                  </span>
+                                                ) : (
+                                                  <span className="text-xs text-muted-foreground">
+                                                    ID: {coupon.assignedTo?.slice(-8)}
+                                                  </span>
+                                                );
+                                              })()
+                                            ) : (
+                                              <Badge variant="outline" className="text-xs">
+                                                Público
+                                              </Badge>
+                                            )}
+                                          </TableCell>
+                                          <TableCell>
+                                            <Badge
+                                              variant={
+                                                isActive
+                                                  ? "default"
+                                                  : isUsed
+                                                  ? "secondary"
+                                                  : isExpired
+                                                  ? "destructive"
+                                                  : "outline"
+                                              }
+                                            >
+                                              {isActive
+                                                ? "Ativo"
+                                                : isUsed
+                                                ? "Usado"
+                                                : isExpired
+                                                ? "Expirado"
+                                                : "Inativo"}
+                                            </Badge>
+                                          </TableCell>
+                                          <TableCell>
+                                            {new Date(coupon.expiresAt).toLocaleDateString("pt-BR")}
+                                          </TableCell>
+                                          <TableCell className="text-right">
+                                            {coupon.usageCount || 0} / {coupon.usageLimit || 1}
+                                          </TableCell>
+                                          <TableCell className="text-right">
+                                            <div className="flex items-center justify-end gap-2">
+                                              <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => {
+                                                  setEditingCoupon(coupon);
+                                                  setCouponForm({
+                                                    code: coupon.code,
+                                                    discount: String(coupon.discount),
+                                                    type: coupon.type,
+                                                    expiresAt: new Date(coupon.expiresAt).toISOString().split("T")[0],
+                                                    minPurchaseAmount: coupon.minPurchaseAmount
+                                                      ? String(coupon.minPurchaseAmount)
+                                                      : "",
+                                                    maxDiscountAmount: coupon.maxDiscountAmount
+                                                      ? String(coupon.maxDiscountAmount)
+                                                      : "",
+                                                    usageLimit: String(coupon.usageLimit || 1),
+                                                    assignedTo: coupon.assignedTo || "",
+                                                  });
+                                                  setIsEditCouponDialogOpen(true);
+                                                }}
+                                                className="gap-1"
+                                              >
+                                                <Pencil className="h-3 w-3" />
+                                                <span className="hidden sm:inline">Editar</span>
+                                              </Button>
+                                              <Button
+                                                variant="destructive"
+                                                size="sm"
+                                                onClick={() => {
+                                                  setConfirmDialog({
+                                                    open: true,
+                                                    action: "deleteCoupon",
+                                                    id: coupon._id,
+                                                    name: coupon.code,
+                                                  });
+                                                }}
+                                                className="gap-1"
+                                              >
+                                                <Trash2 className="h-3 w-3" />
+                                                <span className="hidden sm:inline">Excluir</span>
+                                              </Button>
+                                            </div>
+                                          </TableCell>
+                                        </TableRow>
+                                      );
+                                    })
+                                  )}
+                                </>
+                              );
+                            })()}
+                          </TableBody>
+                        </Table>
+                      </div>
+
+                      {/* Pagination */}
+                      {(() => {
+                        const filteredCoupons = apiCoupons.filter((coupon) => {
+                          if (!couponSearchTerm) return true;
+                          const searchLower = couponSearchTerm.toLowerCase();
+                          return (
+                            coupon.code.toLowerCase().includes(searchLower) ||
+                            coupon.type.toLowerCase().includes(searchLower)
+                          );
+                        });
+                        const totalCouponsPages = Math.ceil(filteredCoupons.length / itemsPerPage);
+
+                        return (
+                          totalCouponsPages > 1 && (
+                            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 pt-4">
+                              <p className="text-xs sm:text-sm text-muted-foreground text-center sm:text-left">
+                                Mostrando {(couponsPage - 1) * itemsPerPage + 1} a{" "}
+                                {Math.min(couponsPage * itemsPerPage, filteredCoupons.length)} de{" "}
+                                {filteredCoupons.length} cupons
+                              </p>
+                              <div className="flex items-center gap-1 sm:gap-2 flex-wrap justify-center">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setCouponsPage((p) => Math.max(1, p - 1))}
+                                  disabled={couponsPage === 1}
+                                  className="text-xs sm:text-sm"
+                                >
+                                  Anterior
+                                </Button>
+                                <div className="flex items-center gap-1 overflow-x-auto">
+                                  {Array.from({ length: totalCouponsPages }, (_, i) => i + 1).map(
+                                    (page) => (
+                                      <Button
+                                        key={page}
+                                        variant={page === couponsPage ? "default" : "outline"}
+                                        size="sm"
+                                        onClick={() => setCouponsPage(page)}
+                                        className="w-8 h-8 sm:w-10 sm:h-10 text-xs sm:text-sm"
+                                      >
+                                        {page}
+                                      </Button>
+                                    )
+                                  )}
+                                </div>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() =>
+                                    setCouponsPage((p) => Math.min(totalCouponsPages, p + 1))
+                                  }
+                                  disabled={couponsPage === totalCouponsPages}
+                                  className="text-xs sm:text-sm"
+                                >
+                                  Próxima
+                                </Button>
+                              </div>
+                            </div>
+                          )
+                        );
+                      })()}
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+              </TabsContent>
+            )}
+
             {/* Add Product Tab */}
             <TabsContent value="add-product" className="mt-6">
               <Card>
@@ -2619,13 +3730,16 @@ const Admin = () => {
 
                     <div className="space-y-2">
                       <Label className="text-sm font-medium">Imagem Principal do Produto *</Label>
-                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">
+                      {!productImage ? (
                         <div className="flex-1">
-                          <label className="flex flex-col items-center justify-center w-full h-28 sm:h-32 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-accent transition-colors">
-                            <div className="flex flex-col items-center justify-center pt-4 sm:pt-5 pb-4 sm:pb-6">
-                              <Upload className="w-6 h-6 sm:w-8 sm:h-8 mb-2 text-muted-foreground" />
-                              <p className="text-xs sm:text-sm text-muted-foreground text-center px-2">
+                          <label className="flex flex-col items-center justify-center w-full h-40 sm:h-48 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-accent transition-colors bg-muted/30">
+                            <div className="flex flex-col items-center justify-center pt-6 sm:pt-8 pb-6 sm:pb-8">
+                              <Upload className="w-8 h-8 sm:w-10 sm:h-10 mb-3 text-muted-foreground" />
+                              <p className="text-sm sm:text-base text-muted-foreground text-center px-4 font-medium">
                                 Clique para fazer upload da imagem
+                              </p>
+                              <p className="text-xs text-muted-foreground/70 text-center px-4 mt-1">
+                                PNG, JPG ou JPEG até 5MB
                               </p>
                             </div>
                             <input
@@ -2636,25 +3750,59 @@ const Admin = () => {
                             />
                           </label>
                         </div>
-                        {productImage && (
-                          <div className="relative flex-shrink-0 self-center sm:self-auto">
+                      ) : (
+                        <div className="relative w-full">
+                          <div className="relative w-full h-64 sm:h-80 rounded-lg overflow-hidden border-2 border-border bg-muted/20">
                             <img
                               src={productImage}
-                              alt="Preview"
-                              className="w-24 h-24 sm:w-32 sm:h-32 object-cover rounded-lg"
+                              alt="Preview da imagem do produto"
+                              className="w-full h-full object-contain"
                             />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 hover:opacity-100 transition-opacity" />
                             <Button
                               type="button"
                               variant="destructive"
                               size="icon"
-                              className="absolute -top-2 -right-2 h-6 w-6"
-                              onClick={() => setProductImage("")}
+                              className="absolute top-3 right-3 h-9 w-9 shadow-lg"
+                              onClick={() => {
+                                setProductImage("");
+                                setProductImageFile(null);
+                              }}
+                              title="Remover imagem"
                             >
-                              <X className="h-3 w-3 sm:h-4 sm:w-4" />
+                              <X className="h-4 w-4" />
                             </Button>
+                            <div className="absolute bottom-3 left-3 right-3 opacity-0 hover:opacity-100 transition-opacity">
+                              <label className="block cursor-pointer">
+                                <input
+                                  type="file"
+                                  className="hidden"
+                                  accept="image/*"
+                                  onChange={handleImageUpload}
+                                  id="replace-image-input"
+                                />
+                                <Button
+                                  type="button"
+                                  variant="secondary"
+                                  size="sm"
+                                  className="w-full shadow-lg"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    const input = document.getElementById('replace-image-input') as HTMLInputElement;
+                                    input?.click();
+                                  }}
+                                >
+                                  <Upload className="h-4 w-4 mr-2" />
+                                  Trocar imagem
+                                </Button>
+                              </label>
+                            </div>
                           </div>
-                        )}
-                      </div>
+                          <p className="text-xs text-muted-foreground mt-2 text-center">
+                            Imagem selecionada. Clique em "Trocar imagem" para substituir.
+                          </p>
+                        </div>
+                      )}
                     </div>
 
                     <Separator />
@@ -2697,7 +3845,7 @@ const Admin = () => {
       >
         <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] sm:max-h-[80vh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader className="pb-4">
-            <DialogTitle className="text-lg sm:text-xl">Detalhes do Pedido #{selectedOrder}</DialogTitle>
+            <DialogTitle className="text-lg sm:text-xl">Detalhes do Pedido #{selectedOrder?.slice(-8)}</DialogTitle>
             <DialogDescription className="text-xs sm:text-sm">
               Confira os produtos do seu pedido
             </DialogDescription>
@@ -2930,18 +4078,32 @@ const Admin = () => {
           <DialogHeader className="pb-4">
             <DialogTitle className="text-lg sm:text-xl">
               {confirmDialog.action === "removeCustomer"
-                ? "Confirmar remoção"
+                ? "Confirmar desativação"
+                : confirmDialog.action === "deleteCoupon"
+                ? "Confirmar exclusão"
+                : confirmDialog.action === "deleteProduct"
+                ? "Confirmar exclusão"
                 : "Confirmar cancelamento"}
             </DialogTitle>
             <DialogDescription className="text-xs sm:text-sm">
               {confirmDialog.action === "removeCustomer" ? (
                 <>
-                  Tem certeza que deseja remover o cliente "{confirmDialog.name}
-                  "?
+                  Tem certeza que deseja desativar o cliente "{confirmDialog.name}
+                  "? O cliente não poderá mais fazer login, mas seus dados serão mantidos.
+                </>
+              ) : confirmDialog.action === "deleteCoupon" ? (
+                <>
+                  Tem certeza que deseja excluir o cupom "{confirmDialog.name}"?
+                  Esta ação não pode ser desfeita.
+                </>
+              ) : confirmDialog.action === "deleteProduct" ? (
+                <>
+                  Tem certeza que deseja excluir o produto "{confirmDialog.name}"?
+                  Esta ação não pode ser desfeita.
                 </>
               ) : (
                 <>
-                  Tem certeza que deseja cancelar o pedido #{confirmDialog.id}?
+                  Tem certeza que deseja cancelar o pedido #{confirmDialog.id?.slice(-8)}?
                   Esta ação não pode ser desfeita.
                 </>
               )}
@@ -2957,7 +4119,9 @@ const Admin = () => {
             </Button>
             <Button
               variant={
-                confirmDialog.action === "removeCustomer"
+                confirmDialog.action === "removeCustomer" ||
+                confirmDialog.action === "deleteCoupon" ||
+                confirmDialog.action === "deleteProduct"
                   ? "destructive"
                   : "default"
               }
@@ -3055,40 +4219,76 @@ const Admin = () => {
 
               <div className="space-y-2">
                 <Label className="text-sm">Imagem Principal</Label>
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">
-                  <label className="flex flex-col items-center justify-center w-full h-28 sm:h-32 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-accent transition-colors">
-                    <div className="flex flex-col items-center justify-center pt-4 sm:pt-5 pb-4 sm:pb-6">
-                      <Upload className="w-6 h-6 sm:w-8 sm:h-8 mb-2 text-muted-foreground" />
-                      <p className="text-xs sm:text-sm text-muted-foreground text-center px-2">
-                        Clique para atualizar a imagem
-                      </p>
-                    </div>
-                    <input
-                      type="file"
-                      className="hidden"
-                      accept="image/*"
-                      onChange={handleEditProductImageUpload}
-                    />
-                  </label>
-                  {editProductImagePreview && (
-                    <div className="relative flex-shrink-0 self-center sm:self-auto">
+                {!editProductImagePreview ? (
+                  <div className="flex-1">
+                    <label className="flex flex-col items-center justify-center w-full h-40 sm:h-48 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-accent transition-colors bg-muted/30">
+                      <div className="flex flex-col items-center justify-center pt-6 sm:pt-8 pb-6 sm:pb-8">
+                        <Upload className="w-8 h-8 sm:w-10 sm:h-10 mb-3 text-muted-foreground" />
+                        <p className="text-sm sm:text-base text-muted-foreground text-center px-4 font-medium">
+                          Clique para atualizar a imagem
+                        </p>
+                        <p className="text-xs text-muted-foreground/70 text-center px-4 mt-1">
+                          PNG, JPG ou JPEG até 5MB
+                        </p>
+                      </div>
+                      <input
+                        type="file"
+                        className="hidden"
+                        accept="image/*"
+                        onChange={handleEditProductImageUpload}
+                      />
+                    </label>
+                  </div>
+                ) : (
+                  <div className="relative w-full">
+                    <div className="relative w-full h-64 sm:h-80 rounded-lg overflow-hidden border-2 border-border bg-muted/20">
                       <img
                         src={editProductImagePreview}
-                        alt="Imagem atual"
-                        className="w-24 h-24 sm:w-32 sm:h-32 object-cover rounded-lg"
+                        alt="Preview da imagem do produto"
+                        className="w-full h-full object-contain"
                       />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 hover:opacity-100 transition-opacity" />
                       <Button
                         type="button"
                         variant="destructive"
                         size="icon"
-                        className="absolute -top-2 -right-2 h-6 w-6"
+                        className="absolute top-3 right-3 h-9 w-9 shadow-lg"
                         onClick={handleResetEditImage}
+                        title="Remover imagem"
                       >
-                        <X className="h-3 w-3 sm:h-4 sm:w-4" />
+                        <X className="h-4 w-4" />
                       </Button>
+                      <div className="absolute bottom-3 left-3 right-3 opacity-0 hover:opacity-100 transition-opacity">
+                        <label className="block cursor-pointer">
+                          <input
+                            type="file"
+                            className="hidden"
+                            accept="image/*"
+                            onChange={handleEditProductImageUpload}
+                            id="replace-edit-image-input"
+                          />
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            className="w-full shadow-lg"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              const input = document.getElementById('replace-edit-image-input') as HTMLInputElement;
+                              input?.click();
+                            }}
+                          >
+                            <Upload className="h-4 w-4 mr-2" />
+                            Trocar imagem
+                          </Button>
+                        </label>
+                      </div>
                     </div>
-                  )}
-                </div>
+                    <p className="text-xs text-muted-foreground mt-2 text-center">
+                      Imagem selecionada. Clique em "Trocar imagem" para substituir.
+                    </p>
+                  </div>
+                )}
               </div>
 
               <Separator />
@@ -3180,65 +4380,101 @@ const Admin = () => {
                   </div>
                 </div>
 
-                <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label className="text-sm">Estoque *</Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      value={variantForm.stock}
-                      onChange={(e) =>
-                        setVariantForm((prev) => ({
-                          ...prev,
-                          stock: parseInt(e.target.value) || 0,
-                        }))
-                      }
-                      className="text-sm"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm">Imagem da Variante *</Label>
-                    <label className="flex flex-col items-center justify-center w-full h-28 sm:h-32 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-accent transition-colors">
-                      <div className="flex flex-col items-center justify-center pt-4 sm:pt-5 pb-4 sm:pb-6">
-                        <Upload className="w-6 h-6 mb-1 text-muted-foreground" />
-                        <p className="text-xs sm:text-sm text-muted-foreground text-center px-2">
-                          Upload da imagem
-                        </p>
-                      </div>
-                      <input
-                        type="file"
-                        className="hidden"
-                        accept="image/*"
-                        onChange={handleVariantImageUpload}
-                      />
-                    </label>
-                  </div>
+                <div className="space-y-2">
+                  <Label className="text-sm">Estoque *</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={variantForm.stock}
+                    onChange={(e) =>
+                      setVariantForm((prev) => ({
+                        ...prev,
+                        stock: parseInt(e.target.value) || 0,
+                      }))
+                    }
+                    className="text-sm"
+                  />
                 </div>
 
-                {variantForm.imagePreview && (
-                  <div className="relative w-24 h-24 sm:w-28 sm:h-28 flex-shrink-0 self-center sm:self-auto">
-                    <img
-                      src={variantForm.imagePreview}
-                      alt="Preview variante"
-                      className="w-24 h-24 sm:w-28 sm:h-28 object-cover rounded-md"
-                    />
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      size="icon"
-                      className="absolute -top-2 -right-2 h-6 w-6"
-                      onClick={() =>
-                        setVariantForm((prev) => ({
-                          ...prev,
-                          imageFile: null,
-                          imagePreview: "",
-                        }))
-                      }
-                    >
-                      <X className="h-3 w-3 sm:h-4 sm:w-4" />
-                    </Button>
-                  </div>
-                )}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Imagem da Variante *</Label>
+                  {!variantForm.imagePreview ? (
+                    <div className="flex-1">
+                      <label className="flex flex-col items-center justify-center w-full h-40 sm:h-48 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-accent transition-colors bg-muted/30">
+                        <div className="flex flex-col items-center justify-center pt-6 sm:pt-8 pb-6 sm:pb-8">
+                          <Upload className="w-8 h-8 sm:w-10 sm:h-10 mb-3 text-muted-foreground" />
+                          <p className="text-sm sm:text-base text-muted-foreground text-center px-4 font-medium">
+                            Clique para fazer upload da imagem
+                          </p>
+                          <p className="text-xs text-muted-foreground/70 text-center px-4 mt-1">
+                            PNG, JPG ou JPEG até 5MB
+                          </p>
+                        </div>
+                        <input
+                          type="file"
+                          className="hidden"
+                          accept="image/*"
+                          onChange={handleVariantImageUpload}
+                        />
+                      </label>
+                    </div>
+                  ) : (
+                    <div className="relative w-full">
+                      <div className="relative w-full h-64 sm:h-80 rounded-lg overflow-hidden border-2 border-border bg-muted/20">
+                        <img
+                          src={variantForm.imagePreview}
+                          alt="Preview da imagem da variante"
+                          className="w-full h-full object-contain"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 hover:opacity-100 transition-opacity" />
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="icon"
+                          className="absolute top-3 right-3 h-9 w-9 shadow-lg"
+                          onClick={() =>
+                            setVariantForm((prev) => ({
+                              ...prev,
+                              imageFile: null,
+                              imagePreview: "",
+                            }))
+                          }
+                          title="Remover imagem"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                        <div className="absolute bottom-3 left-3 right-3 opacity-0 hover:opacity-100 transition-opacity">
+                          <label className="block cursor-pointer">
+                            <input
+                              type="file"
+                              className="hidden"
+                              accept="image/*"
+                              onChange={handleVariantImageUpload}
+                              id="replace-variant-image-input"
+                            />
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              size="sm"
+                              className="w-full shadow-lg"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                const input = document.getElementById('replace-variant-image-input') as HTMLInputElement;
+                                input?.click();
+                              }}
+                            >
+                              <Upload className="h-4 w-4 mr-2" />
+                              Trocar imagem
+                            </Button>
+                          </label>
+                        </div>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-2 text-center">
+                        Imagem selecionada. Clique em "Trocar imagem" para substituir.
+                      </p>
+                    </div>
+                  )}
+                </div>
 
                 <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3">
                   <Button
@@ -3285,6 +4521,317 @@ const Admin = () => {
               </div>
             </form>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Create/Edit Coupon Dialog */}
+      <Dialog
+        open={isCreateCouponDialogOpen || isEditCouponDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setIsCreateCouponDialogOpen(false);
+            setIsEditCouponDialogOpen(false);
+            setEditingCoupon(null);
+            setCouponForm({
+              code: "",
+              discount: "",
+              type: "percentage",
+              expiresAt: "",
+              minPurchaseAmount: "",
+              maxDiscountAmount: "",
+              usageLimit: "1",
+              assignedTo: "",
+            });
+          }
+        }}
+      >
+        <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
+          <DialogHeader className="pb-4">
+            <DialogTitle className="text-lg sm:text-xl">
+              {editingCoupon ? "Editar Cupom" : "Criar Novo Cupom"}
+            </DialogTitle>
+            <DialogDescription className="text-xs sm:text-sm">
+              {editingCoupon
+                ? "Atualize as informações do cupom"
+                : "Preencha os dados para criar um novo cupom"}
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (
+                !couponForm.code ||
+                !couponForm.discount ||
+                !couponForm.expiresAt
+              ) {
+                toast({
+                  title: "Erro",
+                  description: "Preencha todos os campos obrigatórios",
+                  variant: "destructive",
+                });
+                return;
+              }
+
+              try {
+                const couponData = {
+                  code: couponForm.code.toUpperCase(),
+                  discount: parseFloat(couponForm.discount),
+                  type: couponForm.type,
+                  expiresAt: new Date(couponForm.expiresAt).toISOString(),
+                  assignedTo: couponForm.assignedTo || undefined,
+                  minPurchaseAmount: couponForm.minPurchaseAmount
+                    ? parseFloat(couponForm.minPurchaseAmount)
+                    : undefined,
+                  maxDiscountAmount: couponForm.maxDiscountAmount
+                    ? parseFloat(couponForm.maxDiscountAmount)
+                    : undefined,
+                  usageLimit: parseInt(couponForm.usageLimit),
+                  isActive: true,
+                };
+
+                if (editingCoupon) {
+                  await dispatch(
+                    updateCoupon({
+                      id: editingCoupon._id,
+                      data: couponData,
+                    })
+                  ).unwrap();
+                  toast({
+                    title: "Cupom atualizado",
+                    description: `O cupom ${couponForm.code} foi atualizado com sucesso.`,
+                  });
+                } else {
+                  await dispatch(createCoupon(couponData)).unwrap();
+                  toast({
+                    title: "Cupom criado",
+                    description: `O cupom ${couponForm.code} foi criado com sucesso.`,
+                  });
+                }
+
+                await dispatch(getAllCoupons());
+                setIsCreateCouponDialogOpen(false);
+                setIsEditCouponDialogOpen(false);
+                setEditingCoupon(null);
+                setCouponForm({
+                  code: "",
+                  discount: "",
+                  type: "percentage",
+                  expiresAt: "",
+                  minPurchaseAmount: "",
+                  maxDiscountAmount: "",
+                  usageLimit: "1",
+                  assignedTo: "",
+                });
+              } catch (error: any) {
+                toast({
+                  title: "Erro",
+                  description: error || "Não foi possível salvar o cupom",
+                  variant: "destructive",
+                });
+              }
+            }}
+            className="space-y-4"
+          >
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="coupon-code" className="text-sm">
+                  Código do Cupom *
+                </Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="coupon-code"
+                    value={couponForm.code}
+                    onChange={(e) =>
+                      setCouponForm((prev) => ({
+                        ...prev,
+                        code: e.target.value.toUpperCase(),
+                      }))
+                    }
+                    placeholder="Ex: DESCONTO20"
+                    className="text-sm uppercase"
+                    required
+                    disabled={!!editingCoupon}
+                  />
+                  {!editingCoupon && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={generateCouponCode}
+                      className="shrink-0"
+                    >
+                      Gerar
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="coupon-type" className="text-sm">
+                  Tipo de Desconto *
+                </Label>
+                <Select
+                  value={couponForm.type}
+                  onValueChange={(value: "percentage" | "fixed") =>
+                    setCouponForm((prev) => ({ ...prev, type: value }))
+                  }
+                >
+                  <SelectTrigger id="coupon-type" className="text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="percentage">Percentual (%)</SelectItem>
+                    <SelectItem value="fixed">Valor Fixo (MZN)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="coupon-discount" className="text-sm">
+                  Desconto *
+                </Label>
+                <Input
+                  id="coupon-discount"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={couponForm.discount}
+                  onChange={(e) =>
+                    setCouponForm((prev) => ({ ...prev, discount: e.target.value }))
+                  }
+                  placeholder={couponForm.type === "percentage" ? "Ex: 20" : "Ex: 50"}
+                  className="text-sm"
+                  required
+                />
+                <p className="text-xs text-muted-foreground">
+                  {couponForm.type === "percentage"
+                    ? "Percentual de desconto (0-100)"
+                    : "Valor fixo em MZN"}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="coupon-expires" className="text-sm">
+                  Data de Expiração *
+                </Label>
+                <Input
+                  id="coupon-expires"
+                  type="date"
+                  min={getMinDate()}
+                  value={couponForm.expiresAt}
+                  onChange={(e) =>
+                    setCouponForm((prev) => ({ ...prev, expiresAt: e.target.value }))
+                  }
+                  className="text-sm"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="coupon-min-purchase" className="text-sm">
+                  Compra Mínima (MZN)
+                </Label>
+                <Input
+                  id="coupon-min-purchase"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={couponForm.minPurchaseAmount}
+                  onChange={(e) =>
+                    setCouponForm((prev) => ({
+                      ...prev,
+                      minPurchaseAmount: e.target.value,
+                    }))
+                  }
+                  placeholder="Opcional"
+                  className="text-sm"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="coupon-usage-limit" className="text-sm">
+                  Limite de Uso *
+                </Label>
+                <Input
+                  id="coupon-usage-limit"
+                  type="number"
+                  min="1"
+                  value={couponForm.usageLimit}
+                  onChange={(e) =>
+                    setCouponForm((prev) => ({ ...prev, usageLimit: e.target.value }))
+                  }
+                  placeholder="1"
+                  className="text-sm"
+                  required
+                />
+              </div>
+            </div>
+
+            {couponForm.type === "percentage" && (
+              <div className="space-y-2">
+                <Label htmlFor="coupon-max-discount" className="text-sm">
+                  Desconto Máximo (MZN)
+                </Label>
+                <Input
+                  id="coupon-max-discount"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={couponForm.maxDiscountAmount}
+                  onChange={(e) =>
+                    setCouponForm((prev) => ({
+                      ...prev,
+                      maxDiscountAmount: e.target.value,
+                    }))
+                  }
+                  placeholder="Opcional"
+                  className="text-sm"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Limite máximo de desconto em MZN (apenas para cupons percentuais)
+                </p>
+              </div>
+            )}
+
+            <DialogFooter className="pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setIsCreateCouponDialogOpen(false);
+                  setIsEditCouponDialogOpen(false);
+                  setEditingCoupon(null);
+                  setCouponForm({
+                    code: "",
+                    discount: "",
+                    type: "percentage",
+                    expiresAt: "",
+                    minPurchaseAmount: "",
+                    maxDiscountAmount: "",
+                    usageLimit: "1",
+                    assignedTo: "",
+                  });
+                }}
+                className="w-full sm:w-auto text-sm"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={couponLoading}
+                className="w-full sm:w-auto text-sm"
+              >
+                {couponLoading
+                  ? "Salvando..."
+                  : editingCoupon
+                  ? "Atualizar Cupom"
+                  : "Criar Cupom"}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>

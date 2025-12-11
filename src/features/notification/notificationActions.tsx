@@ -35,7 +35,16 @@ export const getAllNotifications = createAsyncThunk<
                          response.data?.data || 
                          [];
 
-    return Array.isArray(notifications) ? notifications : [];
+    // Mapear read (backend) para isRead (frontend) e garantir estrutura correta
+    const mappedNotifications = Array.isArray(notifications) 
+      ? notifications.map((notification: any) => ({
+          ...notification,
+          isRead: notification.read !== undefined ? notification.read : notification.isRead || false,
+          isDelivered: notification.isDelivered || false,
+        }))
+      : [];
+
+    return mappedNotifications;
   } catch (error: any) {
     if (error?.response?.status === 401) {
       dispatch(logoutUser());
@@ -74,7 +83,12 @@ export const getNotification = createAsyncThunk<
       return rejectWithValue("Notificação não encontrada");
     }
 
-    return notification;
+    // Mapear read (backend) para isRead (frontend)
+    return {
+      ...notification,
+      isRead: notification.read !== undefined ? notification.read : notification.isRead || false,
+      isDelivered: notification.isDelivered || false,
+    };
   } catch (error: any) {
     if (error?.response?.status === 401) {
       dispatch(logoutUser());
@@ -115,7 +129,12 @@ export const createNotification = createAsyncThunk<
         return rejectWithValue("Resposta inválida do servidor");
       }
 
-      return notification;
+      // Mapear read (backend) para isRead (frontend)
+      return {
+        ...notification,
+        isRead: notification.read !== undefined ? notification.read : notification.isRead || false,
+        isDelivered: notification.isDelivered || false,
+      };
     } catch (error: any) {
       if (error?.response?.status === 401) {
         dispatch(logoutUser());
@@ -145,7 +164,14 @@ export const updateNotification = createAsyncThunk<
         return rejectWithValue("Faça login para continuar");
       }
 
-      const response = await customFetch.patch(`${API_URL}/${id}`, data, {
+      // Converter isRead para read antes de enviar ao backend
+      const backendData: any = { ...data };
+      if (backendData.isRead !== undefined) {
+        backendData.read = backendData.isRead;
+        delete backendData.isRead;
+      }
+
+      const response = await customFetch.patch(`${API_URL}/${id}`, backendData, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -157,7 +183,12 @@ export const updateNotification = createAsyncThunk<
         return rejectWithValue("Resposta inválida do servidor");
       }
 
-      return notification;
+      // Mapear read (backend) para isRead (frontend)
+      return {
+        ...notification,
+        isRead: notification.read !== undefined ? notification.read : notification.isRead || false,
+        isDelivered: notification.isDelivered || false,
+      };
     } catch (error: any) {
       if (error?.response?.status === 401) {
         dispatch(logoutUser());
@@ -197,6 +228,43 @@ export const deleteNotification = createAsyncThunk<
     }
     return rejectWithValue(
       error.response?.data?.message || "Erro ao deletar notificação"
+    );
+  }
+});
+
+// =========================
+// MARK ALL AS READ
+// =========================
+export const markAllAsRead = createAsyncThunk<
+  number,
+  void,
+  { rejectValue: string }
+>("notifications/markAllAsRead", async (_, { rejectWithValue, dispatch }) => {
+  try {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      dispatch(logoutUser());
+      return rejectWithValue("Faça login para continuar");
+    }
+
+    const response = await customFetch.patch(
+      `${API_URL}/read-all`,
+      {},
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      }
+    );
+
+    const modifiedCount = response.data?.data?.modifiedCount || 0;
+
+    return modifiedCount;
+  } catch (error: any) {
+    if (error?.response?.status === 401) {
+      dispatch(logoutUser());
+      return rejectWithValue("Sessão expirada. Faça login novamente.");
+    }
+    return rejectWithValue(
+      error.response?.data?.message || "Erro ao marcar todas como lidas"
     );
   }
 });

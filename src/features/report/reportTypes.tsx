@@ -22,6 +22,16 @@ export interface SalesByPeriodItem {
   orders: number;
 }
 
+export interface ProductSalesItem {
+  productId: string;
+  productName: string;
+  productImage: string;
+  category: string;
+  totalQuantity: number;
+  totalRevenue: number;
+  orderCount: number;
+}
+
 export interface ReportState {
   totalRevenue: number;
   averageTicket: number;
@@ -29,6 +39,8 @@ export interface ReportState {
   deliveryRate: number; // percentage 0-100
   salesByStatus: SalesByStatusItem[];
   topClients: TopClientItem[];
+  topProducts: ProductSalesItem[];
+  leastSoldProducts: ProductSalesItem[];
   salesByPeriod: SalesByPeriodItem[];
   loading: boolean;
   error?: string | null;

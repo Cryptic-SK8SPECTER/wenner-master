@@ -30,6 +30,7 @@ export interface IValidateCouponResponse {
 
 export interface IUseCouponRequest {
   code: string;
+  userId?: string; // Opcional, mas necessário para cupons atribuídos a usuários
 }
 
 export interface ICreateCouponRequest {

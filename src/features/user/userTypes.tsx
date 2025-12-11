@@ -21,6 +21,7 @@ export interface User {
   totalOrders?: number;
   totalSpent?: number;
   lastOrder?: string;
+  active?: boolean;
 }
 
 // Estado do slice de usuário
