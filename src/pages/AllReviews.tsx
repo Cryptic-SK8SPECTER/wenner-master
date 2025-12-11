@@ -14,6 +14,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import Header from "@/components/Header";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { getAllReviews, createReview } from "@/features/reviews/reviewActions";
@@ -510,8 +518,8 @@ const AllReviews = () => {
                 </div>
               </div>
               {canReviewProduct && !hasUserReviewed ? (
-                <Button onClick={() => setShowReviewForm(!showReviewForm)}>
-                  {showReviewForm ? "Cancelar Avaliação" : "Avaliar Produto"}
+                <Button onClick={() => setShowReviewForm(true)}>
+                  Avaliar Produto
                 </Button>
               ) : hasUserReviewed ? (
                 <Button variant="outline" disabled>
@@ -583,79 +591,101 @@ const AllReviews = () => {
           </CardContent>
         </Card>
 
-        {/* Formulário de Avaliação */}
-        {showReviewForm && canReviewProduct && !hasUserReviewed && (
-          <Card className="border-0 shadow-lg mb-8">
-            <CardContent className="p-6">
-              <h2 className="text-lg font-semibold mb-4">Avaliar Produto</h2>
-              <form onSubmit={handleSubmitReview} className="space-y-4">
-                <div>
-                  <Label className="mb-2 block">Sua avaliação (1-5 estrelas)</Label>
-                  <div className="flex gap-2">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <button
-                        key={star}
-                        type="button"
-                        onClick={() => setReviewRating(star)}
-                        className="focus:outline-none transition-transform hover:scale-110"
-                      >
-                        <Star
-                          className={`h-8 w-8 ${
-                            star <= reviewRating
-                              ? ""
-                              : "text-muted-foreground/30"
-                          }`}
-                          style={star <= reviewRating ? { fill: "#0DA2E7", color: "#0DA2E7" } : undefined}
-                        />
-                      </button>
-                    ))}
-                  </div>
-                  {reviewRating > 0 && (
-                    <p className="text-sm text-muted-foreground mt-2">
-                      {reviewRating} {reviewRating === 1 ? "estrela" : "estrelas"}
-                    </p>
-                  )}
+        {/* Modal de Avaliação */}
+        <Dialog 
+          open={showReviewForm && canReviewProduct && !hasUserReviewed} 
+          onOpenChange={(open) => {
+            setShowReviewForm(open);
+            if (!open) {
+              // Limpar formulário ao fechar
+              setReviewRating(0);
+              setReviewText("");
+            }
+          }}
+        >
+          <DialogContent className="sm:max-w-[500px] max-w-[95vw] max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="text-xl">Avaliar Produto</DialogTitle>
+              <DialogDescription>
+                Compartilhe sua experiência com este produto
+              </DialogDescription>
+            </DialogHeader>
+            
+            <form onSubmit={handleSubmitReview} className="space-y-6">
+              <div>
+                <Label className="mb-3 block text-base font-medium">
+                  Sua avaliação (1-5 estrelas)
+                </Label>
+                <div className="flex gap-3 justify-center sm:justify-start">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => setReviewRating(star)}
+                      className="focus:outline-none transition-transform hover:scale-110 active:scale-95"
+                      aria-label={`Avaliar com ${star} ${star === 1 ? "estrela" : "estrelas"}`}
+                    >
+                      <Star
+                        className={`h-10 w-10 sm:h-12 sm:w-12 transition-all ${
+                          star <= reviewRating
+                            ? ""
+                            : "text-muted-foreground/30"
+                        }`}
+                        style={star <= reviewRating ? { fill: "#0DA2E7", color: "#0DA2E7" } : undefined}
+                      />
+                    </button>
+                  ))}
                 </div>
+                {reviewRating > 0 && (
+                  <p className="text-sm text-muted-foreground mt-3 text-center sm:text-left">
+                    Você selecionou {reviewRating} {reviewRating === 1 ? "estrela" : "estrelas"}
+                  </p>
+                )}
+              </div>
 
-                <div>
-                  <Label htmlFor="review-text" className="mb-2 block">
-                    Seu comentário
-                  </Label>
-                  <Textarea
-                    id="review-text"
-                    placeholder="Compartilhe sua experiência com este produto..."
-                    value={reviewText}
-                    onChange={(e) => setReviewText(e.target.value)}
-                    className="min-h-[100px]"
-                    required
-                  />
-                </div>
+              <div>
+                <Label htmlFor="review-text" className="mb-2 block text-base font-medium">
+                  Seu comentário
+                </Label>
+                <Textarea
+                  id="review-text"
+                  placeholder="Compartilhe sua experiência com este produto..."
+                  value={reviewText}
+                  onChange={(e) => setReviewText(e.target.value)}
+                  className="min-h-[120px] resize-none"
+                  required
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Seja específico e detalhado em sua avaliação
+                </p>
+              </div>
 
-                <div className="flex gap-2">
-                  <Button
-                    type="submit"
-                    disabled={isSubmittingReview || reviewRating === 0 || !reviewText.trim()}
-                    className="gap-2"
-                  >
-                    <Send className="h-4 w-4" />
-                    {isSubmittingReview ? "Enviando..." : "Enviar Avaliação"}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      setShowReviewForm(false);
-                      setReviewRating(0);
-                      setReviewText("");
-                    }}
-                  >
-                    Cancelar
-                  </Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
-        )}
+              <DialogFooter className="flex-col sm:flex-row gap-2 sm:gap-0">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setShowReviewForm(false);
+                    setReviewRating(0);
+                    setReviewText("");
+                  }}
+                  className="w-full sm:w-auto"
+                  disabled={isSubmittingReview}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={isSubmittingReview || reviewRating === 0 || !reviewText.trim()}
+                  className="gap-2 w-full sm:w-auto"
+                >
+                  <Send className="h-4 w-4" />
+                  {isSubmittingReview ? "Enviando..." : "Enviar Avaliação"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
 
         {/* Filters */}
         <div className="flex items-center justify-between mb-6">
