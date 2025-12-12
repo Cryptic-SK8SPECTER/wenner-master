@@ -49,7 +49,9 @@ const App = () => (
                     path="/"
                     element={
                       <RouteErrorBoundary>
-                        <Index />
+                        <ProtectedRoute requiredRole="client" redirectTo="/admin" requireAuth={false}>
+                          <Index />
+                        </ProtectedRoute>
                       </RouteErrorBoundary>
                     }
                   />

@@ -98,24 +98,82 @@ export const ProductCard = ({ product }: ProductCardProps) => {
     }
   };
 
-  const handleCardClick = () => {
+  const handleCardClick = (e: React.MouseEvent) => {
+    // Não navegar se o modal estiver aberto
+    if (isVariantDialogOpen) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    // Verificar se o clique veio de um botão, link ou elemento interativo
+    const target = e.target as HTMLElement;
+    const isInteractiveElement = target.closest('button') || 
+                                 target.closest('[role="button"]') || 
+                                 target.closest('a') ||
+                                 target.closest('[data-radix-portal]') ||
+                                 target.closest('[data-state]');
+    
+    if (isInteractiveElement) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
     navigate(`/product/${product.slug}`);
   };
 
-  // Obter cores e tamanhos únicos das variantes
+  // Obter cores disponíveis (filtradas por tamanho selecionado se houver)
   const availableColors = useMemo(() => {
     const colorsSet = new Set<string>();
-    if (product.variants) {
-      product.variants.forEach((v) => v.color && colorsSet.add(v.color));
+    const variants = product.variants || product.variations || [];
+    
+    if (selectedSize) {
+      // Se há tamanho selecionado, mostrar apenas cores que têm esse tamanho E têm estoque
+      variants.forEach((v) => {
+        if (v.size === selectedSize && v.color && (v.stock ?? 0) > 0) {
+          colorsSet.add(v.color);
+        }
+      });
+      
+      // Verificar também em product.colors
+      if (product.colors) {
+        product.colors.forEach((c) => {
+          if (c.size === selectedSize && c.color) {
+            colorsSet.add(c.color);
+          }
+        });
+      }
+    } else {
+      // Se não há tamanho selecionado, mostrar apenas cores que têm pelo menos uma variante com estoque
+      const colorStockMap = new Map<string, number>();
+      
+      variants.forEach((v) => {
+        if (v.color) {
+          const currentStock = colorStockMap.get(v.color) || 0;
+          const variantStock = v.stock ?? 0;
+          // Manter o maior estoque encontrado para esta cor
+          if (variantStock > currentStock) {
+            colorStockMap.set(v.color, variantStock);
+          }
+        }
+      });
+      
+      // Adicionar apenas cores com estoque > 0
+      colorStockMap.forEach((stock, color) => {
+        if (stock > 0) {
+          colorsSet.add(color);
+        }
+      });
+      
+      // Também verificar em product.colors (assumir que têm estoque se não especificado)
+      if (product.colors) {
+        product.colors.forEach((c) => {
+          if (c.color) colorsSet.add(c.color);
+        });
+      }
     }
-    if (product.variations) {
-      product.variations.forEach((v) => v.color && colorsSet.add(v.color));
-    }
-    if (product.colors) {
-      product.colors.forEach((c) => colorsSet.add(c.color));
-    }
+    
     return Array.from(colorsSet);
-  }, [product]);
+  }, [product, selectedSize]);
 
   // Tamanhos disponíveis para TODAS as cores (fallback se não houver variantes)
   const allAvailableSizes = useMemo(() => {
@@ -142,46 +200,68 @@ export const ProductCard = ({ product }: ProductCardProps) => {
 
   // Verificar se o produto tem variantes (cores ou tamanhos)
   const hasVariants = useMemo(() => {
-    const hasColors = availableColors.length > 0;
-    const hasSizes = allAvailableSizes.length > 0;
-    return hasColors || hasSizes;
-  }, [availableColors, allAvailableSizes]);
-
-  // Tamanhos disponíveis para a cor selecionada
-  const availableSizes = useMemo(() => {
-    // Se não há cor selecionada, retornar todos os tamanhos
-    if (!selectedColor) {
-      return allAvailableSizes;
-    }
-
-    // Filtrar tamanhos que existem para a cor selecionada
-    const sizesSet = new Set<string>();
-    
-    // Verificar em variants/variations
     const variants = product.variants || product.variations || [];
-    variants.forEach((v) => {
-      if (v.color === selectedColor && v.size) {
-        sizesSet.add(v.size);
-      }
-    });
+    const hasColors = variants.some((v) => v.color) || (product.colors && product.colors.length > 0);
+    const hasSizes = variants.some((v) => v.size) || (product.sizes && product.sizes.length > 0);
+    return hasColors || hasSizes;
+  }, [product]);
 
-    // Verificar em product.colors (estrutura onde cada item tem color e size)
-    if (product.colors && product.colors.length > 0) {
-      product.colors.forEach((c) => {
-        // Verificar se o objeto tem a propriedade color e size
-        if (c.color === selectedColor && c.size) {
-          sizesSet.add(c.size);
+  // Tamanhos disponíveis (filtrados por cor selecionada se houver)
+  const availableSizes = useMemo(() => {
+    const sizesSet = new Set<string>();
+    const variants = product.variants || product.variations || [];
+    
+    if (selectedColor) {
+      // Se há cor selecionada, mostrar apenas tamanhos que têm essa cor E têm estoque
+      variants.forEach((v) => {
+        if (v.color === selectedColor && v.size && (v.stock ?? 0) > 0) {
+          sizesSet.add(v.size);
         }
       });
-    }
-
-    // Se não encontrou tamanhos nas variantes/colors mas há sizes no produto, usar eles
-    if (sizesSet.size === 0 && product.sizes) {
-      product.sizes.forEach((s) => sizesSet.add(s));
+      
+      // Verificar também em product.colors
+      if (product.colors) {
+        product.colors.forEach((c) => {
+          if (c.color === selectedColor && c.size) {
+            sizesSet.add(c.size);
+          }
+        });
+      }
+    } else {
+      // Se não há cor selecionada, mostrar apenas tamanhos que têm pelo menos uma variante com estoque
+      const sizeStockMap = new Map<string, number>();
+      
+      variants.forEach((v) => {
+        if (v.size) {
+          const currentStock = sizeStockMap.get(v.size) || 0;
+          const variantStock = v.stock ?? 0;
+          // Manter o maior estoque encontrado para este tamanho
+          if (variantStock > currentStock) {
+            sizeStockMap.set(v.size, variantStock);
+          }
+        }
+      });
+      
+      // Adicionar apenas tamanhos com estoque > 0
+      sizeStockMap.forEach((stock, size) => {
+        if (stock > 0) {
+          sizesSet.add(size);
+        }
+      });
+      
+      // Também verificar em product.colors e product.sizes (assumir que têm estoque se não especificado)
+      if (product.colors) {
+        product.colors.forEach((c) => {
+          if (c.size) sizesSet.add(c.size);
+        });
+      }
+      if (product.sizes) {
+        product.sizes.forEach((s) => sizesSet.add(s));
+      }
     }
 
     return Array.from(sizesSet);
-  }, [selectedColor, product, allAvailableSizes]);
+  }, [selectedColor, product]);
 
   // Resetar tamanho quando a cor mudar e o tamanho atual não estiver disponível para a nova cor
   useEffect(() => {
@@ -243,6 +323,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
     requireAuth(() => {
       // Se o produto tem variantes, abrir modal de seleção
       if (hasVariants) {
+        e.stopPropagation();
         setIsVariantDialogOpen(true);
         return;
       }
@@ -256,7 +337,17 @@ export const ProductCard = ({ product }: ProductCardProps) => {
         return;
       }
 
-      // Se não tem variantes, adicionar diretamente (produto sem variantes)
+      // Se não tem variantes, verificar estoque do produto e adicionar diretamente
+      const productStock = product.stock || 0;
+      if (productStock <= 0) {
+        toast({
+          title: "Produto fora de estoque",
+          description: "Este produto não está disponível no momento.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
       const productId = product.id || product._id;
       if (!productId) return;
       
@@ -373,6 +464,13 @@ export const ProductCard = ({ product }: ProductCardProps) => {
     <div 
       className="group relative bg-card rounded-lg overflow-hidden shadow-card hover:shadow-card-hover transition-all duration-300 cursor-pointer"
       onClick={handleCardClick}
+      onMouseDown={(e) => {
+        // Prevenir navegação se o modal estiver aberto
+        if (isVariantDialogOpen) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      }}
     >
       {/* Image Container */}
       <div className="relative aspect-[3/3] overflow-hidden bg-muted">
@@ -477,10 +575,28 @@ export const ProductCard = ({ product }: ProductCardProps) => {
       </div>
 
       {/* Modal de Seleção de Variantes */}
-      <Dialog open={isVariantDialogOpen} onOpenChange={setIsVariantDialogOpen}>
-        <DialogContent className="sm:max-w-md max-h-[90vh] flex flex-col p-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+      <Dialog 
+        open={isVariantDialogOpen} 
+        onOpenChange={(open) => {
+          setIsVariantDialogOpen(open);
+          if (!open) {
+            setSelectedColor("");
+            setSelectedSize("");
+          }
+        }}
+        modal={true}
+      >
+        <DialogContent 
+          className="sm:max-w-md max-h-[90vh] flex flex-col p-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
           {/* Header Fixo */}
-          <DialogHeader className="px-6 pt-6 pb-4 flex-shrink-0 border-b">
+          <DialogHeader 
+            className="px-6 pt-6 pb-4 flex-shrink-0 border-b"
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
             <DialogTitle>{product.name}</DialogTitle>
             <DialogDescription>
               {hasVariants
@@ -494,63 +610,167 @@ export const ProductCard = ({ product }: ProductCardProps) => {
           </DialogHeader>
 
           {/* Conteúdo com Scroll */}
-          <div className="flex-1 overflow-y-auto px-6 py-4 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+          <div 
+            className="flex-1 overflow-y-auto px-6 py-4 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
             <div className="space-y-6">
               {/* Seleção de Cor */}
               {availableColors.length > 0 && (
                 <div className="space-y-3">
-                  <Label>Cor</Label>
+                  <Label>
+                    Cor
+                    {selectedSize && (
+                      <span className="text-xs text-muted-foreground ml-2">
+                        (disponíveis para tamanho {selectedSize})
+                      </span>
+                    )}
+                  </Label>
                   <div className="flex flex-wrap gap-3">
-                    {availableColors.map((color) => (
-                      <button
-                        key={color}
-                        type="button"
-                        onClick={() => {
-                          setSelectedColor(color);
-                          // Resetar tamanho quando mudar a cor, pois os tamanhos podem ser diferentes
-                          setSelectedSize("");
-                        }}
-                        className={cn(
-                          "w-12 h-12 rounded-full border-2 transition-all",
-                          selectedColor === color
-                            ? "border-primary scale-110 ring-2 ring-primary ring-offset-2"
-                            : "border-border hover:scale-105"
-                        )}
-                        style={{ backgroundColor: color }}
-                        title={color}
-                      />
-                    ))}
+                    {availableColors.map((color) => {
+                      // Verificar se esta cor tem estoque disponível para o tamanho selecionado (se houver)
+                      const variants = product.variants || product.variations || [];
+                      let hasStock = true;
+                      
+                      if (selectedSize) {
+                        // Se há tamanho selecionado, verificar se esta cor tem estoque para esse tamanho
+                        const colorVariant = variants.find(
+                          (v) => v.color === color && v.size === selectedSize
+                        );
+                        hasStock = (colorVariant?.stock ?? 0) > 0;
+                      } else {
+                        // Se não há tamanho selecionado, verificar se a cor tem ALGUM estoque em qualquer variante
+                        const colorVariants = variants.filter((v) => v.color === color);
+                        // Verificar se existe pelo menos uma variante com estoque > 0
+                        hasStock = colorVariants.length > 0 && colorVariants.some((v) => (v.stock ?? 0) > 0);
+                      }
+                      
+                      return (
+                        <button
+                          key={color}
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            // Se já tinha uma cor selecionada e está selecionando a mesma, desselecionar
+                            if (selectedColor === color) {
+                              setSelectedColor("");
+                              // Se não há tamanho selecionado, manter tamanho vazio
+                              if (!selectedSize) {
+                                setSelectedSize("");
+                              }
+                            } else {
+                              setSelectedColor(color);
+                              // Se há tamanho selecionado, verificar se é compatível com a nova cor
+                              if (selectedSize) {
+                                const isCompatible = variants.some(
+                                  (v) => v.color === color && v.size === selectedSize
+                                );
+                                if (!isCompatible) {
+                                  setSelectedSize("");
+                                }
+                              } else {
+                                setSelectedSize("");
+                              }
+                            }
+                          }}
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                          }}
+                          className={cn(
+                            "w-12 h-12 rounded-full border-2 transition-all relative",
+                            selectedColor === color
+                              ? "border-primary scale-110 ring-2 ring-primary ring-offset-2"
+                              : "border-border hover:scale-105",
+                            !hasStock && "opacity-50"
+                          )}
+                          style={{ backgroundColor: color }}
+                          title={hasStock ? color : `${color} (sem estoque)`}
+                          disabled={!hasStock}
+                        />
+                      );
+                    })}
                   </div>
                 </div>
               )}
 
               {/* Seleção de Tamanho - Só mostra se houver tamanhos disponíveis */}
-              {allAvailableSizes.length > 0 && (
-                <>
-                  {availableSizes.length > 0 ? (
-                    <div className="space-y-3">
-                      <Label>
-                        Tamanho
-                        {selectedColor && (
-                          <span className="text-xs text-muted-foreground ml-2">
-                            (disponíveis para esta cor)
-                          </span>
-                        )}
-                      </Label>
-                      <div className="flex flex-wrap gap-2">
-                        {availableSizes.map((size) => {
-                          // Verificar estoque para esta combinação de cor e tamanho
-                          const variantForSize = (product.variants || product.variations || []).find(
-                            (v) => v.color === selectedColor && v.size === size
-                          );
-                          const stock = variantForSize?.stock ?? 0;
-                          const isOutOfStock = stock <= 0;
+              {availableSizes.length > 0 && (
+                <div className="space-y-3">
+                  <Label>
+                    Tamanho
+                    {selectedColor && (
+                      <span className="text-xs text-muted-foreground ml-2">
+                        (disponíveis para cor {selectedColor})
+                      </span>
+                    )}
+                  </Label>
+                  <div className="flex flex-wrap gap-2">
+                    {availableSizes.map((size) => {
+                      // Verificar estoque para esta combinação de cor e tamanho
+                      const variants = product.variants || product.variations || [];
+                      let variantForSize;
+                      let stock = 0;
+                      
+                      if (selectedColor) {
+                        // Se há cor selecionada, buscar variante com cor e tamanho
+                        variantForSize = variants.find(
+                          (v) => v.color === selectedColor && v.size === size
+                        );
+                        stock = variantForSize?.stock ?? 0;
+                      } else {
+                        // Se não há cor selecionada, verificar se existe ALGUMA variante com estoque para este tamanho
+                        const variantsWithSize = variants.filter((v) => v.size === size);
+                        // Encontrar a primeira variante com estoque disponível
+                        variantForSize = variantsWithSize.find((v) => (v.stock ?? 0) > 0);
+                        // Se encontrou uma com estoque, usar seu estoque; senão, verificar se todas estão sem estoque
+                        if (variantForSize) {
+                          stock = variantForSize.stock ?? 0;
+                        } else if (variantsWithSize.length > 0) {
+                          // Se há variantes mas todas sem estoque, usar 0
+                          stock = 0;
+                        } else {
+                          // Se não há variantes com este tamanho, não deveria estar na lista
+                          stock = 0;
+                        }
+                      }
+                      
+                      const isOutOfStock = stock <= 0;
 
                           return (
                             <button
                               key={size}
                               type="button"
-                              onClick={() => !isOutOfStock && setSelectedSize(size)}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                if (!isOutOfStock) {
+                                  // Se já tinha um tamanho selecionado e está selecionando o mesmo, desselecionar
+                                  if (selectedSize === size) {
+                                    setSelectedSize("");
+                                    // Se não há cor selecionada, manter cor vazia
+                                    if (!selectedColor) {
+                                      setSelectedColor("");
+                                    }
+                                  } else {
+                                    setSelectedSize(size);
+                                    // Se a cor selecionada não é compatível com este tamanho, limpar cor
+                                    const variants = product.variants || product.variations || [];
+                                    const hasColorForThisSize = variants.some(
+                                      (v) => v.size === size && v.color === selectedColor
+                                    );
+                                    if (selectedColor && !hasColorForThisSize) {
+                                      setSelectedColor("");
+                                    }
+                                  }
+                                }
+                              }}
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                              }}
                               disabled={isOutOfStock}
                               className={cn(
                                 "px-4 py-2 rounded-md border-2 transition-all text-sm font-medium relative",
@@ -573,15 +793,6 @@ export const ProductCard = ({ product }: ProductCardProps) => {
                         })}
                       </div>
                     </div>
-                  ) : selectedColor ? (
-                    <div className="space-y-3">
-                      <Label>Tamanho</Label>
-                      <p className="text-sm text-muted-foreground">
-                        Nenhum tamanho disponível para esta cor.
-                      </p>
-                    </div>
-                  ) : null}
-                </>
               )}
 
               {/* Preview do Preço e Estoque */}
@@ -610,19 +821,37 @@ export const ProductCard = ({ product }: ProductCardProps) => {
           </div>
 
           {/* Footer Fixo */}
-          <DialogFooter className="px-6 pb-6 pt-4 flex-shrink-0 border-t">
+          <DialogFooter 
+            className="px-6 pb-6 pt-4 flex-shrink-0 border-t"
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
             <Button
               variant="outline"
-              onClick={() => {
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
                 setIsVariantDialogOpen(false);
                 setSelectedColor("");
                 setSelectedSize("");
+              }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
               }}
             >
               Cancelar
             </Button>
             <Button 
-              onClick={handleConfirmAddToCart}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleConfirmAddToCart();
+              }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
               disabled={selectedVariant && (selectedVariant.stock ?? 0) <= 0}
             >
               {selectedVariant && (selectedVariant.stock ?? 0) <= 0

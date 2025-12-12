@@ -32,7 +32,20 @@ export const ProtectedRoute = ({
 
   // Verificar se o usuário tem permissão
   const hasPermission = useMemo(() => {
-    if (!requireAuth) return true;
+    // Se não requer autenticação e não há role requerida, permitir acesso
+    if (!requireAuth && !allowedRoles) return true;
+    
+    // Se não requer autenticação mas há role requerida
+    if (!requireAuth && allowedRoles) {
+      // Se não está autenticado, permitir (usuários não autenticados podem acessar)
+      if (!isAuthenticated || !user) return true;
+      
+      // Se está autenticado, verificar se tem a role permitida
+      // Se não tem a role permitida, negar acesso (será redirecionado)
+      return allowedRoles.includes(user.role as any);
+    }
+    
+    // Se requer autenticação
     if (!isAuthenticated || !user) return false;
     
     // Verificar se o usuário está ativo
@@ -91,13 +104,14 @@ export const ProtectedRoute = ({
   }
 
   // Se o usuário está desativado, fazer logout e redirecionar
-  if (requireAuth && isAuthenticated && user?.active === false) {
+  if (isAuthenticated && user?.active === false) {
     dispatch(logout());
     return <Navigate to="/auth" replace />;
   }
 
   // Se tiver role(s) requerida(s) e o usuário não tiver permissão, redirecionar
-  if (requireAuth && allowedRoles && !hasPermission) {
+  // Isso funciona tanto para requireAuth=true quanto requireAuth=false
+  if (allowedRoles && isAuthenticated && user && !hasPermission) {
     return <Navigate to={redirectTo} replace />;
   }
 

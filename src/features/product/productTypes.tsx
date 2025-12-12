@@ -21,6 +21,7 @@ export interface Product {
   ratingsQuantity: number;
   description: string;
   priceDiscount?: number;
+  stock?: number; // Estoque para produtos sem variantes
   slug: string;
   createdAt: string;
   updatedAt?: string;

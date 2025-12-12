@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import Header from "../components/Header";
@@ -201,6 +201,161 @@ const ProductDetails = () => {
     dispatch(clearCouponError());
   }, [dispatch]);
 
+  // Variantes do produto usando useMemo para evitar problemas com hooks
+  const variants: Variant[] = useMemo(() => {
+    return currentProduct?.variants || [];
+  }, [currentProduct?.variants]);
+
+  // === FUNÇÕES DE SINCRONIZAÇÃO AUTOMÁTICA ===
+  const getAvailableSizesForColor = (color: string) => {
+    if (!color) {
+      // Retornar apenas tamanhos com estoque > 0
+      return Array.from(
+        new Set(
+          variants
+            .filter((v) => (v.stock || 0) > 0)
+            .map((v) => v.size)
+        )
+      );
+    }
+    return Array.from(
+      new Set(
+        variants
+          .filter((v) => v.color === color && (v.stock || 0) > 0)
+          .map((v) => v.size)
+      )
+    );
+  };
+
+  const getAvailableColorsForSize = (size: string) => {
+    if (!size) {
+      // Retornar apenas cores com estoque > 0
+      return Array.from(
+        new Set(
+          variants
+            .filter((v) => (v.stock || 0) > 0)
+            .map((v) => v.color)
+        )
+      );
+    }
+    return Array.from(
+      new Set(
+        variants
+          .filter((v) => v.size === size && (v.stock || 0) > 0)
+          .map((v) => v.color)
+      )
+    );
+  };
+
+  // Cores e tamanhos disponíveis baseados na seleção atual (apenas com estoque)
+  const availableColors = useMemo(() => {
+    return selectedSize
+      ? getAvailableColorsForSize(selectedSize)
+      : Array.from(
+          new Set(
+            variants
+              .filter((v) => (v.stock || 0) > 0)
+              .map((v) => v.color)
+          )
+        );
+  }, [selectedSize, variants]);
+
+  const availableSizes = useMemo(() => {
+    return selectedColor
+      ? getAvailableSizesForColor(selectedColor)
+      : Array.from(
+          new Set(
+            variants
+              .filter((v) => (v.stock || 0) > 0)
+              .map((v) => v.size)
+          )
+        );
+  }, [selectedColor, variants]);
+
+  // Função para obter estoque atual da variante selecionada
+  const getCurrentStock = () => {
+    if (variants.length > 0) {
+      if (selectedColor || selectedSize) {
+        const matchingVariant = variants.find(
+          (v) =>
+            (!selectedColor || v.color === selectedColor) &&
+            (!selectedSize || v.size === selectedSize)
+        );
+        return matchingVariant?.stock || 0;
+      }
+      // Se não há seleção, retornar 0 (precisa selecionar)
+      return 0;
+    } else {
+      // Produto sem variantes
+      return currentProduct?.stock || 0;
+    }
+  };
+
+  const currentStock = useMemo(() => {
+    return getCurrentStock();
+  }, [variants, selectedColor, selectedSize, currentProduct?.stock]);
+
+  // Handlers com sincronização automática e validação de estoque
+  const handleColorSelect = (color: string) => {
+    setSelectedColor(color);
+
+    // Se um tamanho já está selecionado, verificar se ainda é válido para a nova cor
+    if (selectedSize) {
+      const validSizesForColor = getAvailableSizesForColor(color);
+      if (!validSizesForColor.includes(selectedSize)) {
+        setSelectedSize(""); // Limpar tamanho se não for compatível
+        // Resetar quantidade se não houver estoque
+        setQuantity(1);
+      } else {
+        // Verificar estoque da nova combinação
+        const newVariant = variants.find(
+          (v) => v.color === color && v.size === selectedSize
+        );
+        const newStock = newVariant?.stock || 0;
+        if (quantity > newStock) {
+          setQuantity(Math.max(1, newStock));
+        }
+      }
+    }
+  };
+
+  const handleSizeSelect = (size: string) => {
+    setSelectedSize(size);
+
+    // Se uma cor já está selecionada, verificar se ainda é válida para o novo tamanho
+    if (selectedColor) {
+      const validColorsForSize = getAvailableColorsForSize(size);
+      if (!validColorsForSize.includes(selectedColor)) {
+        setSelectedColor(""); // Limpar cor se não for compatível
+        // Resetar quantidade se não houver estoque
+        setQuantity(1);
+      } else {
+        // Verificar estoque da nova combinação
+        const newVariant = variants.find(
+          (v) => v.color === selectedColor && v.size === size
+        );
+        const newStock = newVariant?.stock || 0;
+        if (quantity > newStock) {
+          setQuantity(Math.max(1, newStock));
+        }
+      }
+    }
+  };
+
+  // Validar e ajustar quantidade quando estoque mudar
+  useEffect(() => {
+    if (!currentProduct) return;
+    
+    if (currentStock > 0 && quantity > currentStock) {
+      setQuantity(currentStock);
+      showToast({
+        title: "Quantidade ajustada",
+        description: `Apenas ${currentStock} unidade(s) disponível(eis) em estoque.`,
+        variant: "default",
+      });
+    }
+  }, [currentStock, selectedColor, selectedSize, quantity, showToast, currentProduct]);
+
   // Loading state
   if (loading) {
     return (
@@ -344,58 +499,6 @@ const ProductDetails = () => {
     ...(product.images || []),
   ];
 
-  // Variantes do produto (garanta que vem populado com .populate('variants') no backend)
-  const variants: Variant[] = product.variants || [];
-
-  // === FUNÇÕES DE SINCRONIZAÇÃO AUTOMÁTICA ===
-  const getAvailableSizesForColor = (color: string) => {
-    if (!color) return Array.from(new Set(variants.map((v) => v.size)));
-    return Array.from(
-      new Set(variants.filter((v) => v.color === color).map((v) => v.size))
-    );
-  };
-
-  const getAvailableColorsForSize = (size: string) => {
-    if (!size) return Array.from(new Set(variants.map((v) => v.color)));
-    return Array.from(
-      new Set(variants.filter((v) => v.size === size).map((v) => v.color))
-    );
-  };
-
-  // Cores e tamanhos disponíveis baseados na seleção atual
-  const availableColors = selectedSize
-    ? getAvailableColorsForSize(selectedSize)
-    : Array.from(new Set(variants.map((v) => v.color)));
-
-  const availableSizes = selectedColor
-    ? getAvailableSizesForColor(selectedColor)
-    : Array.from(new Set(variants.map((v) => v.size)));
-
-  // Handlers com sincronização automática
-  const handleColorSelect = (color: string) => {
-    setSelectedColor(color);
-
-    // Se um tamanho já está selecionado, verificar se ainda é válido para a nova cor
-    if (selectedSize) {
-      const validSizesForColor = getAvailableSizesForColor(color);
-      if (!validSizesForColor.includes(selectedSize)) {
-        setSelectedSize(""); // Limpar tamanho se não for compatível
-      }
-    }
-  };
-
-  const handleSizeSelect = (size: string) => {
-    setSelectedSize(size);
-
-    // Se uma cor já está selecionada, verificar se ainda é válida para o novo tamanho
-    if (selectedColor) {
-      const validColorsForSize = getAvailableColorsForSize(size);
-      if (!validColorsForSize.includes(selectedColor)) {
-        setSelectedColor(""); // Limpar cor se não for compatível
-      }
-    }
-  };
-
   const reviews = product.reviews || [];
   const averageRating = product.ratingsAverage || 0;
   const totalReviews = product.ratingsQuantity || 0;
@@ -437,39 +540,53 @@ const ProductDetails = () => {
 
   const handleAddToCart = () => {
     requireAuth(() => {
-      if (!selectedColor) {
-        showToast({
-          title: "Selecione uma cor",
-          description:
-            "Por favor, escolha uma cor antes de adicionar ao carrinho.",
-          variant: "destructive",
-        });
-        return;
-      }
+      // Validar estoque
+      if (variants.length > 0) {
+        // Produto com variantes - exigir seleção de cor
+        if (!selectedColor) {
+          showToast({
+            title: "Selecione uma cor",
+            description:
+              "Por favor, escolha uma cor antes de adicionar ao carrinho.",
+            variant: "destructive",
+          });
+          return;
+        }
+        // Produto com variantes - validar estoque da variante selecionada
+        if (selectedColor || selectedSize) {
+          const matchingVariant = variants.find(
+            (v) => 
+              (!selectedColor || v.color === selectedColor) &&
+              (!selectedSize || v.size === selectedSize)
+          );
 
-      // Validar estoque se houver variante selecionada
-      if (selectedColor || selectedSize) {
-        const matchingVariant = variants.find(
-          (v) => 
-            (!selectedColor || v.color === selectedColor) &&
-            (!selectedSize || v.size === selectedSize)
-        );
-
-        if (matchingVariant) {
-          const availableStock = matchingVariant.stock || 0;
-          if (availableStock < quantity) {
+          if (matchingVariant) {
+            const availableStock = matchingVariant.stock || 0;
+            if (availableStock < quantity) {
+              showToast({
+                title: "Estoque insuficiente",
+                description: `Apenas ${availableStock} unidade(s) disponível(eis) para esta variante.`,
+                variant: "destructive",
+              });
+              return;
+            }
+          } else {
+            // Se há variantes mas não encontrou a selecionada
             showToast({
-              title: "Estoque insuficiente",
-              description: `Apenas ${availableStock} unidade(s) disponível(eis) para esta variante.`,
+              title: "Variante não encontrada",
+              description: "A variante selecionada não está disponível.",
               variant: "destructive",
             });
             return;
           }
-        } else if (variants.length > 0) {
-          // Se há variantes mas não encontrou a selecionada
+        }
+      } else {
+        // Produto sem variantes - validar estoque do produto diretamente
+        const productStock = product.stock || 0;
+        if (productStock < quantity) {
           showToast({
-            title: "Variante não encontrada",
-            description: "A variante selecionada não está disponível.",
+            title: "Estoque insuficiente",
+            description: `Apenas ${productStock} unidade(s) disponível(eis) para este produto.`,
             variant: "destructive",
           });
           return;
@@ -496,15 +613,6 @@ const ProductDetails = () => {
 
   const handleBuyNow = async () => {
     requireAuth(async () => {
-      if (!selectedColor) {
-        showToast({
-          title: "Selecione uma cor",
-          description: "Por favor, escolha uma cor antes de comprar.",
-          variant: "destructive",
-        });
-        return;
-      }
-
       if (!currentProduct?._id) {
         showToast({
           title: "Erro",
@@ -514,28 +622,51 @@ const ProductDetails = () => {
         return;
       }
 
-      // Validar estoque se houver variante selecionada
-      if (selectedColor || selectedSize) {
-        const matchingVariant = variants.find(
-          (v) => 
-            (!selectedColor || v.color === selectedColor) &&
-            (!selectedSize || v.size === selectedSize)
-        );
+      // Validar estoque
+      if (variants.length > 0) {
+        // Produto com variantes - exigir seleção de cor
+        if (!selectedColor) {
+          showToast({
+            title: "Selecione uma cor",
+            description: "Por favor, escolha uma cor antes de comprar.",
+            variant: "destructive",
+          });
+          return;
+        }
+        // Produto com variantes - validar estoque da variante selecionada
+        if (selectedColor || selectedSize) {
+          const matchingVariant = variants.find(
+            (v) => 
+              (!selectedColor || v.color === selectedColor) &&
+              (!selectedSize || v.size === selectedSize)
+          );
 
-        if (matchingVariant) {
-          const availableStock = matchingVariant.stock || 0;
-          if (availableStock < quantity) {
+          if (matchingVariant) {
+            const availableStock = matchingVariant.stock || 0;
+            if (availableStock < quantity) {
+              showToast({
+                title: "Estoque insuficiente",
+                description: `Apenas ${availableStock} unidade(s) disponível(eis) para esta variante.`,
+                variant: "destructive",
+              });
+              return;
+            }
+          } else {
             showToast({
-              title: "Estoque insuficiente",
-              description: `Apenas ${availableStock} unidade(s) disponível(eis) para esta variante.`,
+              title: "Variante não encontrada",
+              description: "A variante selecionada não está disponível.",
               variant: "destructive",
             });
             return;
           }
-        } else if (variants.length > 0) {
+        }
+      } else {
+        // Produto sem variantes - validar estoque do produto diretamente
+        const productStock = product.stock || 0;
+        if (productStock < quantity) {
           showToast({
-            title: "Variante não encontrada",
-            description: "A variante selecionada não está disponível.",
+            title: "Estoque insuficiente",
+            description: `Apenas ${productStock} unidade(s) disponível(eis) para este produto.`,
             variant: "destructive",
           });
           return;
@@ -549,8 +680,11 @@ const ProductDetails = () => {
             product: currentProduct._id,
             quantity: quantity,
             price: finalPrice / quantity, // Preço unitário
-            color: selectedColor,
-            size: selectedSize,
+            // Incluir color e size apenas se o produto tiver variantes
+            ...(variants.length > 0 && {
+              color: selectedColor || undefined,
+              size: selectedSize || undefined,
+            }),
           },
         ],
         discount: validatedCoupon ? validatedCoupon.discountValue : 0,
@@ -977,22 +1111,47 @@ const ProductDetails = () => {
                 Cor: {selectedColor || "Selecione"}
               </h3>
               <div className="flex gap-2 flex-wrap">
-                {availableColors.map((color) => (
-                  <button
-                    key={color}
-                    onClick={() => handleColorSelect(color)}
-                    className={cn(
-                      "w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 transition-all hover:scale-110",
-                      selectedColor === color
-                        ? "border-primary ring-2 ring-primary ring-offset-1 sm:ring-offset-2"
-                        : "border-border"
-                    )}
-                    style={{
-                      backgroundColor: color,
-                    }}
-                    title={color}
-                  />
-                ))}
+                {availableColors.length > 0 ? (
+                  availableColors.map((color) => {
+                    // Verificar se há estoque para esta cor (considerando tamanho selecionado)
+                    const hasStock = variants.some(
+                      (v) =>
+                        v.color === color &&
+                        (!selectedSize || v.size === selectedSize) &&
+                        (v.stock || 0) > 0
+                    );
+                    return (
+                      <button
+                        key={color}
+                        onClick={() => hasStock && handleColorSelect(color)}
+                        disabled={!hasStock}
+                        className={cn(
+                          "w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 transition-all",
+                          !hasStock
+                            ? "opacity-50 cursor-not-allowed"
+                            : "hover:scale-110",
+                          selectedColor === color
+                            ? "border-primary ring-2 ring-primary ring-offset-1 sm:ring-offset-2"
+                            : "border-border"
+                        )}
+                        style={{
+                          backgroundColor: color,
+                        }}
+                        title={
+                          !hasStock
+                            ? "Fora de estoque"
+                            : selectedSize
+                            ? `${color} - Verificar estoque para tamanho ${selectedSize}`
+                            : color
+                        }
+                      />
+                    );
+                  })
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Nenhuma cor disponível em estoque
+                  </p>
+                )}
               </div>
             </div>
 
@@ -1060,7 +1219,7 @@ const ProductDetails = () => {
                   size="icon"
                   className="h-9 w-9 sm:h-10 sm:w-10"
                   onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                  disabled={quantity <= 1}
+                  disabled={quantity <= 1 || currentStock <= 0}
                 >
                   <Minus className="w-4 h-4" />
                 </Button>
@@ -1072,45 +1231,67 @@ const ProductDetails = () => {
                   size="icon"
                   className="h-9 w-9 sm:h-10 sm:w-10"
                   onClick={() => {
-                    // Limitar quantidade ao estoque disponível
-                    const matchingVariant = variants.find(
-                      (v) => 
-                        (!selectedColor || v.color === selectedColor) &&
-                        (!selectedSize || v.size === selectedSize)
-                    );
-                    const maxStock = matchingVariant?.stock ?? 999;
-                    setQuantity(Math.min(quantity + 1, maxStock));
+                    if (currentStock > 0) {
+                      setQuantity(Math.min(quantity + 1, currentStock));
+                    } else {
+                      showToast({
+                        title: "Estoque indisponível",
+                        description: "Não há estoque disponível para este produto.",
+                        variant: "destructive",
+                      });
+                    }
                   }}
-                  disabled={
-                    (() => {
-                      const matchingVariant = variants.find(
-                        (v) => 
-                          (!selectedColor || v.color === selectedColor) &&
-                          (!selectedSize || v.size === selectedSize)
-                      );
-                      const maxStock = matchingVariant?.stock ?? 999;
-                      return quantity >= maxStock;
-                    })()
-                  }
+                  disabled={quantity >= currentStock || currentStock <= 0}
                 >
                   <Plus className="w-4 h-4" />
                 </Button>
               </div>
               {/* Mostrar estoque disponível */}
-              {selectedColor && selectedSize && (() => {
-                const matchingVariant = variants.find(
-                  (v) => v.color === selectedColor && v.size === selectedSize
-                );
-                const stock = matchingVariant?.stock ?? 0;
-                return stock > 0 ? (
-                  <p className="text-xs sm:text-sm text-muted-foreground mt-2">
-                    {stock} unidade(s) disponível(eis) em estoque
-                  </p>
-                ) : (
-                  <p className="text-xs sm:text-sm text-destructive mt-2">
-                    Fora de estoque
-                  </p>
-                );
+              {(() => {
+                const stock = currentStock;
+                if (variants.length > 0) {
+                  // Produto com variantes
+                  if (!selectedColor && !selectedSize) {
+                    return (
+                      <p className="text-xs sm:text-sm text-muted-foreground mt-2">
+                        Selecione cor e tamanho para ver o estoque disponível
+                      </p>
+                    );
+                  }
+                  if (selectedColor && !selectedSize) {
+                    return (
+                      <p className="text-xs sm:text-sm text-muted-foreground mt-2">
+                        Selecione um tamanho para ver o estoque disponível
+                      </p>
+                    );
+                  }
+                  if (!selectedColor && selectedSize) {
+                    return (
+                      <p className="text-xs sm:text-sm text-muted-foreground mt-2">
+                        Selecione uma cor para ver o estoque disponível
+                      </p>
+                    );
+                  }
+                }
+                // Mostrar estoque (com ou sem variantes)
+                if (stock > 0) {
+                  return (
+                    <p className="text-xs sm:text-sm text-muted-foreground mt-2">
+                      {stock} unidade(s) disponível(eis) em estoque
+                      {quantity > stock && (
+                        <span className="text-destructive ml-1">
+                          (Quantidade selecionada excede o estoque)
+                        </span>
+                      )}
+                    </p>
+                  );
+                } else {
+                  return (
+                    <p className="text-xs sm:text-sm text-destructive mt-2 font-medium">
+                      Fora de estoque
+                    </p>
+                  );
+                }
               })()}
             </div>
 
@@ -1124,32 +1305,46 @@ const ProductDetails = () => {
                 onClick={handleAddToCart}
                 disabled={
                   (() => {
-                    if (selectedColor || selectedSize) {
-                      const matchingVariant = variants.find(
-                        (v) => 
-                          (!selectedColor || v.color === selectedColor) &&
-                          (!selectedSize || v.size === selectedSize)
-                      );
-                      return (matchingVariant?.stock ?? 0) <= 0;
+                    if (variants.length > 0) {
+                      // Produto com variantes
+                      if (selectedColor || selectedSize) {
+                        const matchingVariant = variants.find(
+                          (v) => 
+                            (!selectedColor || v.color === selectedColor) &&
+                            (!selectedSize || v.size === selectedSize)
+                        );
+                        return (matchingVariant?.stock ?? 0) <= 0;
+                      }
+                      return false;
+                    } else {
+                      // Produto sem variantes - verificar estoque do produto
+                      return (product.stock || 0) <= 0;
                     }
-                    return false;
                   })()
                 }
               >
                 <ShoppingCart className="w-4 h-4 sm:w-5 sm:h-5" />
                 <span className="text-sm sm:text-base">
                   {(() => {
-                    if (selectedColor || selectedSize) {
-                      const matchingVariant = variants.find(
-                        (v) => 
-                          (!selectedColor || v.color === selectedColor) &&
-                          (!selectedSize || v.size === selectedSize)
-                      );
-                      return (matchingVariant?.stock ?? 0) <= 0
+                    if (variants.length > 0) {
+                      // Produto com variantes
+                      if (selectedColor || selectedSize) {
+                        const matchingVariant = variants.find(
+                          (v) => 
+                            (!selectedColor || v.color === selectedColor) &&
+                            (!selectedSize || v.size === selectedSize)
+                        );
+                        return (matchingVariant?.stock ?? 0) <= 0
+                          ? "Fora de Estoque"
+                          : "Adicionar ao Carrinho";
+                      }
+                      return "Adicionar ao Carrinho";
+                    } else {
+                      // Produto sem variantes
+                      return (product.stock || 0) <= 0
                         ? "Fora de Estoque"
                         : "Adicionar ao Carrinho";
                     }
-                    return "Adicionar ao Carrinho";
                   })()}
                 </span>
               </Button>
@@ -1181,32 +1376,46 @@ const ProductDetails = () => {
               disabled={
                 orderLoading ||
                 (() => {
-                  if (selectedColor || selectedSize) {
-                    const matchingVariant = variants.find(
-                      (v) => 
-                        (!selectedColor || v.color === selectedColor) &&
-                        (!selectedSize || v.size === selectedSize)
-                    );
-                    return (matchingVariant?.stock ?? 0) < quantity;
-                  }
-                  return false;
-                })()
-              }
-            >
-              {orderLoading 
-                ? "Processando..." 
-                : (() => {
+                  if (variants.length > 0) {
+                    // Produto com variantes
                     if (selectedColor || selectedSize) {
                       const matchingVariant = variants.find(
                         (v) => 
                           (!selectedColor || v.color === selectedColor) &&
                           (!selectedSize || v.size === selectedSize)
                       );
-                      return (matchingVariant?.stock ?? 0) < quantity
+                      return (matchingVariant?.stock ?? 0) < quantity;
+                    }
+                    return false;
+                  } else {
+                    // Produto sem variantes - verificar estoque do produto
+                    return (product.stock || 0) < quantity;
+                  }
+                })()
+              }
+            >
+              {orderLoading 
+                ? "Processando..." 
+                : (() => {
+                    if (variants.length > 0) {
+                      // Produto com variantes
+                      if (selectedColor || selectedSize) {
+                        const matchingVariant = variants.find(
+                          (v) => 
+                            (!selectedColor || v.color === selectedColor) &&
+                            (!selectedSize || v.size === selectedSize)
+                        );
+                        return (matchingVariant?.stock ?? 0) < quantity
+                          ? "Estoque Insuficiente"
+                          : "Comprar Agora";
+                      }
+                      return "Comprar Agora";
+                    } else {
+                      // Produto sem variantes
+                      return (product.stock || 0) < quantity
                         ? "Estoque Insuficiente"
                         : "Comprar Agora";
                     }
-                    return "Comprar Agora";
                   })()}
             </Button>
           </div>

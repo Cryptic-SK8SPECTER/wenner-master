@@ -378,6 +378,7 @@ const Admin = () => {
     loading: usersLoading,
     error: usersError,
     user: currentUser,
+    isAuthenticated,
   } = useAppSelector((state) => state.user);
 
   // Verificar se o usuário é manager
@@ -1053,11 +1054,13 @@ const Admin = () => {
     const price = formData.get("price") as string;
     const category = formData.get("category") as string;
     const gender = formData.get("gender") as string;
+    const stock = formData.get("stock") as string;
 
     payload.append("name", name);
     payload.append("price", price);
     payload.append("category", category);
     payload.append("gender", gender);
+    payload.append("stock", stock || "0");
 
     if (editProductImageFile) {
       payload.append("imageCover", editProductImageFile);
@@ -1575,6 +1578,7 @@ const Admin = () => {
         category: formData.get("category") as string,
         gender: formData.get("gender") as string,
         description: formData.get("description") as string,
+        stock: parseInt(formData.get("stock") as string) || 0,
         imageCover: productImageFile,
       };
 
@@ -1585,6 +1589,7 @@ const Admin = () => {
       form.append("category", productData.category);
       form.append("gender", productData.gender);
       form.append("description", productData.description);
+      form.append("stock", String(productData.stock));
 
       // Main image file (prefer file; fallback to nothing)
       if (productImageFile) {
@@ -3023,9 +3028,20 @@ const Admin = () => {
                               <p className="text-xs sm:text-sm text-muted-foreground">
                                 {product.category} • {product.gender}
                               </p>
-                              <p className="text-base sm:text-lg font-bold text-accent mt-1">
-                                {product.price.toFixed(2)} MZN
-                              </p>
+                              <div className="flex items-center gap-2 sm:gap-3 mt-1 flex-wrap">
+                                <p className="text-base sm:text-lg font-bold text-accent">
+                                  {product.price.toFixed(2)} MZN
+                                </p>
+                                {/* Mostrar estoque se o produto não tiver variantes */}
+                                {(!product.variants || product.variants.length === 0) && (
+                                  <Badge 
+                                    variant={product.stock && product.stock > 0 ? "default" : "destructive"}
+                                    className="text-xs"
+                                  >
+                                    Estoque: {product.stock || 0}
+                                  </Badge>
+                                )}
+                              </div>
                             </div>
                             <div className="flex gap-1 sm:gap-2 flex-shrink-0">
                               <Button
@@ -3677,6 +3693,23 @@ const Admin = () => {
                           required
                         />
                       </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="stock" className="text-sm font-medium">Estoque Inicial *</Label>
+                        <Input
+                          id="stock"
+                          name="stock"
+                          type="number"
+                          min="0"
+                          step="1"
+                          placeholder="0"
+                          defaultValue="0"
+                          className="text-sm"
+                          required
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Quantidade inicial em estoque (para produtos sem variantes)
+                        </p>
+                      </div>
                     </div>
 
                     <div className="grid gap-4 sm:grid-cols-2">
@@ -4170,6 +4203,22 @@ const Admin = () => {
                     required
                     className="text-sm"
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-stock" className="text-sm">Estoque *</Label>
+                  <Input
+                    id="edit-stock"
+                    name="stock"
+                    type="number"
+                    min="0"
+                    step="1"
+                    defaultValue={editingProduct.stock || 0}
+                    required
+                    className="text-sm"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Estoque para produtos sem variantes
+                  </p>
                 </div>
               </div>
 

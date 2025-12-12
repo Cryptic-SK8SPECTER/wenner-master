@@ -15,7 +15,7 @@ function getBaseURL(): string {
   
   // Prioridade 2: Modo de desenvolvimento
   if (import.meta.env.DEV) {
-    return "http://localhost:8000";
+    return "http://localhost:9000";
   }
   
   // Prioridade 3: Produção (fallback)
