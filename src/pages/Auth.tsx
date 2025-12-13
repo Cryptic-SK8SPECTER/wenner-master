@@ -6,6 +6,7 @@ import {
   signupUser,
   forgotPassword,
   resetPassword,
+  checkEmailExists,
 } from "../features/user/userActions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -144,6 +145,8 @@ const Auth = () => {
   );
   const [showResetPassword, setShowResetPassword] = useState(false);
   const [resetToken, setResetToken] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string>("");
+  const [isCheckingEmail, setIsCheckingEmail] = useState(false);
 
   // Extract token from URL on mount
   useEffect(() => {
@@ -213,6 +216,33 @@ const Auth = () => {
     }
   };
 
+  const handleEmailBlur = async (email: string) => {
+    if (!email || !email.includes("@")) {
+      setEmailError("");
+      return;
+    }
+
+    try {
+      setIsCheckingEmail(true);
+      const result = await dispatch(checkEmailExists(email)).unwrap();
+      
+      let errorMessage = "";
+      
+      if (result.exists) {
+        errorMessage = "Este email já está cadastrado. Use outro email ou faça login.";
+      } else if (!result.isValid) {
+        errorMessage = `Email inválido: ${result.domainValidation?.reason || "Domínio não encontrado ou não aceita emails"}`;
+      }
+      
+      setEmailError(errorMessage);
+    } catch (error) {
+      // Se houver erro na verificação, não bloqueia o cadastro
+      setEmailError("");
+    } finally {
+      setIsCheckingEmail(false);
+    }
+  };
+
   const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
@@ -224,6 +254,36 @@ const Auth = () => {
 
     try {
       signupSchema.parse({ name, email, password, confirmPassword, phone });
+      
+      // Verificar se o email já existe e é válido antes de cadastrar
+      setIsCheckingEmail(true);
+      const emailCheck = await dispatch(checkEmailExists(email)).unwrap();
+      
+      if (emailCheck.exists) {
+        setEmailError("Este email já está cadastrado. Use outro email ou faça login.");
+        setIsCheckingEmail(false);
+        toast({
+          title: "Email já cadastrado",
+          description: "Este email já está em uso. Use outro email ou faça login.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      if (!emailCheck.isValid) {
+        setEmailError(`Email inválido: ${emailCheck.domainValidation?.reason || "Domínio não encontrado"}`);
+        setIsCheckingEmail(false);
+        toast({
+          title: "Email inválido",
+          description: emailCheck.domainValidation?.reason || "O domínio do email não existe ou não aceita emails.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      setEmailError("");
+      setIsCheckingEmail(false);
+      
       setIsLoading(true);
 
       await dispatch(
@@ -439,17 +499,26 @@ const Auth = () => {
                   pattern="(\+258)?[89]\d{8}"
                   title="Formato: +258841234567 ou 841234567 (9 dígitos começando com 8 ou 9)"
                 />
-                <InputField
-                  label="Email"
-                  id="signup-email"
-                  name="email"
-                  type="email"
-                  placeholder="exemplo@email.com"
-                  required
-                  disabled={isLoading}
-                  icon={Mail}
-                  iconPosition="right"
-                />
+                <div className="space-y-1">
+                  <InputField
+                    label="Email"
+                    id="signup-email"
+                    name="email"
+                    type="email"
+                    placeholder="exemplo@email.com"
+                    required
+                    disabled={isLoading || isCheckingEmail}
+                    icon={Mail}
+                    iconPosition="right"
+                    error={emailError}
+                    onBlur={(e) => handleEmailBlur(e.target.value)}
+                  />
+                  {isCheckingEmail && !emailError && (
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Verificando disponibilidade do email...
+                    </p>
+                  )}
+                </div>
 
                 <div className="space-y-1">
                   <InputField

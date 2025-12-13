@@ -3,7 +3,7 @@ import { Product, ApiResponse } from "./productTypes";
 import { customFetch } from "../../lib/utils";
 import { logoutUser } from "../user/userActions";
 
-// Buscar produtos da API
+// Buscar produtos da API (filtra produtos fora de estoque)
 export const fetchProducts = createAsyncThunk<Product[]>(
   "products/fetchProducts",
   async (_, { rejectWithValue, dispatch }) => {
@@ -24,6 +24,58 @@ export const fetchProducts = createAsyncThunk<Product[]>(
       return normalizedProducts;
     } catch (err: unknown) {
       console.error("❌ Erro no fetchProducts:", err);
+      const error = err as {
+        response?: { status?: number; data?: Record<string, unknown> };
+        message?: string;
+      };
+
+      if (error?.response?.status === 401) {
+        dispatch(logoutUser());
+        return rejectWithValue("Sessão expirada. Faça login novamente.");
+      }
+
+      const message =
+        error?.response?.data?.message ||
+        error?.message ||
+        "Erro ao buscar produtos";
+      return rejectWithValue(message);
+    }
+  }
+);
+
+// Buscar TODOS os produtos para admin (inclui produtos fora de estoque)
+export const fetchAllProductsForAdmin = createAsyncThunk<Product[]>(
+  "products/fetchAllProductsForAdmin",
+  async (_, { rejectWithValue, dispatch }) => {
+    try {
+      const token = localStorage.getItem("token");
+
+      if (!token) {
+        return rejectWithValue("Faça login para continuar");
+      }
+
+      const response = await customFetch.get(`/api/v1/products/all`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      
+      // A estrutura de resposta é: { status: 'success', results: N, data: { data: products[] } }
+      const products = response.data?.data?.data || [];
+
+      if (!Array.isArray(products)) {
+        return rejectWithValue("Resposta inesperada da API ao buscar produtos");
+      }
+
+      // Normaliza os produtos
+      const normalizedProducts = products.map((product) => ({
+        ...product,
+        id: product._id,
+      }));
+
+      return normalizedProducts;
+    } catch (err: unknown) {
+      console.error("❌ Erro no fetchAllProductsForAdmin:", err);
       const error = err as {
         response?: { status?: number; data?: Record<string, unknown> };
         message?: string;
@@ -194,6 +246,18 @@ export const fetchProductBySlug = createAsyncThunk<Product, string>(
   }
 );
 
+// Função auxiliar para verificar se produto tem estoque disponível
+const hasStockAvailable = (product: Product): boolean => {
+  // Produtos com variantes: verificar se pelo menos uma variante tem stock > 0
+  const variants = product.variants || product.variations || [];
+  if (variants.length > 0) {
+    return variants.some((variant) => (variant.stock || 0) > 0);
+  }
+  
+  // Produtos sem variantes: verificar stock direto do produto
+  return (product.stock || 0) > 0;
+};
+
 // Buscar produtos relacionados por categoria
 export const fetchRelatedProducts = createAsyncThunk<
   Product[],
@@ -211,13 +275,14 @@ export const fetchRelatedProducts = createAsyncThunk<
         return rejectWithValue("Resposta inesperada da API ao buscar produtos relacionados");
       }
 
-      // Normaliza os produtos e filtra o produto atual
+      // Normaliza os produtos e filtra o produto atual e produtos fora de estoque
       const normalizedProducts = products
         .map((product) => ({
           ...product,
           id: product._id,
         }))
         .filter((product) => product._id !== excludeId)
+        .filter((product) => hasStockAvailable(product)) // Filtra produtos com estoque disponível
         .slice(0, 4); // Limita a 4 produtos relacionados
 
       return normalizedProducts;

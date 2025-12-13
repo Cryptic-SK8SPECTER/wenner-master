@@ -176,6 +176,39 @@ export const signupUser = createAsyncThunk<User, SignupPayload>(
   }
 );
 
+export const checkEmailExists = createAsyncThunk<
+  { exists: boolean; isValid: boolean; domainValidation?: { valid: boolean; reason: string } },
+  string
+>(
+  "user/checkEmail",
+  async (email, { rejectWithValue }) => {
+    try {
+      const response = await customFetch.post<{ 
+        status: string; 
+        exists: boolean; 
+        isValid: boolean;
+        domainValidation?: { valid: boolean; reason: string };
+      }>(
+        "/api/v1/users/check-email",
+        { email }
+      );
+      return { 
+        exists: response.data.exists,
+        isValid: response.data.isValid,
+        domainValidation: response.data.domainValidation
+      };
+    } catch (err: unknown) {
+      const error = err as {
+        response?: { data?: { message?: string } };
+        message?: string;
+      };
+      const message =
+        error?.response?.data?.message || error?.message || "Erro ao verificar email";
+      return rejectWithValue({ message });
+    }
+  }
+);
+
 export const logoutUser = () => async (dispatch: AppDispatch) => {
   try {
     // Attempt to notify backend (optional). Failure shouldn't block frontend logout.

@@ -34,11 +34,11 @@ export interface Product {
 
 export interface ProductVariation {
   _id: string;
-  product: string;
+  product: string | { _id?: string; id?: string; name?: string; imageCover?: string; category?: string };
   sku: string;
   color: string;
   size: string;
-  price: number;
+  price?: number;
   stock: number;
   image: string;
 }

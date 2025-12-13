@@ -212,139 +212,103 @@ const ProductDetails = () => {
     return variants && variants.length > 0;
   }, [variants]);
 
-  // Verificar se o produto sem variantes tem cores/tamanhos disponíveis
-  const hasColorsWithoutVariants = useMemo(() => {
-    if (hasVariants) return false;
-    const productColors = currentProduct?.availableColors || currentProduct?.colors;
-    if (Array.isArray(productColors) && productColors.length > 0) {
-      // Se for array de strings, retornar true
-      if (typeof productColors[0] === 'string') {
-        return true;
-      }
-      // Se for array de objetos Color, extrair os valores
-      if (typeof productColors[0] === 'object' && productColors[0] !== null) {
-        return productColors.some((c: any) => c.color || c);
-      }
-      return true;
-    }
-    return false;
-  }, [hasVariants, currentProduct?.availableColors, currentProduct?.colors]);
 
-  const hasSizesWithoutVariants = useMemo(() => {
-    if (hasVariants) return false;
-    const productSizes = currentProduct?.availableSizes || currentProduct?.sizes;
-    return Array.isArray(productSizes) && productSizes.length > 0;
-  }, [hasVariants, currentProduct?.availableSizes, currentProduct?.sizes]);
+  // Verificar se o produto tem estoque disponível (ANTES de qualquer return condicional)
+  // Sempre retornar true se não houver produto ainda (para não bloquear o loading)
+  const hasStockAvailable = useMemo(() => {
+    if (!currentProduct) return true; // Retornar true durante loading para não bloquear
+    
+    const hasVariants = 
+      (currentProduct.variants && currentProduct.variants.length > 0) ||
+      (currentProduct.colors && currentProduct.colors.length > 0);
+    
+    if (!hasVariants) {
+      // Produto sem variantes: verificar stock direto
+      return (currentProduct.stock || 0) > 0;
+    } else {
+      // Produto com variantes: verificar se pelo menos uma variante tem estoque
+      const hasStockInVariants = currentProduct.variants?.some((variant: any) => (variant.stock || 0) > 0) || false;
+      const hasStockInColors = currentProduct.colors?.some((color: any) => {
+        const stock = (color as any).stock ?? 0;
+        return stock > 0;
+      }) || false;
+      return hasStockInVariants || hasStockInColors;
+    }
+  }, [currentProduct]);
 
   // === FUNÇÕES DE SINCRONIZAÇÃO AUTOMÁTICA ===
   const getAvailableSizesForColor = (color: string) => {
-    if (hasVariants) {
-      if (!color) {
-        // Retornar apenas tamanhos com estoque > 0
-        return Array.from(
-          new Set(
-            variants
-              .filter((v) => (v.stock || 0) > 0)
-              .map((v) => v.size)
-          )
-        );
-      }
+    if (!hasVariants) return [];
+    
+    if (!color) {
+      // Retornar apenas tamanhos com estoque > 0
       return Array.from(
         new Set(
           variants
-            .filter((v) => v.color === color && (v.stock || 0) > 0)
+            .filter((v) => (v.stock || 0) > 0)
             .map((v) => v.size)
         )
       );
-    } else if (hasSizesWithoutVariants) {
-      // Produto sem variantes mas com tamanhos disponíveis
-      // Verificar se há estoque no produto
-      const productStock = currentProduct?.stock || 0;
-      if (productStock > 0) {
-        return currentProduct?.availableSizes || currentProduct?.sizes || [];
-      }
-      return [];
     }
-    return [];
+    return Array.from(
+      new Set(
+        variants
+          .filter((v) => v.color === color && (v.stock || 0) > 0)
+          .map((v) => v.size)
+      )
+    );
   };
 
   const getAvailableColorsForSize = (size: string) => {
-    if (hasVariants) {
-      if (!size) {
-        // Retornar apenas cores com estoque > 0
-        return Array.from(
+    if (!hasVariants) return [];
+    
+    if (!size) {
+      // Retornar apenas cores com estoque > 0
+      return Array.from(
+        new Set(
+          variants
+            .filter((v) => (v.stock || 0) > 0)
+            .map((v) => v.color)
+        )
+      );
+    }
+    return Array.from(
+      new Set(
+        variants
+          .filter((v) => v.size === size && (v.stock || 0) > 0)
+          .map((v) => v.color)
+      )
+    );
+  };
+
+  // Cores e tamanhos disponíveis baseados na seleção atual (apenas com estoque)
+  const availableColors = useMemo(() => {
+    if (!hasVariants) return [];
+    
+    return selectedSize
+      ? getAvailableColorsForSize(selectedSize)
+      : Array.from(
           new Set(
             variants
               .filter((v) => (v.stock || 0) > 0)
               .map((v) => v.color)
           )
         );
-      }
-      return Array.from(
-        new Set(
-          variants
-            .filter((v) => v.size === size && (v.stock || 0) > 0)
-            .map((v) => v.color)
-        )
-      );
-    } else if (hasColorsWithoutVariants) {
-      // Produto sem variantes mas com cores disponíveis
-      // Verificar se há estoque no produto
-      const productStock = currentProduct?.stock || 0;
-      if (productStock > 0) {
-        const productColors = currentProduct?.availableColors || currentProduct?.colors || [];
-        if (Array.isArray(productColors) && productColors.length > 0) {
-          // Se for array de strings, retornar diretamente
-          if (typeof productColors[0] === 'string') {
-            return productColors;
-          }
-          // Se for array de objetos Color, extrair os valores de cor
-          if (typeof productColors[0] === 'object' && productColors[0] !== null) {
-            return productColors.map((c: any) => c.color || c).filter(Boolean);
-          }
-          return productColors;
-        }
-      }
-    }
-    return [];
-  };
-
-  // Cores e tamanhos disponíveis baseados na seleção atual (apenas com estoque)
-  const availableColors = useMemo(() => {
-    if (hasVariants) {
-      return selectedSize
-        ? getAvailableColorsForSize(selectedSize)
-        : Array.from(
-            new Set(
-              variants
-                .filter((v) => (v.stock || 0) > 0)
-                .map((v) => v.color)
-            )
-          );
-    } else if (hasColorsWithoutVariants) {
-      // Produto sem variantes mas com cores disponíveis
-      return getAvailableColorsForSize("");
-    }
-    return [];
-  }, [selectedSize, variants, hasVariants, hasColorsWithoutVariants, currentProduct?.availableColors, currentProduct?.colors, currentProduct?.stock]);
+  }, [selectedSize, variants, hasVariants]);
 
   const availableSizes = useMemo(() => {
-    if (hasVariants) {
-      return selectedColor
-        ? getAvailableSizesForColor(selectedColor)
-        : Array.from(
-            new Set(
-              variants
-                .filter((v) => (v.stock || 0) > 0)
-                .map((v) => v.size)
-            )
-          );
-    } else if (hasSizesWithoutVariants) {
-      // Produto sem variantes mas com tamanhos disponíveis
-      return getAvailableSizesForColor("");
-    }
-    return [];
-  }, [selectedColor, variants, hasVariants, hasSizesWithoutVariants, currentProduct?.availableSizes, currentProduct?.sizes, currentProduct?.stock]);
+    if (!hasVariants) return [];
+    
+    return selectedColor
+      ? getAvailableSizesForColor(selectedColor)
+      : Array.from(
+          new Set(
+            variants
+              .filter((v) => (v.stock || 0) > 0)
+              .map((v) => v.size)
+          )
+        );
+  }, [selectedColor, variants, hasVariants]);
 
   // Função para obter estoque atual da variante selecionada
   const getCurrentStock = () => {
@@ -429,6 +393,31 @@ const ProductDetails = () => {
       });
     }
   }, [currentStock, selectedColor, selectedSize, quantity, showToast, currentProduct]);
+
+  // Limpar seleções de cor e tamanho quando não houver opções disponíveis em estoque
+  useEffect(() => {
+    if (!hasVariants) return;
+
+    // Se não há cores disponíveis e há uma cor selecionada, limpar
+    if (selectedColor && availableColors.length === 0) {
+      setSelectedColor("");
+      setQuantity(1);
+    } else if (selectedColor && availableColors.length > 0 && !availableColors.includes(selectedColor)) {
+      // Se a cor selecionada não está mais na lista de disponíveis, limpar
+      setSelectedColor("");
+      setQuantity(1);
+    }
+
+    // Se não há tamanhos disponíveis e há um tamanho selecionado, limpar
+    if (selectedSize && availableSizes.length === 0) {
+      setSelectedSize("");
+      setQuantity(1);
+    } else if (selectedSize && availableSizes.length > 0 && !availableSizes.includes(selectedSize)) {
+      // Se o tamanho selecionado não está mais na lista de disponíveis, limpar
+      setSelectedSize("");
+      setQuantity(1);
+    }
+  }, [hasVariants, selectedColor, selectedSize, availableColors, availableSizes]);
 
   // Construir array de imagens com URLs completas usando useMemo para evitar recriação
   // Deve estar ANTES dos early returns para manter a ordem dos hooks
@@ -610,6 +599,24 @@ const ProductDetails = () => {
 
   const product = currentProduct;
 
+  // Se não tem estoque, mostrar mensagem e redirecionar (só verificar se produto existe)
+  if (currentProduct && !hasStockAvailable) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <div className="container px-4 py-20 text-center">
+          <h1 className="text-2xl font-bold mb-4">
+            Produto fora de estoque
+          </h1>
+          <p className="text-muted-foreground mb-6">
+            Este produto não está disponível no momento.
+          </p>
+          <Button onClick={() => navigate("/")}>Voltar para a loja</Button>
+        </div>
+      </div>
+    );
+  }
+
   const reviews = product.reviews || [];
   const averageRating = product.ratingsAverage || 0;
   const totalReviews = product.ratingsQuantity || 0;
@@ -738,6 +745,9 @@ const ProductDetails = () => {
         title: "Produto adicionado!",
         description: `${quantity}x ${product.name} adicionado ao carrinho.`,
       });
+
+      // Resetar quantidade após adicionar ao carrinho
+      setQuantity(1);
     });
   };
 
@@ -1239,8 +1249,8 @@ const ProductDetails = () => {
 
             <Separator />
 
-            {/* Color Selection - Mostrar apenas se houver cores disponíveis */}
-            {(hasVariants || hasColorsWithoutVariants) && (
+            {/* Color Selection - Mostrar apenas se houver variantes */}
+            {hasVariants && (
             <div>
               <h3 className="text-sm sm:text-base font-semibold mb-2 sm:mb-3">
                 Cor: {selectedColor || "Selecione"}
@@ -1249,18 +1259,12 @@ const ProductDetails = () => {
                 {availableColors.length > 0 ? (
                   availableColors.map((color) => {
                     // Verificar se há estoque para esta cor (considerando tamanho selecionado)
-                    let hasStock = false;
-                    if (hasVariants) {
-                      hasStock = variants.some(
-                        (v) =>
-                          v.color === color &&
-                          (!selectedSize || v.size === selectedSize) &&
-                          (v.stock || 0) > 0
-                      );
-                    } else {
-                      // Para produtos sem variantes, verificar estoque do produto
-                      hasStock = (currentProduct?.stock || 0) > 0;
-                    }
+                    const hasStock = variants.some(
+                      (v) =>
+                        v.color === color &&
+                        (!selectedSize || v.size === selectedSize) &&
+                        (v.stock || 0) > 0
+                    );
                     return (
                       <button
                         key={color}
@@ -1297,8 +1301,8 @@ const ProductDetails = () => {
             </div>
             )}
 
-            {/* Size Selection - Mostrar apenas se houver tamanhos disponíveis */}
-            {(hasVariants || hasSizesWithoutVariants) && (
+            {/* Size Selection - Mostrar apenas se houver variantes */}
+            {hasVariants && (
             <div>
               <h3 className="text-sm sm:text-base font-semibold mb-2 sm:mb-3">
                 Tamanho: {selectedSize || "Selecione"}
@@ -1307,20 +1311,11 @@ const ProductDetails = () => {
                 {availableSizes.length > 0 ? (
                   availableSizes.map((size) => {
                     // Verificar estoque para esta combinação de cor e tamanho
-                    let stock = 0;
-                    let isOutOfStock = false;
-                    
-                    if (hasVariants) {
-                      const variantForSize = variants.find(
-                        (v) => v.color === selectedColor && v.size === size
-                      );
-                      stock = variantForSize?.stock ?? 0;
-                      isOutOfStock = stock <= 0;
-                    } else {
-                      // Para produtos sem variantes, usar estoque do produto
-                      stock = currentProduct?.stock || 0;
-                      isOutOfStock = stock <= 0;
-                    }
+                    const variantForSize = variants.find(
+                      (v) => v.color === selectedColor && v.size === size
+                    );
+                    const stock = variantForSize?.stock ?? 0;
+                    const isOutOfStock = stock <= 0;
 
                     return (
                       <button
@@ -1853,12 +1848,6 @@ const ProductDetails = () => {
                     <span className="font-medium w-full sm:w-48 text-sm sm:text-base mb-1 sm:mb-0">Gênero:</span>
                     <span className="text-sm sm:text-base text-muted-foreground">
                       {product.gender}
-                    </span>
-                  </div>
-                  <div className="flex flex-col sm:flex-row py-2 sm:py-3 border-b border-border">
-                    <span className="font-medium w-full sm:w-48 text-sm sm:text-base mb-1 sm:mb-0">Cores disponíveis:</span>
-                    <span className="text-sm sm:text-base text-muted-foreground">
-                      {availableColors.length} opções
                     </span>
                   </div>
                   <div className="flex flex-col sm:flex-row py-2 sm:py-3 border-b border-border">

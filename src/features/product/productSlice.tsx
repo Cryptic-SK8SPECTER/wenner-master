@@ -3,6 +3,7 @@ import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { ProductsState, Filters } from "./productTypes";
 import {
   fetchProducts,
+  fetchAllProductsForAdmin,
   createProduct,
   fetchProductBySlug,
   fetchRelatedProducts,
@@ -69,6 +70,22 @@ const productSlice = createSlice({
         state.error = null;
       })
       .addCase(fetchProducts.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+        state.products = [];
+      })
+      // Fetch All Products For Admin (inclui produtos fora de estoque)
+      .addCase(fetchAllProductsForAdmin.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchAllProductsForAdmin.fulfilled, (state, action) => {
+        state.products = action.payload;
+        state.filteredProducts = action.payload;
+        state.loading = false;
+        state.error = null;
+      })
+      .addCase(fetchAllProductsForAdmin.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
         state.products = [];

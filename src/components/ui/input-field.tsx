@@ -35,7 +35,7 @@ const InputField: React.FC<Props> = ({
         <Input
           className={`${className ?? ""} ${
             Icon ? (iconPosition === "left" ? "pl-10" : "pr-10") : ""
-          }`}
+          } ${error ? "border-red-500" : ""}`}
           {...(rest as any)}
         />
 
