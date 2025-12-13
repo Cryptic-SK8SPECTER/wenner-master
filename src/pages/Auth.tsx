@@ -430,7 +430,7 @@ const Auth = () => {
                   id="signup-phone"
                   name="phone"
                   type="tel"
-                  placeholder="+258841234567 ou 841234567"
+                  placeholder="Informe o seu contacto"
                   required
                   disabled={isLoading}
                   icon={Phone}
