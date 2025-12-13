@@ -162,6 +162,37 @@ const Index = () => {
         );
         if (!meetsRating) return false;
       }
+
+      // Filter out products with stock 0
+      // Verificar se o produto tem variantes (variants, variations ou colors)
+      const hasVariants = 
+        (product.variants && product.variants.length > 0) ||
+        (product.variations && product.variations.length > 0) ||
+        (product.colors && product.colors.length > 0);
+      
+      if (!hasVariants) {
+        // Para produtos sem variantes, verificar stock direto
+        const productStock = product.stock ?? 0;
+        if (productStock <= 0) return false;
+      } else {
+        // Para produtos com variantes, verificar se pelo menos uma variante tem stock > 0
+        // Verificar em variants
+        const hasStockInVariants = product.variants?.some((variant) => (variant.stock ?? 0) > 0) || false;
+        // Verificar em variations
+        const hasStockInVariations = product.variations?.some((variant) => (variant.stock ?? 0) > 0) || false;
+        // Verificar em colors (que também são variantes populadas)
+        const hasStockInColors = product.colors?.some((color) => {
+          // colors pode ser um array de Color ou ProductVariation
+          const stock = (color as any).stock ?? 0;
+          return stock > 0;
+        }) || false;
+        
+        // Se nenhuma variante tem stock, excluir o produto
+        if (!hasStockInVariants && !hasStockInVariations && !hasStockInColors) {
+          return false;
+        }
+      }
+
       return true;
     });
   }, [products, filters, searchQuery]);

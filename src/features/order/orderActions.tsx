@@ -27,14 +27,23 @@ export const createOrder = createAsyncThunk<
 >("order/createOrder", async (payload, { rejectWithValue }) => {
   try {
     const token = localStorage.getItem("token");
+    // Aumentar timeout para 30 segundos para criar pedido (pode demorar mais devido a validações)
     const response = await customFetch.post("/api/v1/orders", payload, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
+      timeout: 30000, // 30 segundos
     });
 
     return response.data.data || response.data;
   } catch (error) {
     if (error instanceof Error && "response" in error) {
       const axiosError = error as any;
+      // Verificar se é erro de timeout
+      if (axiosError.code === 'ECONNABORTED' || axiosError.message?.includes('timeout')) {
+        return rejectWithValue({
+          status: "error",
+          message: "A requisição demorou muito. Por favor, tente novamente.",
+        });
+      }
       return rejectWithValue(
         axiosError.response?.data || {
           status: "error",

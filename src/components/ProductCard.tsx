@@ -355,7 +355,9 @@ export const ProductCard = ({ product }: ProductCardProps) => {
         id: productId,
         name: product.name,
         price: product.priceDiscount || product.price,
-        image: product.imageCover,
+        image: product.imageCover 
+          ? `${productionUrl}/img/products/${product.imageCover}`
+          : "",
       });
       toast({
         title: "Adicionado ao carrinho!",
@@ -428,7 +430,14 @@ export const ProductCard = ({ product }: ProductCardProps) => {
 
     // Usar preço e imagem da variante se disponível, senão usar do produto
     const price = selectedVariant?.price || product.priceDiscount || product.price;
-    const image = selectedVariant?.image || product.imageCover;
+    let image = "";
+    if (selectedVariant?.image) {
+      // Se tem variante com imagem, construir URL completa
+      image = `${productionUrl}/img/variants/${selectedVariant.image}`;
+    } else if (product.imageCover) {
+      // Se não tem variante, usar imageCover do produto
+      image = `${productionUrl}/img/products/${product.imageCover}`;
+    }
     const productId = product.id || product._id;
     
     if (!productId) return;
@@ -476,11 +485,16 @@ export const ProductCard = ({ product }: ProductCardProps) => {
       <div className="relative aspect-[3/3] overflow-hidden bg-muted">
         <img
           src={
-            product.imageCover ||
-            "https://i.pinimg.com/1200x/a7/2f/db/a72fdbea7e86c3fb70a17c166a36407b.jpg"
+            product.imageCover
+              ? `${productionUrl}/img/products/${product.imageCover}`
+              : "https://i.pinimg.com/1200x/a7/2f/db/a72fdbea7e86c3fb70a17c166a36407b.jpg"
           }
           alt={product.name}
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+          onError={(e) => {
+            e.currentTarget.src =
+              "https://i.pinimg.com/1200x/a7/2f/db/a72fdbea7e86c3fb70a17c166a36407b.jpg";
+          }}
         />
 
         {/* Discount Badge */}

@@ -154,10 +154,12 @@ const createEmptyVariantForm = (): VariantFormState => ({
   imageFile: null,
 });
 
-const Admin = () => {
+// Componente interno que contém toda a lógica
+const AdminContent = () => {
   const { toast } = useToast();
   const dispatch = useAppDispatch();
   const reportRef = useRef<HTMLDivElement>(null);
+  const productFormRef = useRef<HTMLFormElement>(null);
   const [orderFilter, setOrderFilter] = useState<string>("all");
   const [activeTab, setActiveTab] = useState<string>("orders");
   const [reportsLoaded, setReportsLoaded] = useState(false);
@@ -165,6 +167,9 @@ const Admin = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [productImage, setProductImage] = useState<string>("");
   const [productImageFile, setProductImageFile] = useState<File | null>(null);
+  const [productColors, setProductColors] = useState<string[]>([]); // Array de cores
+  const [currentColorInput, setCurrentColorInput] = useState<string>("#000000"); // Input de cor atual
+  const [productSizes, setProductSizes] = useState<string>(""); // Tamanhos separados por vírgula
   const [variants, setVariants] = useState<ProductVariant[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
     null
@@ -187,9 +192,11 @@ const Admin = () => {
   // Confirmation dialog state for destructive actions
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean;
-    action: null | "removeCustomer" | "cancelOrder" | "deleteProduct" | "deleteCoupon";
+    action: null | "removeCustomer" | "cancelOrder" | "deleteProduct" | "deleteCoupon" | "deleteReview";
     id?: string;
     name?: string;
+    reviewId?: string;
+    reviewText?: string;
   }>({ open: false, action: null });
   const [isConfirming, setIsConfirming] = useState(false);
   const [variantForm, setVariantForm] = useState<VariantFormState>(() =>
@@ -206,6 +213,22 @@ const Admin = () => {
   const [isEditCouponDialogOpen, setIsEditCouponDialogOpen] = useState(false);
   const [isCreateCouponDialogOpen, setIsCreateCouponDialogOpen] = useState(false);
 
+  //  do formulário de cupom
+  const [couponForm, setCouponForm] = useState({
+    code: "",
+    discount: "",
+    type: "percentage" as "percentage" | "fixed",
+    expiresAt: "", // Adicionar data de expiração
+    minPurchaseAmount: "",
+    maxDiscountAmount: "",
+    usageLimit: "1", // Limite de uso padrão
+    assignedTo: "", // Cliente atribuído (opcional)
+  });
+
+  const [clients, setClients] = useState<Customer[]>([]);
+  const [productsLoaded, setProductsLoaded] = useState(false);
+
+  // TODOS os useAppSelector devem vir ANTES de qualquer useEffect
   const {
     coupons: apiCoupons,
     loading: couponLoading,
@@ -219,17 +242,49 @@ const Admin = () => {
     error: reviewsError,
   } = useAppSelector((state) => state.review);
 
-  //  do formulário de cupom
-  const [couponForm, setCouponForm] = useState({
-    code: "",
-    discount: "",
-    type: "percentage" as "percentage" | "fixed",
-    expiresAt: "", // Adicionar data de expiração
-    minPurchaseAmount: "",
-    maxDiscountAmount: "",
-    usageLimit: "1", // Limite de uso padrão
-    assignedTo: "", // Cliente atribuído (opcional)
-  });
+  const { products, loading, error } = useAppSelector((state) => state.product);
+  const {
+    users,
+    loading: usersLoading,
+    error: usersError,
+    user: currentUser,
+    isAuthenticated,
+  } = useAppSelector((state) => state.user);
+  
+  // Verificar se o usuário é manager (deve estar logo após currentUser ser declarado)
+  const isManager = currentUser?.role === "manager";
+  const isAdmin = currentUser?.role === "admin";
+  
+  const {
+    orders,
+    currentOrder,
+    loading: ordersLoading,
+    error: ordersError,
+  } = useAppSelector((state) => state.order as any);
+
+  const { loading: variantLoading } = useAppSelector((state) => state.variant);
+
+  const {
+    totalRevenue,
+    averageTicket,
+    totalOrders,
+    deliveryRate,
+    salesByStatus,
+    topClients,
+    topProducts,
+    leastSoldProducts,
+    salesByPeriod,
+    loading: reportLoading,
+    error: reportError,
+  } = useAppSelector((state) => state.report as any);
+
+  // Agora TODOS os useEffect vêm depois de todos os useAppSelector
+  // Atualizar clients quando topClients mudar
+  useEffect(() => {
+    if (Array.isArray(topClients)) {
+      setClients(topClients);
+    }
+  }, [topClients]);
 
   // Carregar cupons quando entrar na aba de relatórios ou cupons
   useEffect(() => {
@@ -365,66 +420,6 @@ const Admin = () => {
     });
   };
 
-  // const stats = {
-  //   totalClients: clients.length,
-  //   totalOrders: clients.reduce((acc, c) => acc + c.totalOrders, 0),
-  //   totalRevenue: clients.reduce((acc, c) => acc + c.totalSpent, 0),
-  //   activeCoupons: coupons.filter((c) => !c.usedAt).length,
-  // };
-
-  const { products, loading, error } = useAppSelector((state) => state.product);
-  const {
-    users,
-    loading: usersLoading,
-    error: usersError,
-    user: currentUser,
-    isAuthenticated,
-  } = useAppSelector((state) => state.user);
-
-  // Verificar se o usuário é manager
-  const isManager = currentUser?.role === "manager";
-  const isAdmin = currentUser?.role === "admin";
-
-  // Verificação de segurança adicional: apenas admin e manager podem acessar
-  if (!isAuthenticated || !currentUser) {
-    return <Navigate to="/auth" replace />;
-  }
-
-  if (currentUser.active === false) {
-    return <Navigate to="/auth" replace />;
-  }
-
-  if (!isAdmin && !isManager) {
-    return <Navigate to="/" replace />;
-  }
-  const {
-    orders,
-    currentOrder,
-    loading: ordersLoading,
-    error: ordersError,
-  } = useAppSelector((state) => state.order as any);
-
-  const { loading: variantLoading } = useAppSelector((state) => state.variant);
-
-  const {
-    totalRevenue,
-    averageTicket,
-    totalOrders,
-    deliveryRate,
-    salesByStatus,
-    topClients,
-    topProducts,
-    leastSoldProducts,
-    salesByPeriod,
-    loading: reportLoading,
-    error: reportError,
-  } = useAppSelector((state) => state.report as any);
-
-  const [clients, setClients] = useState<Customer[]>(
-    Array.isArray(topClients) ? topClients : []
-  );
-
-  const [productsLoaded, setProductsLoaded] = useState(false);
   const existingVariants: ProductVariation[] =
     (editingProduct?.variants as ProductVariation[] | undefined) ||
     (editingProduct?.variations as ProductVariation[] | undefined) ||
@@ -497,6 +492,9 @@ const Admin = () => {
 
     loadReports();
   }, [activeTab, reportsLoaded, dispatch, isManager]);
+
+  // Todas as verificações de segurança foram movidas para o componente wrapper Admin
+  // Aqui só temos a lógica do componente, sem returns condicionais
 
   const formatCustomerAddress = (address?: {
     street: string;
@@ -1537,10 +1535,30 @@ const Admin = () => {
           description: `O cupom "${confirmDialog.name || ""}" foi removido.`,
         });
         await dispatch(getAllCoupons());
+      } else if (confirmDialog.action === "deleteReview" && confirmDialog.reviewId) {
+        await dispatch(deleteReview(confirmDialog.reviewId)).unwrap();
+        toast({
+          title: "Comentário excluído",
+          description: "O comentário foi removido com sucesso.",
+        });
+        // Não recarregar reviews - o slice já atualiza o estado localmente
       }
     } catch (err: unknown) {
-      const errorMessage =
-        err instanceof Error ? err.message : "Erro ao processar a ação";
+      // Extrair mensagem de erro de forma mais robusta
+      let errorMessage = "Erro ao processar a ação";
+      
+      if (err instanceof Error) {
+        errorMessage = err.message;
+      } else if (typeof err === "string") {
+        errorMessage = err;
+      } else if ((err as any)?.message) {
+        errorMessage = (err as any).message;
+      } else if ((err as any)?.response?.data?.message) {
+        errorMessage = (err as any).response.data.message;
+      } else if ((err as any)?.payload) {
+        errorMessage = (err as any).payload;
+      }
+      
       toast({
         title: "Erro",
         description: errorMessage,
@@ -1567,6 +1585,22 @@ const Admin = () => {
     }
   };
 
+  const handleClearForm = () => {
+    // Limpar o formulário usando a ref
+    if (productFormRef.current) {
+      productFormRef.current.reset();
+    }
+    // Limpar todos os estados relacionados
+    setProductImage("");
+    setProductImageFile(null);
+    setVariants([]);
+    setProductColors([]);
+    setCurrentColorInput("#000000");
+    setProductSizes("");
+    // Limpar o variantForm também
+    setVariantForm(createEmptyVariantForm());
+  };
+
   const handleAddProduct = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
@@ -1591,6 +1625,19 @@ const Admin = () => {
       form.append("description", productData.description);
       form.append("stock", String(productData.stock));
 
+      // Cores e tamanhos para produtos sem variantes
+      if (productColors.length > 0) {
+        productColors.forEach(color => {
+          form.append("colors", color);
+        });
+      }
+      if (productSizes.trim()) {
+        const sizesArray = productSizes.split(",").map(s => s.trim()).filter(s => s);
+        sizesArray.forEach(size => {
+          form.append("sizes", size);
+        });
+      }
+
       // Main image file (prefer file; fallback to nothing)
       if (productImageFile) {
         form.append("imageCover", productImageFile);
@@ -1606,9 +1653,15 @@ const Admin = () => {
       // Recarregar produtos após criar
       await dispatch(fetchProducts());
 
-      e.currentTarget.reset();
+      // Resetar formulário se ainda existir
+      if (e.currentTarget) {
+        e.currentTarget.reset();
+      }
       setProductImage("");
       setProductImageFile(null);
+      setProductColors([]);
+      setCurrentColorInput("#000000");
+      setProductSizes("");
     } catch (error: any) {
       console.error("Erro ao cadastrar produto:", error);
       // O erro pode vir como objeto com message ou como string
@@ -3250,28 +3303,14 @@ const Admin = () => {
                                           <Button
                                             variant="outline"
                                             size="icon"
-                                            onClick={async () => {
-                                              if (
-                                                window.confirm(
-                                                  "Tem certeza que deseja excluir este comentário?"
-                                                )
-                                              ) {
-                                                try {
-                                                  await dispatch(deleteReview(review._id)).unwrap();
-                                                  toast({
-                                                    title: "Comentário excluído",
-                                                    description: "O comentário foi removido com sucesso.",
-                                                  });
-                                                  // Recarregar reviews
-                                                  dispatch(getAllReviews(undefined));
-                                                } catch (error: any) {
-                                                  toast({
-                                                    title: "Erro",
-                                                    description: error || "Erro ao excluir comentário",
-                                                    variant: "destructive",
-                                                  });
-                                                }
-                                              }
+                                            onClick={() => {
+                                              setConfirmDialog({
+                                                open: true,
+                                                action: "deleteReview",
+                                                reviewId: review._id,
+                                                name: userName,
+                                                reviewText: review.review?.substring(0, 50) + (review.review && review.review.length > 50 ? "..." : ""),
+                                              });
                                             }}
                                             className="h-8 w-8 sm:h-10 sm:w-10 flex-shrink-0"
                                           >
@@ -3669,7 +3708,7 @@ const Admin = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="px-4 sm:px-6 pb-6">
-                  <form onSubmit={handleAddProduct} className="space-y-4 sm:space-y-6">
+                  <form ref={productFormRef} onSubmit={handleAddProduct} className="space-y-4 sm:space-y-6">
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div className="space-y-2">
                         <Label htmlFor="name" className="text-sm font-medium">Nome do Produto *</Label>
@@ -3693,6 +3732,7 @@ const Admin = () => {
                           required
                         />
                       </div>
+                    </div>
                       <div className="space-y-2">
                         <Label htmlFor="stock" className="text-sm font-medium">Estoque Inicial *</Label>
                         <Input
@@ -3710,7 +3750,6 @@ const Admin = () => {
                           Quantidade inicial em estoque (para produtos sem variantes)
                         </p>
                       </div>
-                    </div>
 
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div className="space-y-2">
@@ -3838,6 +3877,88 @@ const Admin = () => {
                       )}
                     </div>
 
+                    {/* Cores e Tamanhos para produtos sem variantes */}
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="colors" className="text-sm font-medium">
+                          Cores Disponíveis (opcional)
+                        </Label>
+                        <div className="flex gap-2">
+                          <div className="relative flex-1">
+                            <input
+                              type="color"
+                              value={currentColorInput}
+                              onChange={(e) => setCurrentColorInput(e.target.value)}
+                              className="w-full h-10 rounded-md border border-border cursor-pointer"
+                              title="Selecione uma cor"
+                            />
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              if (currentColorInput && !productColors.includes(currentColorInput)) {
+                                setProductColors([...productColors, currentColorInput]);
+                              }
+                            }}
+                            disabled={productColors.includes(currentColorInput)}
+                            className="whitespace-nowrap"
+                          >
+                            <Plus className="w-4 h-4 mr-1" />
+                            Adicionar
+                          </Button>
+                        </div>
+                        {productColors.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mt-2 p-2 border border-border rounded-md bg-muted/30">
+                            {productColors.map((color, index) => (
+                              <div
+                                key={index}
+                                className="flex items-center gap-1 px-2 py-1 rounded-md border border-border bg-card"
+                              >
+                                <div
+                                  className="w-6 h-6 rounded-full border-2 border-border"
+                                  style={{ backgroundColor: color }}
+                                  title={color}
+                                />
+                                <span className="text-xs text-muted-foreground font-mono">{color}</span>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-5 w-5 ml-1"
+                                  onClick={() => {
+                                    setProductColors(productColors.filter((_, i) => i !== index));
+                                  }}
+                                >
+                                  <X className="w-3 h-3" />
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <p className="text-xs text-muted-foreground">
+                          Selecione uma cor e clique em "Adicionar" para incluir na lista
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="sizes" className="text-sm font-medium">
+                          Tamanhos Disponíveis (opcional)
+                        </Label>
+                        <Input
+                          id="sizes"
+                          name="sizes"
+                          placeholder="Ex: P, M, G, GG"
+                          value={productSizes}
+                          onChange={(e) => setProductSizes(e.target.value)}
+                          className="text-sm"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Separe os tamanhos por vírgula (ex: P, M, G, GG)
+                        </p>
+                      </div>
+                    </div>
+
                     <Separator />
 
                     <div className="flex flex-col sm:flex-row gap-3 pt-2">
@@ -3850,10 +3971,7 @@ const Admin = () => {
                         variant="outline"
                         size="lg"
                         className="w-full sm:w-auto"
-                        onClick={() => {
-                          setProductImage("");
-                          setVariants([]);
-                        }}
+                        onClick={handleClearForm}
                       >
                         Limpar Formulário
                       </Button>
@@ -4116,6 +4234,8 @@ const Admin = () => {
                 ? "Confirmar exclusão"
                 : confirmDialog.action === "deleteProduct"
                 ? "Confirmar exclusão"
+                : confirmDialog.action === "deleteReview"
+                ? "Confirmar exclusão de comentário"
                 : "Confirmar cancelamento"}
             </DialogTitle>
             <DialogDescription className="text-xs sm:text-sm">
@@ -4133,6 +4253,18 @@ const Admin = () => {
                 <>
                   Tem certeza que deseja excluir o produto "{confirmDialog.name}"?
                   Esta ação não pode ser desfeita.
+                </>
+              ) : confirmDialog.action === "deleteReview" ? (
+                <>
+                  Tem certeza que deseja excluir o comentário de "{confirmDialog.name}"?
+                  {confirmDialog.reviewText && (
+                    <div className="mt-2 p-2 bg-muted rounded text-xs italic">
+                      "{confirmDialog.reviewText}"
+                    </div>
+                  )}
+                  <div className="mt-2 text-destructive font-medium">
+                    Esta ação não pode ser desfeita.
+                  </div>
                 </>
               ) : (
                 <>
@@ -4154,7 +4286,8 @@ const Admin = () => {
               variant={
                 confirmDialog.action === "removeCustomer" ||
                 confirmDialog.action === "deleteCoupon" ||
-                confirmDialog.action === "deleteProduct"
+                confirmDialog.action === "deleteProduct" ||
+                confirmDialog.action === "deleteReview"
                   ? "destructive"
                   : "default"
               }
@@ -4885,6 +5018,34 @@ const Admin = () => {
       </Dialog>
     </div>
   );
+};
+
+// Wrapper que faz as verificações de segurança ANTES de renderizar o conteúdo
+// Isso garante que todos os hooks sejam sempre executados na mesma ordem
+const Admin = () => {
+  const {
+    user: currentUser,
+    isAuthenticated,
+  } = useAppSelector((state) => state.user);
+  
+  const isManager = currentUser?.role === "manager";
+  const isAdmin = currentUser?.role === "admin";
+
+  // Verificação de segurança: apenas admin e manager podem acessar
+  if (!isAuthenticated || !currentUser) {
+    return <Navigate to="/auth" replace />;
+  }
+
+  if (currentUser.active === false) {
+    return <Navigate to="/auth" replace />;
+  }
+
+  if (!isAdmin && !isManager) {
+    return <Navigate to="/" replace />;
+  }
+
+  // Se passou todas as verificações, renderizar o conteúdo
+  return <AdminContent />;
 };
 
 export default Admin;

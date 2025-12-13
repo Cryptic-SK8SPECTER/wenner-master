@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Minus, Plus, X } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import {
@@ -13,6 +13,7 @@ import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { createOrder } from "@/features/order/orderActions";
 import { createNotification } from "@/features/notification/notificationActions";
 import { useToast } from "@/hooks/use-toast";
+import { productionUrl } from "@/lib/utils";
 
 interface CartSheetProps {
   open: boolean;
@@ -24,10 +25,63 @@ export const CartSheet = ({ open, onOpenChange }: CartSheetProps) => {
   const dispatch = useAppDispatch();
   const { loading, error } = useAppSelector((state) => state.order);
   const { user } = useAppSelector((state) => state.user);
+  const { products } = useAppSelector((state) => state.product);
   const { toast } = useToast();
 
   const { items, removeItem, updateQuantity, totalPrice, clearCart } =
     useCart();
+
+  // Função para obter a imagem correta do item
+  const getItemImage = (item: any) => {
+    // Primeiro, verificar se o item já tem uma imagem (prioridade máxima)
+    // Isso garante que a imagem passada ao adicionar seja usada
+    if (item.image && item.image !== "") {
+      // Se já é uma URL completa, usar diretamente
+      if (item.image.startsWith("http") || item.image.startsWith("/")) {
+        return item.image;
+      }
+    }
+    
+    // Verificar se o produto tem variantes (tem cor ou tamanho selecionados)
+    const hasVariant = !!(item.color || item.size);
+    
+    // Buscar o produto no Redux store
+    const product = products.find((p) => p._id === item.id || p.id === item.id);
+    
+    if (hasVariant && product) {
+      // Produto com variante: buscar a imagem específica da variante
+      const variants = product.variants || product.variations || [];
+      const matchingVariant = variants.find(
+        (v: any) =>
+          (!item.color || v.color === item.color) &&
+          (!item.size || v.size === item.size)
+      );
+      
+      if (matchingVariant?.image) {
+        // Se encontrou a variante com imagem, usar ela
+        return `${productionUrl}/img/variants/${matchingVariant.image}`;
+      }
+      
+      // Se não encontrou variante mas o item já tem imagem, usar ela como variante
+      if (item.image && item.image !== "") {
+        return `${productionUrl}/img/variants/${item.image}`;
+      }
+    }
+    
+    // Produto sem variante: usar imageCover do produto (se encontrado no Redux)
+    if (!hasVariant && product?.imageCover) {
+      return `${productionUrl}/img/products/${product.imageCover}`;
+    }
+    
+    // Fallback: usar a imagem do item (que foi passada ao adicionar)
+    // Se é apenas o nome do arquivo, assumir que é imageCover (produto sem variante)
+    if (item.image && item.image !== "") {
+      return `${productionUrl}/img/products/${item.image}`;
+    }
+    
+    // Imagem padrão
+    return "https://i.pinimg.com/1200x/a7/2f/db/a72fdbea7e86c3fb70a17c166a36407b.jpg";
+  };
 
   const handleCheckout = async () => {
     if (!items || items.length === 0) {
@@ -92,12 +146,25 @@ export const CartSheet = ({ open, onOpenChange }: CartSheetProps) => {
           apiPayload?.message ||
           (resultAction as any).error?.message ||
           "Erro ao criar pedido";
-        toast({ title: "Erro", description: msg });
+        toast({ 
+          title: "Erro", 
+          description: msg,
+          variant: "destructive"
+        });
       }
     } catch (err: any) {
+      // Tratar erros de timeout especificamente
+      const errorMessage = err?.message || "";
+      const isTimeout = errorMessage.includes("timeout") || 
+                       errorMessage.includes("exceeded") ||
+                       err?.code === "ECONNABORTED";
+      
       toast({
         title: "Erro",
-        description: err?.message || "Erro ao criar pedido",
+        description: isTimeout 
+          ? "A requisição demorou muito. Por favor, verifique sua conexão e tente novamente."
+          : (err?.message || "Erro ao criar pedido. Por favor, tente novamente."),
+        variant: "destructive",
       });
     }
   };
@@ -120,15 +187,15 @@ export const CartSheet = ({ open, onOpenChange }: CartSheetProps) => {
                 {items.map((item) => (
                   <div
                     key={item.key}
-                    className="flex gap-3 sm:gap-4 py-3 sm:py-4 border-b border-border"
+                    className="flex gap-3 sm:gap-4 py-3 sm:py-4 pl-2 sm:pl-4 border-b border-border"
                   >
                     <img
-                      src={
-                        item.image ||
-                        "https://i.pinimg.com/1200x/a7/2f/db/a72fdbea7e86c3fb70a17c166a36407b.jpg"
-                      }
+                      src={getItemImage(item)}
                       alt={item.name}
-                      className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-lg flex-shrink-0"
+                      className="w-40 h-30 sm:w-35 sm:h-30 object-cover rounded-lg flex-shrink-0"
+                      onError={(e) => {
+                        e.currentTarget.src = "https://i.pinimg.com/1200x/a7/2f/db/a72fdbea7e86c3fb70a17c166a36407b.jpg";
+                      }}
                     />
                     <div className="flex-1 space-y-2 min-w-0">
                       <div className="flex justify-between gap-2">

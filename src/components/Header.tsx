@@ -318,6 +318,7 @@ const Header = () => {
                       variant="ghost"
                       className="w-full justify-start text-destructive hover:text-destructive"
                       onClick={() => {
+                        sessionStorage.setItem("intentionalLogout", "true");
                         dispatch(logoutUser());
                         navigate("/");
                         setMobileMenuOpen(false);
@@ -563,6 +564,7 @@ const Header = () => {
                 size="icon"
                 className="hidden md:flex"
                 onClick={() => {
+                  sessionStorage.setItem("intentionalLogout", "true");
                   dispatch(logoutUser());
                   navigate("/");
                 }}

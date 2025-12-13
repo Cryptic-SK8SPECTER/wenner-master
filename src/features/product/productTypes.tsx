@@ -14,8 +14,10 @@ export interface Product {
   imageCover: string;
   category: string;
   gender: string;
-  colors?: Color[];
-  sizes?: string[];
+  colors?: Color[]; // Virtual populate para variantes
+  availableColors?: string[]; // Cores para produtos sem variantes
+  availableSizes?: string[]; // Tamanhos para produtos sem variantes
+  sizes?: string[]; // Deprecated - usar availableSizes
   rating: number;
   ratingsAverage: number;
   ratingsQuantity: number;

@@ -24,6 +24,10 @@ export const ProtectedRoute = ({
   const dispatch = useAppDispatch();
   const hasShownToast = useRef(false);
 
+  // Verificar se foi logout intencional ou estamos na página de auth - NUNCA mostrar toast nesses casos
+  const isIntentionalLogout = sessionStorage.getItem("intentionalLogout") === "true";
+  const isOnAuthPage = location.pathname === "/auth";
+
   // Normalizar requiredRole para array
   const allowedRoles = useMemo(() => {
     if (!requiredRole) return null;
@@ -66,8 +70,32 @@ export const ProtectedRoute = ({
   }, [location.pathname]);
 
   useEffect(() => {
+    // Limpar a flag após um delay se foi logout intencional
+    let timeoutId: NodeJS.Timeout | null = null;
+    if (isIntentionalLogout) {
+      timeoutId = setTimeout(() => {
+        sessionStorage.removeItem("intentionalLogout");
+      }, 1000);
+    }
+
+    // Se foi logout intencional ou estamos na página de auth, NUNCA mostrar toast
+    if (isIntentionalLogout || isOnAuthPage) {
+      // Retornar cleanup function sempre, mesmo quando não há timeout
+      return () => {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+      };
+    }
+
     // Evitar múltiplos toasts
-    if (hasShownToast.current) return;
+    if (hasShownToast.current) {
+      return () => {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+      };
+    }
 
     if (requireAuth && !isAuthenticated) {
       hasShownToast.current = true;
@@ -96,10 +124,18 @@ export const ProtectedRoute = ({
         variant: "destructive",
       });
     }
-  }, [isAuthenticated, user, hasPermission, allowedRoles, requireAuth, toast, dispatch, location.pathname]);
+
+    // Sempre retornar uma função de cleanup (mesmo que vazia) para manter consistência
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [isAuthenticated, user, hasPermission, allowedRoles, requireAuth, toast, dispatch, location.pathname, isIntentionalLogout, isOnAuthPage]);
 
   // Se requer autenticação e não estiver autenticado, redirecionar para login
-  if (requireAuth && !isAuthenticated) {
+  // Não redirecionar se foi logout intencional (já estamos na rota correta)
+  if (requireAuth && !isAuthenticated && !isIntentionalLogout) {
     return <Navigate to="/auth" state={{ from: location.pathname }} replace />;
   }
 

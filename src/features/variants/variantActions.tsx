@@ -4,7 +4,9 @@ import { logoutUser } from "../user/userActions";
 import { ProductVariation } from "../product/productTypes";
 
 interface CreateVariantResponse {
+  status?: string;
   data?: {
+    data?: ProductVariation;
     variant?: ProductVariation;
   };
   message?: string;
@@ -33,7 +35,9 @@ export const createVariant = createAsyncThunk<
       }
     );
 
-    const variant = response.data?.data?.variant;
+    // O factory.createOne retorna { status: 'success', data: { data: variant } }
+    // Mas também pode retornar diretamente o variant em response.data.data
+    const variant = response.data?.data?.variant || response.data?.data?.data || response.data?.data;
 
     if (!variant) {
       return rejectWithValue("Resposta inesperada ao criar variante.");
