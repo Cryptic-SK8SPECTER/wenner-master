@@ -8,7 +8,7 @@ export type OrderStatus =
   | "enviado"
   | "entregue"
   | "cancelado";
-export type PaymentMethod = "cartao" | "boleto" | "pix" | "transferencia";
+export type PaymentMethod = "cartao" | "transferencia" | "mpesa" | "emola" | "numerario";
 
 export interface OrderProduct {
   product?: string; // Product ObjectId
@@ -45,6 +45,8 @@ export interface Order {
   paid: boolean;
   paidAt?: Date;
   deliveryDate?: Date;
+  clientConfirmed?: boolean; // Cliente confirmou recebimento
+  clientConfirmedAt?: Date; // Data da confirmação pelo cliente
   notes?: string;
   createdAt?: Date;
   updatedAt?: Date;

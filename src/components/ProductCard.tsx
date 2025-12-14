@@ -22,6 +22,7 @@ import {
   DialogTitle,
 } from "./ui/dialog";
 import { Label } from "./ui/label";
+import { Input } from "./ui/input";
 
 interface ProductCardProps {
   product: Product;
@@ -36,6 +37,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
   const [isVariantDialogOpen, setIsVariantDialogOpen] = useState(false);
   const [selectedColor, setSelectedColor] = useState<string>("");
   const [selectedSize, setSelectedSize] = useState<string>("");
+  const [quantity, setQuantity] = useState<number>(1);
   const navigate = useNavigate();
   const { addItem } = useCart();
 
@@ -397,13 +399,22 @@ export const ProductCard = ({ product }: ProductCardProps) => {
         return;
       }
 
-      // Validar estoque da variante selecionada
+      // Validar estoque da variante selecionada e quantidade
       if (selectedVariant) {
         const stock = selectedVariant.stock ?? 0;
         if (stock <= 0) {
           toast({
             title: "Produto fora de estoque",
             description: "Esta variante não está disponível no momento.",
+            variant: "destructive",
+          });
+          return;
+        }
+        // Validar se a quantidade solicitada não excede o estoque
+        if (quantity > stock) {
+          toast({
+            title: "Quantidade indisponível",
+            description: `Apenas ${stock} unidade(s) disponível(eis) em estoque.`,
             variant: "destructive",
           });
           return;
@@ -428,6 +439,18 @@ export const ProductCard = ({ product }: ProductCardProps) => {
       }
     }
 
+    // Validar quantidade para produtos sem variantes
+    if (!hasVariants && product.stock !== undefined) {
+      if (quantity > product.stock) {
+        toast({
+          title: "Quantidade indisponível",
+          description: `Apenas ${product.stock} unidade(s) disponível(eis) em estoque.`,
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     // Usar preço e imagem da variante se disponível, senão usar do produto
     const price = selectedVariant?.price || product.priceDiscount || product.price;
     let image = "";
@@ -449,7 +472,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
       image: image,
       color: selectedColor || undefined,
       size: selectedSize || undefined,
-    });
+    }, quantity);
 
     toast({
       title: "Adicionado ao carrinho!",
@@ -460,6 +483,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
     setIsVariantDialogOpen(false);
     setSelectedColor("");
     setSelectedSize("");
+    setQuantity(1);
   };
 
   const uniqueColors = useMemo(() => {
@@ -596,6 +620,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
           if (!open) {
             setSelectedColor("");
             setSelectedSize("");
+            setQuantity(1);
           }
         }}
         modal={true}
@@ -809,27 +834,105 @@ export const ProductCard = ({ product }: ProductCardProps) => {
                     </div>
               )}
 
-              {/* Preview do Preço e Estoque */}
-              <div className="pt-4 border-t space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Preço:</span>
-                  <span className="text-lg font-bold">
-                    {(selectedVariant?.price || product.priceDiscount || product.price).toFixed(2)} MZN
-                  </span>
+              {/* Seleção de Quantidade */}
+              <div className="pt-4 border-t space-y-3">
+                <div className="flex items-center justify-between gap-4">
+                  <Label htmlFor="quantity" className="text-sm font-medium">
+                    Quantidade
+                  </Label>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (quantity > 1) {
+                          setQuantity(quantity - 1);
+                        }
+                      }}
+                      disabled={quantity <= 1 || (hasVariants && !selectedVariant)}
+                    >
+                      <span className="text-lg">−</span>
+                    </Button>
+                    <Input
+                      id="quantity"
+                      type="number"
+                      min="1"
+                      max={hasVariants ? (selectedVariant?.stock ?? 999) : (product.stock ?? 999)}
+                      value={quantity}
+                      onChange={(e) => {
+                        const value = parseInt(e.target.value) || 1;
+                        const maxStock = hasVariants ? (selectedVariant?.stock ?? 999) : (product.stock ?? 999);
+                        if (value >= 1 && value <= maxStock) {
+                          setQuantity(value);
+                        }
+                      }}
+                      className="w-20 text-center text-sm"
+                      onClick={(e) => e.stopPropagation()}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      disabled={hasVariants && !selectedVariant}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const maxStock = hasVariants ? (selectedVariant?.stock ?? 999) : (product.stock ?? 999);
+                        if (quantity < maxStock) {
+                          setQuantity(quantity + 1);
+                        }
+                      }}
+                      disabled={
+                        (hasVariants && !selectedVariant) ||
+                        quantity >= (hasVariants ? (selectedVariant?.stock ?? 999) : (product.stock ?? 999))
+                      }
+                    >
+                      <span className="text-lg">+</span>
+                    </Button>
+                  </div>
                 </div>
-                {selectedVariant && (
+
+                {/* Preview do Preço e Estoque */}
+                <div className="space-y-2">
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Estoque:</span>
-                    <span className={cn(
-                      "text-sm font-medium",
-                      (selectedVariant.stock ?? 0) > 0 ? "text-green-600" : "text-destructive"
-                    )}>
-                      {(selectedVariant.stock ?? 0) > 0 
-                        ? `${selectedVariant.stock} disponível(eis)`
-                        : "Fora de estoque"}
+                    <span className="text-sm text-muted-foreground">Preço:</span>
+                    <span className="text-lg font-bold">
+                      {(selectedVariant?.price || product.priceDiscount || product.price).toFixed(2)} MZN
                     </span>
                   </div>
-                )}
+                  {/* Mostrar estoque apenas quando uma variante foi selecionada OU quando o produto não tem variantes */}
+                  {selectedVariant ? (
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">Estoque:</span>
+                      <span className={cn(
+                        "text-sm font-medium",
+                        (selectedVariant.stock ?? 0) > 0 ? "text-green-600" : "text-destructive"
+                      )}>
+                        {(selectedVariant.stock ?? 0) > 0 
+                          ? `${selectedVariant.stock} disponível(eis)`
+                          : "Fora de estoque"}
+                      </span>
+                    </div>
+                  ) : !hasVariants && product.stock !== undefined ? (
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">Estoque:</span>
+                      <span className={cn(
+                        "text-sm font-medium",
+                        (product.stock ?? 0) > 0 ? "text-green-600" : "text-destructive"
+                      )}>
+                        {(product.stock ?? 0) > 0 
+                          ? `${product.stock} disponível(eis)`
+                          : "Fora de estoque"}
+                      </span>
+                    </div>
+                  ) : null}
+                </div>
               </div>
             </div>
           </div>
@@ -866,9 +969,17 @@ export const ProductCard = ({ product }: ProductCardProps) => {
                 e.preventDefault();
                 e.stopPropagation();
               }}
-              disabled={selectedVariant && (selectedVariant.stock ?? 0) <= 0}
+              disabled={
+                (hasVariants && !selectedVariant) ||
+                (selectedVariant && (selectedVariant.stock ?? 0) <= 0) ||
+                (!hasVariants && product.stock !== undefined && (product.stock ?? 0) <= 0)
+              }
             >
-              {selectedVariant && (selectedVariant.stock ?? 0) <= 0
+              {hasVariants && !selectedVariant
+                ? "Selecione as opções"
+                : selectedVariant && (selectedVariant.stock ?? 0) <= 0
+                ? "Fora de Estoque"
+                : !hasVariants && product.stock !== undefined && (product.stock ?? 0) <= 0
                 ? "Fora de Estoque"
                 : "Adicionar ao Carrinho"}
             </Button>

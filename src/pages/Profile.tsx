@@ -301,8 +301,8 @@ const Profile = () => {
     try {
       await dispatch(confirmOrderReceived(orderId)).unwrap();
       toast({
-        title: "Pedido confirmado!",
-        description: "Você confirmou o recebimento do pedido. Obrigado!",
+        title: "Recebimento confirmado!",
+        description: "Você confirmou o recebimento do pedido. Aguarde a confirmação final do administrador.",
         variant: "default",
       });
       // Recarregar pedidos para atualizar o status
@@ -658,16 +658,31 @@ const Profile = () => {
                           >
                             Ver Detalhes
                           </Button>
-                          {order.status === "enviado" && (
-                            <Button
-                              variant="default"
-                              className="flex-1"
-                              onClick={() => handleConfirmReceived(order.id)}
-                            >
-                              <Check className="h-4 w-4 mr-2" />
-                              Confirmar Recebimento
-                            </Button>
-                          )}
+                          {order.status === "enviado" && (() => {
+                            // Verificar se o cliente já confirmou
+                            const orderRaw = (order as any).raw || order;
+                            const clientConfirmed = orderRaw?.clientConfirmed || false;
+                            
+                            if (clientConfirmed) {
+                              return (
+                                <Badge variant="secondary" className="flex-1 justify-center">
+                                  <Check className="h-3 w-3 mr-1" />
+                                  Confirmado
+                                </Badge>
+                              );
+                            }
+                            
+                            return (
+                              <Button
+                                variant="default"
+                                className="flex-1"
+                                onClick={() => handleConfirmReceived(order.id)}
+                              >
+                                <Check className="h-4 w-4 mr-2" />
+                                Confirmar Recebimento
+                              </Button>
+                            );
+                          })()}
                         </div>
                       </div>
                     ))}
@@ -1214,19 +1229,56 @@ const Profile = () => {
                   {/* Botão de confirmação de recebimento */}
                   {order.status === "enviado" && (
                     <div className="mt-4 pt-4 border-t border-border">
-                      <div className="bg-primary/10 p-4 rounded-lg mb-4">
-                        <p className="text-sm text-foreground mb-2">
-                          Seu pedido foi enviado e está a caminho. Por favor, confirme o recebimento quando o pedido chegar.
-                        </p>
-                      </div>
-                      <Button
-                        variant="default"
-                        className="w-full"
-                        onClick={() => handleConfirmReceived(order.id)}
-                      >
-                        <Check className="h-4 w-4 mr-2" />
-                        Confirmar Recebimento do Pedido
-                      </Button>
+                      {(() => {
+                        // Verificar se o cliente já confirmou
+                        const orderRaw = (order as any).raw || order;
+                        const clientConfirmed = orderRaw?.clientConfirmed || false;
+                        
+                        if (clientConfirmed) {
+                          return (
+                            <div className="bg-green-500/10 border border-green-500/20 p-4 rounded-lg">
+                              <div className="flex items-center gap-2 mb-2">
+                                <Check className="h-5 w-5 text-green-600" />
+                                <p className="text-sm font-semibold text-foreground">
+                                  Recebimento Confirmado
+                                </p>
+                              </div>
+                              <p className="text-xs sm:text-sm text-muted-foreground">
+                                Você confirmou o recebimento deste pedido. Aguarde a confirmação final do administrador.
+                              </p>
+                              {orderRaw?.clientConfirmedAt && (
+                                <p className="text-xs text-muted-foreground mt-2">
+                                  Confirmado em: {new Date(orderRaw.clientConfirmedAt).toLocaleDateString("pt-BR", {
+                                    day: "2-digit",
+                                    month: "2-digit",
+                                    year: "numeric",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })}
+                                </p>
+                              )}
+                            </div>
+                          );
+                        }
+                        
+                        return (
+                          <>
+                            <div className="bg-primary/10 p-4 rounded-lg mb-4">
+                              <p className="text-sm text-foreground mb-2">
+                                Seu pedido foi enviado e está a caminho. Por favor, confirme o recebimento quando o pedido chegar.
+                              </p>
+                            </div>
+                            <Button
+                              variant="default"
+                              className="w-full"
+                              onClick={() => handleConfirmReceived(order.id)}
+                            >
+                              <Check className="h-4 w-4 mr-2" />
+                              Confirmar Recebimento do Pedido
+                            </Button>
+                          </>
+                        );
+                      })()}
                     </div>
                   )}
                 </div>

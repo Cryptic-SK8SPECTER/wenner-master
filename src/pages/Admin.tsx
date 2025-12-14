@@ -604,6 +604,7 @@ const AdminContent = () => {
       items: order.totalItems || order.products?.length || 0,
       user: userObj, // Incluir objeto user completo para acesso aos dados do cliente
       products: order.products, // Incluir produtos para o modal de detalhes
+      clientConfirmed: order.clientConfirmed || false, // Incluir confirmação do cliente
     };
   });
 
@@ -621,6 +622,7 @@ const AdminContent = () => {
       user: userObj,
       products: o.products || [],
       raw: o,
+      clientConfirmed: o.clientConfirmed || false,
     };
   };
 
@@ -1515,6 +1517,33 @@ const AdminContent = () => {
   ) => {
     try {
       setIsUpdatingStatus(true);
+      
+      // Se for marcar como "entregue", verificar se o cliente confirmou primeiro
+      if (newStatus === "entregue") {
+        try {
+          const orderResult = await dispatch(fetchOrderById(orderId)).unwrap();
+          const actualOrder = (orderResult as any)?.data || orderResult;
+          
+          if (!actualOrder.clientConfirmed) {
+            toast({
+              title: "Confirmação necessária",
+              description: "O cliente precisa confirmar o recebimento antes de marcar como entregue.",
+              variant: "destructive",
+            });
+            setIsUpdatingStatus(false);
+            return;
+          }
+        } catch (fetchError: any) {
+          console.error("❌ Erro ao verificar confirmação do cliente:", fetchError);
+          toast({
+            title: "Erro",
+            description: "Não foi possível verificar a confirmação do cliente.",
+            variant: "destructive",
+          });
+          setIsUpdatingStatus(false);
+          return;
+        }
+      }
       
       // SEMPRE buscar o pedido completo da API ANTES de atualizar para garantir dados corretos
       let userId: string | null = null;
@@ -4540,28 +4569,55 @@ const AdminContent = () => {
                             cancelado: [],
                           };
                           const list = transitions[order.status] || [];
-                          return list.map((t) => (
-                            <Button
-                              key={t.value}
-                              size="sm"
-                              variant="outline"
-                              disabled={isUpdatingStatus}
-                              onClick={() => {
-                                if (t.value === "cancelado") {
-                                  setConfirmDialog({
-                                    open: true,
-                                    action: "cancelOrder",
-                                    id: order.id,
-                                  });
-                                } else {
-                                  handleChangeOrderStatus(order.id, t.value);
-                                }
-                              }}
-                              className="text-xs sm:text-sm"
-                            >
-                              {t.label}
-                            </Button>
-                          ));
+                          
+                          // Obter clientConfirmed do pedido (pode estar em order.raw ou currentOrder)
+                          const orderRaw = (order as any).raw || currentOrder;
+                          const clientConfirmed = orderRaw?.clientConfirmed || (order as any).clientConfirmed || false;
+                          
+                          return list.map((t) => {
+                            // Se for "entregue", verificar se o cliente confirmou
+                            const isDeliveredAction = t.value === "entregue";
+                            const canMarkAsDelivered = !isDeliveredAction || clientConfirmed;
+                            
+                            return (
+                              <div key={t.value} className="flex flex-col gap-1">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={isUpdatingStatus || !canMarkAsDelivered}
+                                  onClick={() => {
+                                    if (t.value === "cancelado") {
+                                      setConfirmDialog({
+                                        open: true,
+                                        action: "cancelOrder",
+                                        id: order.id,
+                                      });
+                                    } else {
+                                      handleChangeOrderStatus(order.id, t.value);
+                                    }
+                                  }}
+                                  className="text-xs sm:text-sm"
+                                  title={
+                                    isDeliveredAction && !clientConfirmed
+                                      ? "O cliente precisa confirmar o recebimento antes de marcar como entregue"
+                                      : undefined
+                                  }
+                                >
+                                  {t.label}
+                                </Button>
+                                {isDeliveredAction && !clientConfirmed && (
+                                  <p className="text-[10px] text-muted-foreground text-center">
+                                    Aguardando confirmação do cliente
+                                  </p>
+                                )}
+                                {isDeliveredAction && clientConfirmed && (
+                                  <Badge variant="secondary" className="text-[10px] w-fit mx-auto">
+                                    Cliente confirmou
+                                  </Badge>
+                                )}
+                              </div>
+                            );
+                          });
                         })()}
                       </div>
                     </div>

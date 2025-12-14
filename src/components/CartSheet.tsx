@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { Minus, Plus, X } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import {
@@ -14,6 +14,8 @@ import { createOrder } from "@/features/order/orderActions";
 import { createNotification } from "@/features/notification/notificationActions";
 import { useToast } from "@/hooks/use-toast";
 import { productionUrl } from "@/lib/utils";
+import { generateInvoice } from "@/utils/generateInvoice";
+import { CheckoutDialog } from "@/components/CheckoutDialog";
 
 interface CartSheetProps {
   open: boolean;
@@ -30,6 +32,8 @@ export const CartSheet = ({ open, onOpenChange }: CartSheetProps) => {
 
   const { items, removeItem, updateQuantity, totalPrice, clearCart } =
     useCart();
+
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
 
   // Função para obter a imagem correta do item
   const getItemImage = (item: any) => {
@@ -83,7 +87,7 @@ export const CartSheet = ({ open, onOpenChange }: CartSheetProps) => {
     return "https://i.pinimg.com/1200x/a7/2f/db/a72fdbea7e86c3fb70a17c166a36407b.jpg";
   };
 
-  const handleCheckout = async () => {
+  const handleCheckout = () => {
     if (!items || items.length === 0) {
       toast({
         title: "Carrinho vazio",
@@ -91,6 +95,30 @@ export const CartSheet = ({ open, onOpenChange }: CartSheetProps) => {
       });
       return;
     }
+
+    // Abrir dialog de checkout
+    setIsCheckoutOpen(true);
+  };
+
+  const handleConfirmPayment = async (paymentData: {
+    paymentMethod: "mpesa" | "emola" | "numerario" | "conta_bancaria" | "transferencia";
+    phoneNumber?: string;
+    bankAccount?: {
+      bankName: string;
+      accountNumber: string;
+      accountHolder: string;
+    };
+  }) => {
+    // Mapear métodos de pagamento para o formato do backend
+    const paymentMethodMap: Record<string, string> = {
+      mpesa: "mpesa",
+      emola: "emola",
+      numerario: "numerario",
+      conta_bancaria: "transferencia",
+      transferencia: "transferencia",
+    };
+
+    const backendPaymentMethod = paymentMethodMap[paymentData.paymentMethod] || "numerario";
 
     // Reconhecer priceDiscount: se o preço do item for menor que o preço original,
     // significa que há desconto aplicado. O priceDiscount é o preço final após desconto.
@@ -103,9 +131,13 @@ export const CartSheet = ({ open, onOpenChange }: CartSheetProps) => {
         size: item.size,
       })),
       discount: 0, // Desconto adicional (cupom) se houver
-      paymentMethod: "cartao",
+      paymentMethod: backendPaymentMethod,
       totalPrice: totalPrice,
-      notes: "",
+      notes: paymentData.bankAccount
+        ? `Conta Bancária: ${paymentData.bankAccount.bankName} - ${paymentData.bankAccount.accountNumber} - ${paymentData.bankAccount.accountHolder}`
+        : paymentData.phoneNumber
+        ? `Telefone: ${paymentData.phoneNumber}`
+        : "",
     };
 
     try {
@@ -134,11 +166,123 @@ export const CartSheet = ({ open, onOpenChange }: CartSheetProps) => {
           }
         }
 
+        // Gerar fatura/recibo em PDF
+        try {
+          const invoiceNumber = orderId?.slice(-8) || Date.now().toString().slice(-8);
+          const orderDate = order?.createdAt ? new Date(order.createdAt) : new Date();
+          
+          // Preparar dados do cliente
+          const customerName = user?.name || "Cliente";
+          const customerPhone = user?.phone || "";
+          
+          // Formatar endereço do cliente (filtrar placeholders)
+          let customerAddress = "";
+          if (user?.address) {
+            const placeholderTexts = [
+              "Informe a rua e número",
+              "Informe a cidade",
+              "Informe o estado",
+              "Informe o código de endereçamento postal",
+            ];
+            
+            const addressParts = [
+              user.address.street,
+              user.address.city,
+              user.address.state,
+              user.address.zipCode,
+            ].filter((part) => {
+              // Filtrar partes vazias e placeholders
+              if (!part) return false;
+              return !placeholderTexts.some((placeholder) => part.includes(placeholder));
+            });
+            
+            customerAddress = addressParts.join(", ");
+          }
+
+          // Preparar itens da fatura
+          const invoiceItems = items.map((item) => ({
+            name: item.name,
+            quantity: item.quantity,
+            unitPrice: item.price,
+            total: item.price * item.quantity,
+            color: item.color,
+            size: item.size,
+          }));
+
+          // Calcular subtotal e total
+          const subtotal = totalPrice;
+          const tax = 0; // Sem imposto por enquanto
+          const finalTotal = subtotal + tax;
+
+          // Preparar informações de pagamento para a fatura
+          const getPaymentMethodLabel = (method: string) => {
+            const labels: Record<string, string> = {
+              mpesa: "M-Pesa",
+              emola: "E-Mola",
+              numerario: "Numerário",
+              transferencia: "Transferência",
+              conta_bancaria: "Conta Bancária",
+            };
+            return labels[method] || method;
+          };
+
+          // Preparar informações de pagamento baseadas no método selecionado
+          let invoiceBankName: string | undefined;
+          let invoiceAccountName: string | undefined;
+          let invoiceAccountNumber: string | undefined;
+          let invoicePaymentDetails: string | undefined;
+
+          // Verificar se é método bancário (transferência ou conta bancária)
+          const isBankMethod = backendPaymentMethod === "transferencia" || 
+                               paymentData.paymentMethod === "conta_bancaria" || 
+                               paymentData.paymentMethod === "transferencia";
+
+          if (isBankMethod && paymentData.bankAccount) {
+            // Se for transferência ou conta bancária, usar os dados informados pelo cliente
+            invoiceBankName = paymentData.bankAccount.bankName;
+            invoiceAccountName = paymentData.bankAccount.accountHolder;
+            invoiceAccountNumber = paymentData.bankAccount.accountNumber;
+            invoicePaymentDetails = `${paymentData.bankAccount.bankName} - Conta: ${paymentData.bankAccount.accountNumber} - Titular: ${paymentData.bankAccount.accountHolder}`;
+          } else if (backendPaymentMethod === "mpesa" || backendPaymentMethod === "emola") {
+            // Se for M-Pesa ou E-Mola, mostrar o número de telefone
+            if (paymentData.phoneNumber) {
+              invoicePaymentDetails = `Telefone: ${paymentData.phoneNumber}`;
+            }
+          }
+          // Para "numerario", não precisa de informações adicionais
+
+          // Gerar fatura
+          generateInvoice({
+            invoiceNumber,
+            date: orderDate,
+            customer: {
+              name: customerName,
+              phone: customerPhone,
+              address: customerAddress || undefined,
+            },
+            items: invoiceItems,
+            subtotal,
+            tax,
+            total: finalTotal,
+            paymentMethod: getPaymentMethodLabel(paymentData.paymentMethod),
+            paymentDetails: invoicePaymentDetails,
+            businessName: "Wenner",
+            businessAddress: "987 Anywhere St., Any City, Any State 987655",
+            bankName: invoiceBankName,
+            accountName: invoiceAccountName,
+            accountNumber: invoiceAccountNumber,
+          });
+        } catch (invoiceError) {
+          // Não bloquear o fluxo se a geração da fatura falhar
+          console.error("Erro ao gerar fatura:", invoiceError);
+        }
+
         toast({
           title: "Pedido realizado",
-          description: "Seu pedido foi criado com sucesso.",
+          description: "Seu pedido foi criado com sucesso. A fatura foi gerada automaticamente.",
         });
         clearCart();
+        setIsCheckoutOpen(false);
         onOpenChange(false);
       } else {
         const apiPayload: any = (resultAction as any).payload;
@@ -284,6 +428,16 @@ export const CartSheet = ({ open, onOpenChange }: CartSheetProps) => {
           </>
         )}
       </SheetContent>
+
+      {/* Dialog de Checkout */}
+      <CheckoutDialog
+        open={isCheckoutOpen}
+        onOpenChange={setIsCheckoutOpen}
+        items={items}
+        totalPrice={totalPrice}
+        onConfirm={handleConfirmPayment}
+        loading={loading}
+      />
     </Sheet>
   );
 };
