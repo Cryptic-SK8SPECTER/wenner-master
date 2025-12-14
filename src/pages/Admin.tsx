@@ -50,6 +50,7 @@ import {
   FileDown,
   Layers,
   RefreshCw,
+  AlertTriangle,
 } from "lucide-react";
 import { mockProducts } from "@/data/products";
 import { Product, ProductVariation } from "@/features/product/productTypes";
@@ -215,6 +216,10 @@ const AdminContent = () => {
   const [allVariants, setAllVariants] = useState<ProductVariation[]>([]);
   const [selectedProductForVariant, setSelectedProductForVariant] = useState<string>("");
   const [variantProductFilter, setVariantProductFilter] = useState<string>("all");
+  const [isProductSelectModalOpen, setIsProductSelectModalOpen] = useState(false);
+  const [productSearchTerm, setProductSearchTerm] = useState("");
+  const [productSelectPage, setProductSelectPage] = useState(1);
+  const productSelectItemsPerPage = 10;
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isVariantDialogOpen, setIsVariantDialogOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Customer | null>(null);
@@ -3374,26 +3379,66 @@ const AdminContent = () => {
                 </CardHeader>
                 <CardContent className="p-4 sm:p-6">
                   <div className="space-y-3 sm:space-y-4">
-                    {paginatedProducts.map((product) => (
+                    {paginatedProducts.map((product) => {
+                      // Verificar se o produto está fora de estoque
+                      const hasVariants = (product.variants && product.variants.length > 0) || 
+                                        (product.variations && product.variations.length > 0) ||
+                                        (product.colors && product.colors.length > 0);
+                      
+                      let isOutOfStock = false;
+                      let totalStock = 0;
+                      
+                      if (!hasVariants) {
+                        // Produto sem variantes: verificar stock direto
+                        isOutOfStock = (product.stock || 0) <= 0;
+                        totalStock = product.stock || 0;
+                      } else {
+                        // Produto com variantes: verificar se todas as variantes estão fora de estoque
+                        const variants = product.variants || product.variations || [];
+                        const totalVariantStock = variants.reduce((sum: number, v: any) => sum + (v.stock || 0), 0);
+                        totalStock = totalVariantStock;
+                        isOutOfStock = totalVariantStock <= 0;
+                      }
+                      
+                      return (
                       <div
                         key={product._id}
-                        className="flex gap-3 sm:gap-4 p-3 sm:p-4 border border-border rounded-lg hover:border-accent transition-colors"
+                        className={`flex gap-3 sm:gap-4 p-3 sm:p-4 border rounded-lg transition-colors ${
+                          isOutOfStock 
+                            ? "border-destructive/50 bg-destructive/5 hover:border-destructive" 
+                            : "border-border hover:border-accent"
+                        }`}
                       >
-                        <img
-                          src={`${productionUrl}/img/products/${product.imageCover}`}
-                          alt={product.name}
-                          className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-md flex-shrink-0"
-                          onError={(e) => {
-                            e.currentTarget.src =
-                              "https://i.pinimg.com/1200x/a7/2f/db/a72fdbea7e86c3fb70a17c166a36407b.jpg";
-                          }}
-                        />
+                        <div className="relative flex-shrink-0">
+                          <img
+                            src={`${productionUrl}/img/products/${product.imageCover}`}
+                            alt={product.name}
+                            className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-md"
+                            onError={(e) => {
+                              e.currentTarget.src =
+                                "https://i.pinimg.com/1200x/a7/2f/db/a72fdbea7e86c3fb70a17c166a36407b.jpg";
+                            }}
+                          />
+                          {isOutOfStock && (
+                            <div className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full p-1">
+                              <AlertTriangle className="h-3 w-3 sm:h-4 sm:w-4" />
+                            </div>
+                          )}
+                        </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-start justify-between gap-2 sm:gap-4">
                             <div className="flex-1 min-w-0">
-                              <h3 className="font-semibold text-sm sm:text-base text-foreground break-words">
-                                {product.name}
-                              </h3>
+                              <div className="flex items-center gap-2 mb-1">
+                                <h3 className="font-semibold text-sm sm:text-base text-foreground break-words">
+                                  {product.name}
+                                </h3>
+                                {isOutOfStock && (
+                                  <Badge variant="destructive" className="text-xs flex items-center gap-1">
+                                    <AlertTriangle className="h-3 w-3" />
+                                    Fora de Estoque
+                                  </Badge>
+                                )}
+                              </div>
                               <p className="text-xs sm:text-sm text-muted-foreground">
                                 {product.category} • {product.gender}
                               </p>
@@ -3412,15 +3457,22 @@ const AdminContent = () => {
                                     {product.price.toFixed(2)} MZN
                                   </p>
                                 )}
-                                {/* Mostrar estoque se o produto não tiver variantes */}
-                                {(!product.variants || product.variants.length === 0) && (
-                                  <Badge 
-                                    variant={product.stock && product.stock > 0 ? "default" : "destructive"}
-                                    className="text-xs"
-                                  >
-                                    Estoque: {product.stock || 0}
-                                  </Badge>
-                                )}
+                                {/* Mostrar estoque sempre, com destaque se fora de estoque */}
+                                <Badge 
+                                  variant={totalStock > 0 ? "default" : "destructive"}
+                                  className={`text-xs flex items-center gap-1 ${isOutOfStock ? "font-semibold" : ""}`}
+                                >
+                                  {hasVariants ? (
+                                    <>
+                                      <Package className="h-3 w-3" />
+                                      Estoque Total: {totalStock}
+                                    </>
+                                  ) : (
+                                    <>
+                                      Estoque: {totalStock}
+                                    </>
+                                  )}
+                                </Badge>
                               </div>
                             </div>
                             <div className="flex gap-1 sm:gap-2 flex-shrink-0">
@@ -3444,7 +3496,8 @@ const AdminContent = () => {
                           </div>
                         </div>
                       </div>
-                    ))}
+                      );
+                    })}
 
                     {filteredProducts.length === 0 && (
                       <div className="text-center py-12 text-muted-foreground">
@@ -3535,25 +3588,16 @@ const AdminContent = () => {
                           className="pl-10 text-sm"
                         />
                       </div>
-                      <Select
-                        value={variantProductFilter}
-                        onValueChange={(value) => {
-                          setVariantProductFilter(value);
-                          setVariantsPage(1); // Resetar página ao mudar filtro
-                        }}
+                      <Button
+                        variant="outline"
+                        onClick={() => setIsProductSelectModalOpen(true)}
+                        className="w-full sm:w-64 text-sm justify-start"
                       >
-                        <SelectTrigger className="w-full sm:w-64 text-sm">
-                          <SelectValue placeholder="Filtrar por produto" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Todos os produtos</SelectItem>
-                          {products.map((product) => (
-                            <SelectItem key={product._id} value={product._id}>
-                              {product.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        <Filter className="h-4 w-4 mr-2" />
+                        {variantProductFilter === "all" 
+                          ? "Filtrar por produto" 
+                          : products.find(p => p._id === variantProductFilter)?.name || "Filtrar por produto"}
+                      </Button>
                       <Button
                         onClick={() => {
                           resetVariantFormState();
@@ -3640,28 +3684,53 @@ const AdminContent = () => {
                                       ? (variant.product as any)?.name 
                                       : "Produto não encontrado");
 
+                                  const isVariantOutOfStock = (variant.stock || 0) <= 0;
+                                  
                                   return (
                                     <div
                                       key={variant._id}
-                                      className="flex gap-3 sm:gap-4 p-3 sm:p-4 border border-border rounded-lg hover:border-accent transition-colors"
+                                      className={`flex gap-3 sm:gap-4 p-3 sm:p-4 border rounded-lg transition-colors ${
+                                        isVariantOutOfStock 
+                                          ? "border-destructive/50 bg-destructive/5 hover:border-destructive" 
+                                          : "border-border hover:border-accent"
+                                      }`}
                                     >
-                                      {variant.image && (
-                                        <img
-                                          src={`${productionUrl}/img/variants/${variant.image}`}
-                                          alt={variant.sku}
-                                          className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-md flex-shrink-0"
-                                          onError={(e) => {
-                                            e.currentTarget.src =
-                                              "https://i.pinimg.com/1200x/a7/2f/db/a72fdbea7e86c3fb70a17c166a36407b.jpg";
-                                          }}
-                                        />
-                                      )}
+                                      <div className="relative flex-shrink-0">
+                                        {variant.image ? (
+                                          <img
+                                            src={`${productionUrl}/img/variants/${variant.image}`}
+                                            alt={variant.sku}
+                                            className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-md"
+                                            onError={(e) => {
+                                              e.currentTarget.src =
+                                                "https://i.pinimg.com/1200x/a7/2f/db/a72fdbea7e86c3fb70a17c166a36407b.jpg";
+                                            }}
+                                          />
+                                        ) : (
+                                          <div className="w-16 h-16 sm:w-20 sm:h-20 bg-muted rounded-md flex items-center justify-center">
+                                            <Package className="h-8 w-8 sm:h-10 sm:w-10 text-muted-foreground" />
+                                          </div>
+                                        )}
+                                        {isVariantOutOfStock && (
+                                          <div className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full p-1">
+                                            <AlertTriangle className="h-3 w-3 sm:h-4 sm:w-4" />
+                                          </div>
+                                        )}
+                                      </div>
                                       <div className="flex-1 min-w-0">
                                         <div className="flex items-start justify-between gap-2 sm:gap-4 mb-2">
                                           <div className="flex-1 min-w-0">
-                                            <h3 className="font-semibold text-sm sm:text-base text-foreground">
-                                              {variant.color} • {variant.size}
-                                            </h3>
+                                            <div className="flex items-center gap-2 mb-1">
+                                              <h3 className="font-semibold text-sm sm:text-base text-foreground">
+                                                {variant.color} • {variant.size}
+                                              </h3>
+                                              {isVariantOutOfStock && (
+                                                <Badge variant="destructive" className="text-xs flex items-center gap-1">
+                                                  <AlertTriangle className="h-3 w-3" />
+                                                  Fora de Estoque
+                                                </Badge>
+                                              )}
+                                            </div>
                                             <p className="text-xs sm:text-sm text-muted-foreground">
                                               SKU: {variant.sku}
                                             </p>
@@ -3672,8 +3741,9 @@ const AdminContent = () => {
                                           <div className="flex items-center gap-2">
                                             <Badge 
                                               variant={variant.stock && variant.stock > 0 ? "default" : "destructive"}
-                                              className="text-xs"
+                                              className={`text-xs flex items-center gap-1 ${isVariantOutOfStock ? "font-semibold" : ""}`}
                                             >
+                                              <Package className="h-3 w-3" />
                                               Estoque: {variant.stock || 0}
                                             </Badge>
                                           </div>
@@ -4891,22 +4961,27 @@ const AdminContent = () => {
                     Preço promocional (deve ser menor que o preço normal)
                   </p>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-stock" className="text-sm">Estoque *</Label>
-                  <Input
-                    id="edit-stock"
-                    name="stock"
-                    type="number"
-                    min="0"
-                    step="1"
-                    defaultValue={editingProduct.stock || 0}
-                    required
-                    className="text-sm"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Estoque para produtos sem variantes
-                  </p>
-                </div>
+                {/* Mostrar campo de estoque apenas se o produto não tiver variantes */}
+                {(!editingProduct.variants || editingProduct.variants.length === 0) &&
+                 (!editingProduct.variations || editingProduct.variations.length === 0) &&
+                 (!editingProduct.colors || editingProduct.colors.length === 0) && (
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-stock" className="text-sm">Estoque *</Label>
+                    <Input
+                      id="edit-stock"
+                      name="stock"
+                      type="number"
+                      min="0"
+                      step="1"
+                      defaultValue={editingProduct.stock || 0}
+                      required
+                      className="text-sm"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Estoque para produtos sem variantes
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
@@ -5650,6 +5725,243 @@ const AdminContent = () => {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Seleção de Produto para Filtro */}
+      <Dialog open={isProductSelectModalOpen} onOpenChange={setIsProductSelectModalOpen}>
+        <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col p-0 gap-0">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b">
+            <DialogTitle className="text-xl font-semibold">Selecionar Produto</DialogTitle>
+            <DialogDescription className="text-sm mt-1">
+              Pesquise e selecione um produto para filtrar as variantes
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="flex-1 overflow-hidden flex flex-col gap-4 px-6 pt-4">
+            {/* Input de Pesquisa */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Pesquisar por nome ou categoria..."
+                value={productSearchTerm}
+                onChange={(e) => {
+                  setProductSearchTerm(e.target.value);
+                  setProductSelectPage(1); // Resetar página ao pesquisar
+                }}
+                className="pl-10 h-11 text-base"
+              />
+            </div>
+
+            {/* Lista de Produtos */}
+            <div className="flex-1 overflow-y-auto rounded-lg border bg-card">
+              {(() => {
+                // Filtrar produtos por termo de busca
+                const filteredProducts = products.filter((product) =>
+                  product.name.toLowerCase().includes(productSearchTerm.toLowerCase()) ||
+                  product.category?.toLowerCase().includes(productSearchTerm.toLowerCase())
+                );
+
+                // Calcular paginação
+                const totalPages = Math.ceil(filteredProducts.length / productSelectItemsPerPage);
+                const paginatedProducts = filteredProducts.slice(
+                  (productSelectPage - 1) * productSelectItemsPerPage,
+                  productSelectPage * productSelectItemsPerPage
+                );
+
+                return (
+                  <>
+                    {paginatedProducts.length === 0 && productSearchTerm ? (
+                      <div className="p-12 text-center">
+                        <Package className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
+                        <p className="text-muted-foreground font-medium">Nenhum produto encontrado</p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Tente pesquisar com outros termos
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-border">
+                        {/* Opção "Todos os produtos" */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setVariantProductFilter("all");
+                            setVariantsPage(1);
+                            setIsProductSelectModalOpen(false);
+                            setProductSearchTerm("");
+                            setProductSelectPage(1);
+                          }}
+                          className={`w-full p-4 text-left hover:bg-accent/50 transition-all duration-200 ${
+                            variantProductFilter === "all" 
+                              ? "bg-primary/10 border-l-4 border-l-primary" 
+                              : "hover:border-l-4 hover:border-l-primary/30"
+                          }`}
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
+                              variantProductFilter === "all" 
+                                ? "bg-primary text-primary-foreground" 
+                                : "bg-muted text-muted-foreground"
+                            }`}>
+                              <Package className="h-6 w-6" />
+                            </div>
+                            <div className="flex-1">
+                              <div className="font-semibold text-base">Todos os produtos</div>
+                              <div className="text-sm text-muted-foreground mt-0.5">
+                                Mostrar todas as variantes cadastradas
+                              </div>
+                            </div>
+                            {variantProductFilter === "all" && (
+                              <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center">
+                                <Check className="h-4 w-4" />
+                              </div>
+                            )}
+                          </div>
+                        </button>
+
+                        {/* Lista de produtos */}
+                        {paginatedProducts.map((product) => (
+                          <button
+                            key={product._id}
+                            type="button"
+                            onClick={() => {
+                              setVariantProductFilter(product._id);
+                              setVariantsPage(1);
+                              setIsProductSelectModalOpen(false);
+                              setProductSearchTerm("");
+                              setProductSelectPage(1);
+                            }}
+                            className={`w-full p-4 text-left hover:bg-accent/50 transition-all duration-200 ${
+                              variantProductFilter === product._id 
+                                ? "bg-primary/10 border-l-4 border-l-primary" 
+                                : "hover:border-l-4 hover:border-l-primary/30"
+                            }`}
+                          >
+                            <div className="flex items-center gap-4">
+                              {product.imageCover ? (
+                                <div className="relative w-14 h-14 rounded-lg overflow-hidden border-2 border-border flex-shrink-0">
+                                  <img
+                                    src={`${productionUrl}/img/products/${product.imageCover}`}
+                                    alt={product.name}
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                      (e.target as HTMLImageElement).style.display = "none";
+                                    }}
+                                  />
+                                </div>
+                              ) : (
+                                <div className="w-14 h-14 bg-gradient-to-br from-muted to-muted/50 rounded-lg flex items-center justify-center border-2 border-border flex-shrink-0">
+                                  <Package className="h-7 w-7 text-muted-foreground" />
+                                </div>
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <div className="font-semibold text-base truncate">{product.name}</div>
+                                <div className="flex items-center gap-2 mt-1">
+                                  {product.category ? (
+                                    <Badge variant="secondary" className="text-xs">
+                                      {product.category}
+                                    </Badge>
+                                  ) : (
+                                    <span className="text-xs text-muted-foreground">Sem categoria</span>
+                                  )}
+                                </div>
+                              </div>
+                              {variantProductFilter === product._id && (
+                                <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center flex-shrink-0">
+                                  <Check className="h-4 w-4" />
+                                </div>
+                              )}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Paginação */}
+                    {(() => {
+                      const filteredProducts = products.filter((product) =>
+                        product.name.toLowerCase().includes(productSearchTerm.toLowerCase()) ||
+                        product.category?.toLowerCase().includes(productSearchTerm.toLowerCase())
+                      );
+                      const totalPages = Math.ceil(filteredProducts.length / productSelectItemsPerPage);
+                      
+                      if (totalPages <= 1) return null;
+                      
+                      return (
+                        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 pb-2 border-t">
+                          <div className="text-sm text-muted-foreground">
+                            <span className="font-medium">{filteredProducts.length}</span> produto(s) encontrado(s) • 
+                            Página <span className="font-medium">{productSelectPage}</span> de <span className="font-medium">{totalPages}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setProductSelectPage((p) => Math.max(1, p - 1))}
+                              disabled={productSelectPage === 1}
+                              className="h-9"
+                            >
+                              Anterior
+                            </Button>
+                            <div className="flex gap-1">
+                              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                let pageNum;
+                                if (totalPages <= 5) {
+                                  pageNum = i + 1;
+                                } else if (productSelectPage <= 3) {
+                                  pageNum = i + 1;
+                                } else if (productSelectPage >= totalPages - 2) {
+                                  pageNum = totalPages - 4 + i;
+                                } else {
+                                  pageNum = productSelectPage - 2 + i;
+                                }
+                                return (
+                                  <Button
+                                    key={pageNum}
+                                    variant={productSelectPage === pageNum ? "default" : "outline"}
+                                    size="sm"
+                                    onClick={() => setProductSelectPage(pageNum)}
+                                    className="w-9 h-9 p-0"
+                                  >
+                                    {pageNum}
+                                  </Button>
+                                );
+                              })}
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                setProductSelectPage((p) => Math.min(totalPages, p + 1))
+                              }
+                              disabled={productSelectPage === totalPages}
+                              className="h-9"
+                            >
+                              Próxima
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+
+          <DialogFooter className="px-6 pb-6 pt-4 border-t bg-muted/30">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsProductSelectModalOpen(false);
+                setProductSearchTerm("");
+                setProductSelectPage(1);
+              }}
+              className="w-full sm:w-auto"
+            >
+              Fechar
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
