@@ -526,7 +526,7 @@ const Auth = () => {
                     id="signup-password"
                     name="password"
                     type="password"
-                    placeholder="Mínimo 8 caracteres"
+                    placeholder="Insira a sua senha"
                     required
                     disabled={isLoading}
                     icon={Lock}
@@ -543,7 +543,7 @@ const Auth = () => {
                   id="signup-confirm-password"
                   name="confirmPassword"
                   type="password"
-                  placeholder="Digite a senha novamente"
+                  placeholder="Confirme a sua senha"
                   required
                   disabled={isLoading}
                   icon={Lock}
