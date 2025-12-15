@@ -505,7 +505,7 @@ const Auth = () => {
                     id="signup-email"
                     name="email"
                     type="email"
-                    placeholder="exemplo@email.com"
+                    placeholder="Insira a seu email"
                     required
                     disabled={isLoading || isCheckingEmail}
                     icon={Mail}
