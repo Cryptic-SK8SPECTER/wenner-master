@@ -278,10 +278,12 @@ const Profile = () => {
     date: order.createdAt
       ? new Date(order.createdAt).toLocaleDateString("pt-BR")
       : "",
+    createdAt: order.createdAt, // Manter original para formatação no modal
     total: order.totalPrice || 0,
     status: order.status || "pendente",
     items: order.totalItems || order.products?.length || 0,
     products: order.products || [],
+    raw: order, // Manter objeto original completo
   }));
 
   const totalOrdersPages = Math.ceil(allOrders.length / itemsPerPage);
@@ -1064,7 +1066,9 @@ const Profile = () => {
                         Data do Pedido
                       </p>
                       <p className="font-semibold">
-                        {new Date(order.date).toLocaleDateString("pt-BR")}
+                        {order.createdAt
+                          ? new Date(order.createdAt).toLocaleDateString("pt-BR")
+                          : order.date || "Data não disponível"}
                       </p>
                     </div>
                     {getStatusBadge(order.status)}
@@ -1123,10 +1127,10 @@ const Profile = () => {
                           {/* Preço */}
                           <div className="text-right">
                             <p className="font-bold text-foreground">
-                              {item.price * item.quantity} MZN
+                              {(item.price * item.quantity).toFixed(2)} MZN
                             </p>
                             <p className="text-xs text-muted-foreground">
-                              {item.price} MZN cada
+                              {item.price.toFixed(2)} MZN cada
                             </p>
                           </div>
                         </div>
@@ -1201,12 +1205,16 @@ const Profile = () => {
                       <span className="text-foreground">{order.total.toFixed(2)} MZN</span>
                     </div>
 
-                    {order.priceDiscount > 0 && (
-                      <div className="flex justify-between text-green-600">
-                        <span>Desconto:</span>
-                        <span>-{order.priceDiscount} MZN</span>
-                      </div>
-                    )}
+                    {(() => {
+                      const discount = (order as any).raw?.discount || (order as any).priceDiscount || 0;
+                      const discountAmount = typeof discount === 'number' ? discount : 0;
+                      return discountAmount > 0 ? (
+                        <div className="flex justify-between text-green-600">
+                          <span>Desconto:</span>
+                          <span>-{discountAmount.toFixed(2)} MZN</span>
+                        </div>
+                      ) : null;
+                    })()}
 
                     <Separator />
 

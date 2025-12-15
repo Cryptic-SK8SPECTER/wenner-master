@@ -149,6 +149,20 @@ type VariantFormState = {
   imageFile: File | null;
 };
 
+type OrderViewShape = {
+  id: string;
+  customerName: string;
+  date: string;
+  createdAt?: string | Date;
+  total: number;
+  status: string;
+  items: number;
+  user: any;
+  products: any[];
+  raw?: any;
+  clientConfirmed?: boolean;
+};
+
 const createEmptyVariantForm = (): VariantFormState => ({
   color: "#000000",
   size: "",
@@ -604,12 +618,14 @@ const AdminContent = () => {
       date: order.createdAt
         ? new Date(order.createdAt).toLocaleDateString("pt-BR")
         : "",
+      createdAt: order.createdAt, // Manter original para formatação no modal
       total: order.totalPrice || 0,
       status: order.status || "pendente",
       items: order.totalItems || order.products?.length || 0,
       user: userObj, // Incluir objeto user completo para acesso aos dados do cliente
       products: order.products, // Incluir produtos para o modal de detalhes
       clientConfirmed: order.clientConfirmed || false, // Incluir confirmação do cliente
+      raw: order, // Manter objeto original completo
     };
   });
 
@@ -620,7 +636,10 @@ const AdminContent = () => {
     return {
       id: o._id || o.id || "",
       customerName: userObj?.name || "Cliente",
-      date: o.createdAt || "",
+      date: o.createdAt
+        ? new Date(o.createdAt).toLocaleDateString("pt-BR")
+        : "",
+      createdAt: o.createdAt, // Manter original para formatação
       total: o.totalPrice || o.finalPrice || 0,
       status: o.status || "pendente",
       items: o.totalItems || o.products?.length || 0,
@@ -2153,7 +2172,9 @@ const AdminContent = () => {
                             </p>
                             <p className="text-xs sm:text-sm text-muted-foreground">
                               Data:{" "}
-                              {new Date(order.date).toLocaleDateString("pt-BR")}
+                              {order.createdAt
+                                ? new Date(order.createdAt).toLocaleDateString("pt-BR")
+                                : order.date || "Data não disponível"}
                             </p>
                           </div>
                           <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-4">
@@ -4602,7 +4623,9 @@ const AdminContent = () => {
                         Data do Pedido
                       </p>
                       <p className="font-semibold text-sm sm:text-base">
-                        {new Date(order.date).toLocaleDateString("pt-BR")}
+                        {order.createdAt
+                          ? new Date(order.createdAt).toLocaleDateString("pt-BR")
+                          : order.date || "Data não disponível"}
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2 sm:gap-3">
