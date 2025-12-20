@@ -315,6 +315,9 @@ const AdminContent = () => {
     error: reportError,
   } = useAppSelector((state) => state.report as any);
 
+  console.log('check it  ', totalRevenue, averageTicket);
+
+
   // Agora TODOS os useEffect vêm depois de todos os useAppSelector
   // Atualizar clients quando topClients mudar
   useEffect(() => {
@@ -802,10 +805,10 @@ const AdminContent = () => {
       yPosition += sectionSpacing;
 
       const summaryData = [
-        { label: "Receita Total", value: `${totalRevenue.toFixed(2)} MZN` },
-        { label: "Ticket Médio", value: `${averageTicket.toFixed(2)} MZN` },
+        { label: "Receita Total", value: `${totalRevenue} MZN` },
+        { label: "Ticket Médio", value: `${averageTicket} MZN` },
         { label: "Total de Pedidos", value: totalOrdersValue.toString() },
-        { label: "Taxa de Entrega", value: `${deliveryRate.toFixed(1)}%` },
+        { label: "Taxa de Entrega", value: `${deliveryRate}%` },
       ];
 
       const summaryColWidth = (pageWidth - 2 * margin) / 2;
@@ -2337,7 +2340,7 @@ const AdminContent = () => {
                                 {customer.totalOrders} pedidos
                               </p>
                               <p className="text-base font-bold text-foreground">
-                                {customer.totalSpent.toFixed(2)} MZN
+                                {customer.totalSpent} MZN
                               </p>
                             </div>
                           </div>
@@ -2347,7 +2350,7 @@ const AdminContent = () => {
                                 {customer.totalOrders} pedidos
                               </p>
                               <p className="text-lg font-bold text-foreground">
-                                {customer.totalSpent.toFixed(2)} MZN
+                                {customer.totalSpent} MZN
                               </p>
                             </div>
                             <Dialog>
@@ -2446,9 +2449,7 @@ const AdminContent = () => {
                                           Total Gasto
                                         </Label>
                                         <p className="font-semibold text-sm sm:text-base text-accent">
-                                          {selectedCustomer.totalSpent.toFixed(
-                                            2
-                                          )}{" "}
+                                          {selectedCustomer.totalSpent}{" "}
                                           MZN
                                         </p>
                                       </div>
@@ -3205,7 +3206,7 @@ const AdminContent = () => {
                                     {customer.totalOrders}
                                   </TableCell>
                                   <TableCell className="text-right font-semibold text-accent">
-                                    {customer.totalSpent.toFixed(2)} MZN
+                                    {customer.totalSpent} MZN
                                   </TableCell>
                                   <TableCell className="text-right">
                                     {new Date(

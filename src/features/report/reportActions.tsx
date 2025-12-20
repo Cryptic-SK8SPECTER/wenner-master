@@ -27,7 +27,9 @@ export const fetchTotalRevenue = createAsyncThunk<
     const res = await customFetch.get("/api/v1/reports/total-revenue", {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
-    return res.data.data?.total ?? res.data.total ?? 0;
+
+
+    return res.data.data?.totalRevenue ?? res.data.totalRevenue ?? 0;
   } catch (error) {
     if (error instanceof Error && "response" in error) {
       const axiosError = error as any;
@@ -55,7 +57,9 @@ export const fetchAverageTicket = createAsyncThunk<
     const res = await customFetch.get("/api/v1/reports/average-ticket", {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
-    return res.data.data?.average ?? res.data.average ?? 0;
+
+
+    return res.data.data?.averageTicket ?? res.data.averageTicket ?? 0;
   } catch (error) {
     if (error instanceof Error && "response" in error) {
       const axiosError = error as any;
@@ -112,7 +116,7 @@ export const fetchDeliveryRate = createAsyncThunk<
     const res = await customFetch.get("/api/v1/reports/delivery-rate", {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
-    return res.data.data?.rate ?? res.data.rate ?? 0;
+    return res.data.data?.deliveryRate ?? res.data.deliveryRate ?? 0;
   } catch (error) {
     if (error instanceof Error && "response" in error) {
       const axiosError = error as any;
