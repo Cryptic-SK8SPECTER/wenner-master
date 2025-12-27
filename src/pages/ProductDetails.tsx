@@ -1509,7 +1509,7 @@ const ProductDetails = () => {
                 disabled={isFavoriteLoading || favoritesLoading}
                 className={cn(
                   "w-full sm:w-auto",
-                  isFavorite && "border-sale text-sale hover:text-sale"
+                  isFavorite && "border-[#0DA2E7] hover:border-[#0DA2E7]"
                 )}
               >
                 <Heart
@@ -1518,6 +1518,7 @@ const ProductDetails = () => {
                     isFavorite && "fill-current",
                     (isFavoriteLoading || favoritesLoading) && "animate-pulse"
                   )}
+                  style={isFavorite ? { color: '#0DA2E7' } : undefined}
                 />
               </Button>
             </div>

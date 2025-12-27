@@ -13,6 +13,7 @@ import {
   addToFavorites,
   removeFromFavorites,
 } from "@/features/favorite/favoriteActions";
+import { selectIsFavorite } from "@/features/favorite/favoriteSlice";
 import {
   Dialog,
   DialogContent,
@@ -40,6 +41,12 @@ export const ProductCard = ({ product }: ProductCardProps) => {
   const [quantity, setQuantity] = useState<number>(1);
   const navigate = useNavigate();
   const { addItem } = useCart();
+
+  // Verificar se o produto está nos favoritos
+  const productId = product.id ?? product._id;
+  const isFavorite = useAppSelector((state) => 
+    productId ? selectIsFavorite(productId)(state) : false
+  );
 
   const handleToggleFavorite = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -537,14 +544,18 @@ export const ProductCard = ({ product }: ProductCardProps) => {
           className={cn(
             "absolute top-3 right-3 z-20 p-2 rounded-full transition-all duration-300",
             "disabled:opacity-50 disabled:cursor-not-allowed",
-            "bg-card/80 backdrop-blur-sm text-muted-foreground hover:bg-card hover:text-sale"
+            isFavorite
+              ? "bg-card/80 backdrop-blur-sm hover:bg-card"
+              : "bg-card/80 backdrop-blur-sm text-muted-foreground hover:bg-card hover:text-[#0DA2E7]"
           )}
         >
           <Heart
             className={cn(
               "w-5 h-5 transition-all",
-              (loading || isLoading) && "animate-pulse"
+              (loading || isLoading) && "animate-pulse",
+              isFavorite && "fill-current"
             )}
+            style={isFavorite ? { color: '#0DA2E7' } : undefined}
           />
         </button>
 

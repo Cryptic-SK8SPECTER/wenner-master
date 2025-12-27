@@ -522,12 +522,21 @@ const Profile = () => {
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="grid gap-4 md:grid-cols-2">
-                    {favoriteProducts.map((product) => (
+                    {favoriteProducts.map((product: any) => (
                       <div
                         key={product._id}
                         className="flex gap-4 p-4 border border-border rounded-lg hover:border-accent transition-colors"
                       >
-                        <ProductImage src={product.image} alt={product.name} />
+                        <ProductImage 
+                          src={product.imageCover 
+                            ? `${productionUrl}/img/products/${product.imageCover}` 
+                            : product.image 
+                              ? (product.image.startsWith('http') ? product.image : `${productionUrl}/img/products/${product.image}`)
+                              : undefined
+                          } 
+                          alt={product.name} 
+                          className="w-24 h-24 sm:w-32 sm:h-32 object-cover rounded-lg flex-shrink-0"
+                        />
                         <div className="flex-1">
                           <h3 className="font-semibold text-foreground">
                             {product.name}
@@ -558,7 +567,7 @@ const Profile = () => {
                           }
                           aria-label="Remover dos favoritos"
                         >
-                          <Heart className="h-5 w-5 text-accent fill-accent" />
+                          <Heart className="h-5 w-5 fill-current" style={{ color: '#0DA2E7' }} />
                         </Button>
                       </div>
                     ))}
@@ -1093,9 +1102,13 @@ const Profile = () => {
                           <div className="w-20 h-20 bg-muted rounded-md flex items-center justify-center overflow-hidden">
                             <img
                               src={
-                                product.imageCover ||
-                                product.images?.[0] ||
-                                "https://i.pinimg.com/1200x/a7/2f/db/a72fdbea7e86c3fb70a17c166a36407b.jpg"
+                                product.imageCover
+                                  ? `${productionUrl}/img/products/${product.imageCover}`
+                                  : product.images?.[0]
+                                    ? (product.images[0].startsWith('http') 
+                                        ? product.images[0] 
+                                        : `${productionUrl}/img/products/${product.images[0]}`)
+                                    : "https://i.pinimg.com/1200x/a7/2f/db/a72fdbea7e86c3fb70a17c166a36407b.jpg"
                               }
                               alt={product.name}
                               className="w-full h-full object-cover"

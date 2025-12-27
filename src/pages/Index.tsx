@@ -19,6 +19,7 @@ import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { fetchProducts } from "@/features/product/productActions";
 import { useToast } from "@/hooks/use-toast";
 import { clearError } from "@/features/product/productSlice";
+import { fetchFavorites } from "@/features/favorite/favoriteActions";
 
 const Index = () => {
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
@@ -29,6 +30,7 @@ const Index = () => {
   const { products, loading, error, searchQuery } = useAppSelector(
     (state) => state.product
   );
+  const { user, isAuthenticated } = useAppSelector((state) => state.user);
 
 
   const maxPrice =
@@ -52,6 +54,13 @@ const Index = () => {
   useEffect(() => {
     dispatch(fetchProducts());
   }, [dispatch]);
+
+  // Fetch favorites when user is authenticated (para marcar os corações)
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      dispatch(fetchFavorites());
+    }
+  }, [isAuthenticated, user, dispatch]);
 
   // Reset page when search query changes
   useEffect(() => {

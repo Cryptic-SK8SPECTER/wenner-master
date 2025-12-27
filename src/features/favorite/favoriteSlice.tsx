@@ -114,9 +114,24 @@ export const { clearError, clearSuccess, resetFavorites } =
 // Verifica se um produto está nos favoritos
 export const selectIsFavorite =
   (productId: string) => (state: { favorites: FavoritesState }) =>
-    state.favorites.favorites.some(
-      (item) => item.product && (item.product._id === productId || item.product.id === productId)
-    );
+    state.favorites.favorites.some((item: any) => {
+      // Se for um produto direto (a API retorna produtos populados)
+      if (item._id === productId || item.id === productId) {
+        return true;
+      }
+      // Se for FavoriteItem (tem product)
+      if (item.product) {
+        const product = typeof item.product === 'object' ? item.product : null;
+        if (product && (product._id === productId || product.id === productId)) {
+          return true;
+        }
+        // Se product for string (ID)
+        if (typeof item.product === 'string' && item.product === productId) {
+          return true;
+        }
+      }
+      return false;
+    });
 
 // Total de favoritos
 export const selectFavoritesCount = (state: { favorites: FavoritesState }) =>
