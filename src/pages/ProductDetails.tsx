@@ -31,8 +31,14 @@ import { cn } from "@/lib/utils";
 import { z } from "zod";
 import { useCart } from "@/contexts/CartContext";
 import { useToast } from "@/hooks/use-toast";
+import { generateInvoice } from "@/utils/generateInvoice";
+import { CheckoutDialog } from "@/components/CheckoutDialog";
 import { productionUrl } from "@/lib/utils";
-import { validateCoupon, clearValidatedCoupon, useCoupon } from "@/features/coupon/cupomActions";
+import {
+  validateCoupon,
+  clearValidatedCoupon,
+  useCoupon,
+} from "@/features/coupon/cupomActions";
 import { clearCouponError } from "@/features/coupon/cupomSlice";
 import {
   addToFavorites,
@@ -125,6 +131,7 @@ const ProductDetails = () => {
 
   const { user, requireAuth } = useRequireAuth();
   const { addItem } = useCart();
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
 
   // Estados locais
   const [selectedImage, setSelectedImage] = useState(0);
@@ -212,26 +219,29 @@ const ProductDetails = () => {
     return variants && variants.length > 0;
   }, [variants]);
 
-
   // Verificar se o produto tem estoque disponível (ANTES de qualquer return condicional)
   // Sempre retornar true se não houver produto ainda (para não bloquear o loading)
   const hasStockAvailable = useMemo(() => {
     if (!currentProduct) return true; // Retornar true durante loading para não bloquear
-    
-    const hasVariants = 
+
+    const hasVariants =
       (currentProduct.variants && currentProduct.variants.length > 0) ||
       (currentProduct.colors && currentProduct.colors.length > 0);
-    
+
     if (!hasVariants) {
       // Produto sem variantes: verificar stock direto
       return (currentProduct.stock || 0) > 0;
     } else {
       // Produto com variantes: verificar se pelo menos uma variante tem estoque
-      const hasStockInVariants = currentProduct.variants?.some((variant: any) => (variant.stock || 0) > 0) || false;
-      const hasStockInColors = currentProduct.colors?.some((color: any) => {
-        const stock = (color as any).stock ?? 0;
-        return stock > 0;
-      }) || false;
+      const hasStockInVariants =
+        currentProduct.variants?.some(
+          (variant: any) => (variant.stock || 0) > 0
+        ) || false;
+      const hasStockInColors =
+        currentProduct.colors?.some((color: any) => {
+          const stock = (color as any).stock ?? 0;
+          return stock > 0;
+        }) || false;
       return hasStockInVariants || hasStockInColors;
     }
   }, [currentProduct]);
@@ -239,15 +249,11 @@ const ProductDetails = () => {
   // === FUNÇÕES DE SINCRONIZAÇÃO AUTOMÁTICA ===
   const getAvailableSizesForColor = (color: string) => {
     if (!hasVariants) return [];
-    
+
     if (!color) {
       // Retornar apenas tamanhos com estoque > 0
       return Array.from(
-        new Set(
-          variants
-            .filter((v) => (v.stock || 0) > 0)
-            .map((v) => v.size)
-        )
+        new Set(variants.filter((v) => (v.stock || 0) > 0).map((v) => v.size))
       );
     }
     return Array.from(
@@ -261,15 +267,11 @@ const ProductDetails = () => {
 
   const getAvailableColorsForSize = (size: string) => {
     if (!hasVariants) return [];
-    
+
     if (!size) {
       // Retornar apenas cores com estoque > 0
       return Array.from(
-        new Set(
-          variants
-            .filter((v) => (v.stock || 0) > 0)
-            .map((v) => v.color)
-        )
+        new Set(variants.filter((v) => (v.stock || 0) > 0).map((v) => v.color))
       );
     }
     return Array.from(
@@ -284,29 +286,23 @@ const ProductDetails = () => {
   // Cores e tamanhos disponíveis baseados na seleção atual (apenas com estoque)
   const availableColors = useMemo(() => {
     if (!hasVariants) return [];
-    
+
     return selectedSize
       ? getAvailableColorsForSize(selectedSize)
       : Array.from(
           new Set(
-            variants
-              .filter((v) => (v.stock || 0) > 0)
-              .map((v) => v.color)
+            variants.filter((v) => (v.stock || 0) > 0).map((v) => v.color)
           )
         );
   }, [selectedSize, variants, hasVariants]);
 
   const availableSizes = useMemo(() => {
     if (!hasVariants) return [];
-    
+
     return selectedColor
       ? getAvailableSizesForColor(selectedColor)
       : Array.from(
-          new Set(
-            variants
-              .filter((v) => (v.stock || 0) > 0)
-              .map((v) => v.size)
-          )
+          new Set(variants.filter((v) => (v.stock || 0) > 0).map((v) => v.size))
         );
   }, [selectedColor, variants, hasVariants]);
 
@@ -383,7 +379,7 @@ const ProductDetails = () => {
   // Validar e ajustar quantidade quando estoque mudar
   useEffect(() => {
     if (!currentProduct) return;
-    
+
     if (currentStock > 0 && quantity > currentStock) {
       setQuantity(currentStock);
       showToast({
@@ -392,7 +388,14 @@ const ProductDetails = () => {
         variant: "default",
       });
     }
-  }, [currentStock, selectedColor, selectedSize, quantity, showToast, currentProduct]);
+  }, [
+    currentStock,
+    selectedColor,
+    selectedSize,
+    quantity,
+    showToast,
+    currentProduct,
+  ]);
 
   // Limpar seleções de cor e tamanho quando não houver opções disponíveis em estoque
   useEffect(() => {
@@ -402,7 +405,11 @@ const ProductDetails = () => {
     if (selectedColor && availableColors.length === 0) {
       setSelectedColor("");
       setQuantity(1);
-    } else if (selectedColor && availableColors.length > 0 && !availableColors.includes(selectedColor)) {
+    } else if (
+      selectedColor &&
+      availableColors.length > 0 &&
+      !availableColors.includes(selectedColor)
+    ) {
       // Se a cor selecionada não está mais na lista de disponíveis, limpar
       setSelectedColor("");
       setQuantity(1);
@@ -412,40 +419,64 @@ const ProductDetails = () => {
     if (selectedSize && availableSizes.length === 0) {
       setSelectedSize("");
       setQuantity(1);
-    } else if (selectedSize && availableSizes.length > 0 && !availableSizes.includes(selectedSize)) {
+    } else if (
+      selectedSize &&
+      availableSizes.length > 0 &&
+      !availableSizes.includes(selectedSize)
+    ) {
       // Se o tamanho selecionado não está mais na lista de disponíveis, limpar
       setSelectedSize("");
       setQuantity(1);
     }
-  }, [hasVariants, selectedColor, selectedSize, availableColors, availableSizes]);
+  }, [
+    hasVariants,
+    selectedColor,
+    selectedSize,
+    availableColors,
+    availableSizes,
+  ]);
 
   // Construir array de imagens com URLs completas usando useMemo para evitar recriação
   // Deve estar ANTES dos early returns para manter a ordem dos hooks
   const productImages = useMemo(() => {
     if (!currentProduct) {
-      return ["https://i.pinimg.com/1200x/a7/2f/db/a72fdbea7e86c3fb70a17c166a36407b.jpg"];
+      return [
+        "https://i.pinimg.com/1200x/a7/2f/db/a72fdbea7e86c3fb70a17c166a36407b.jpg",
+      ];
     }
 
     const images = [
       // Imagem principal (imageCover) sempre primeiro
-      ...(currentProduct.imageCover ? [`${productionUrl}/img/products/${currentProduct.imageCover}`] : []),
+      ...(currentProduct.imageCover
+        ? [`${productionUrl}/img/products/${currentProduct.imageCover}`]
+        : []),
       // Imagens das variantes
-      ...(currentProduct.variants?.map((variant) => 
-        variant.image ? `${productionUrl}/img/variants/${variant.image}` : null
-      ).filter(Boolean) || []),
+      ...(currentProduct.variants
+        ?.map((variant) =>
+          variant.image
+            ? `${productionUrl}/img/variants/${variant.image}`
+            : null
+        )
+        .filter(Boolean) || []),
       // Outras imagens do produto
-      ...(currentProduct.images?.map((img) => 
-        img ? `${productionUrl}/img/products/${img}` : null
-      ).filter(Boolean) || []),
+      ...(currentProduct.images
+        ?.map((img) => (img ? `${productionUrl}/img/products/${img}` : null))
+        .filter(Boolean) || []),
     ];
 
     // Se não houver imagens, usar fallback
     if (images.length === 0) {
-      images.push("https://i.pinimg.com/1200x/a7/2f/db/a72fdbea7e86c3fb70a17c166a36407b.jpg");
+      images.push(
+        "https://i.pinimg.com/1200x/a7/2f/db/a72fdbea7e86c3fb70a17c166a36407b.jpg"
+      );
     }
 
     return images;
-  }, [currentProduct?.imageCover, currentProduct?.variants, currentProduct?.images]);
+  }, [
+    currentProduct?.imageCover,
+    currentProduct?.variants,
+    currentProduct?.images,
+  ]);
 
   // Carrossel automático de imagens
   // Deve estar ANTES dos early returns para manter a ordem dos hooks
@@ -466,7 +497,7 @@ const ProductDetails = () => {
     return (
       <div className="min-h-screen bg-background">
         <Header />
-        
+
         {/* Breadcrumb Skeleton */}
         <div className="container px-3 sm:px-4 md:px-6 py-3 sm:py-4">
           <div className="flex items-center gap-2">
@@ -497,7 +528,10 @@ const ProductDetails = () => {
                 <div className="flex items-center gap-3 mb-4">
                   <div className="flex gap-1">
                     {[...Array(5)].map((_, i) => (
-                      <Skeleton key={i} className="h-4 w-4 sm:h-5 sm:w-5 rounded-sm" />
+                      <Skeleton
+                        key={i}
+                        className="h-4 w-4 sm:h-5 sm:w-5 rounded-sm"
+                      />
                     ))}
                   </div>
                   <Skeleton className="h-4 w-24" />
@@ -522,7 +556,10 @@ const ProductDetails = () => {
                 <Skeleton className="h-5 w-32 mb-3" />
                 <div className="flex gap-2">
                   {[...Array(3)].map((_, i) => (
-                    <Skeleton key={i} className="h-8 w-8 sm:h-10 sm:w-10 rounded-full" />
+                    <Skeleton
+                      key={i}
+                      className="h-8 w-8 sm:h-10 sm:w-10 rounded-full"
+                    />
                   ))}
                 </div>
               </div>
@@ -532,7 +569,10 @@ const ProductDetails = () => {
                 <Skeleton className="h-5 w-32 mb-3" />
                 <div className="flex gap-2 flex-wrap">
                   {[...Array(4)].map((_, i) => (
-                    <Skeleton key={i} className="h-9 sm:h-10 w-12 sm:w-16 rounded-md" />
+                    <Skeleton
+                      key={i}
+                      className="h-9 sm:h-10 w-12 sm:w-16 rounded-md"
+                    />
                   ))}
                 </div>
               </div>
@@ -605,9 +645,7 @@ const ProductDetails = () => {
       <div className="min-h-screen bg-background">
         <Header />
         <div className="container px-4 py-20 text-center">
-          <h1 className="text-2xl font-bold mb-4">
-            Produto fora de estoque
-          </h1>
+          <h1 className="text-2xl font-bold mb-4">Produto fora de estoque</h1>
           <p className="text-muted-foreground mb-6">
             Este produto não está disponível no momento.
           </p>
@@ -673,7 +711,7 @@ const ProductDetails = () => {
         // Produto com variantes - validar estoque da variante selecionada
         if (selectedColor || selectedSize) {
           const matchingVariant = variants.find(
-            (v) => 
+            (v) =>
               (!selectedColor || v.color === selectedColor) &&
               (!selectedSize || v.size === selectedSize)
           );
@@ -712,7 +750,7 @@ const ProductDetails = () => {
       }
 
       // Determinar a imagem correta: se tem variante selecionada, usar imagem da variante, senão usar imageCover
-      let itemImage = product.imageCover 
+      let itemImage = product.imageCover
         ? `${productionUrl}/img/products/${product.imageCover}`
         : "";
       if (variants.length > 0 && (selectedColor || selectedSize)) {
@@ -762,9 +800,8 @@ const ProductDetails = () => {
         return;
       }
 
-      // Validar estoque
+      // Validar estoque (mesma lógica anterior)
       if (hasVariants) {
-        // Produto com variantes - exigir seleção de cor
         if (!selectedColor) {
           showToast({
             title: "Selecione uma cor",
@@ -773,10 +810,10 @@ const ProductDetails = () => {
           });
           return;
         }
-        // Produto com variantes - validar estoque da variante selecionada
+
         if (selectedColor || selectedSize) {
           const matchingVariant = variants.find(
-            (v) => 
+            (v) =>
               (!selectedColor || v.color === selectedColor) &&
               (!selectedSize || v.size === selectedSize)
           );
@@ -801,7 +838,6 @@ const ProductDetails = () => {
           }
         }
       } else {
-        // Produto sem variantes - validar estoque do produto diretamente
         const productStock = product.stock || 0;
         if (productStock < quantity) {
           showToast({
@@ -813,106 +849,176 @@ const ProductDetails = () => {
         }
       }
 
-      // Criar payload do pedido
-      const payload = {
-        products: [
-          {
-            product: currentProduct._id,
-            quantity: quantity,
-            price: finalPrice / quantity, // Preço unitário
-            // Incluir color e size se selecionados (para produtos com variantes ou sem variantes com cores/tamanhos)
-            ...((hasVariants || selectedColor || selectedSize) && {
-              color: selectedColor || undefined,
-              size: selectedSize || undefined,
-            }),
-          },
-        ],
-        discount: validatedCoupon ? validatedCoupon.discountValue : 0,
-        paymentMethod: "cartao",
-        totalPrice: finalPrice,
-        notes: "",
-      };
-
-      try {
-        showToast({
-          title: "Processando compra...",
-          description: "Aguarde enquanto criamos seu pedido.",
-        });
-
-        const resultAction = await dispatch(createOrder(payload as any));
-
-        if (createOrder.fulfilled.match(resultAction)) {
-          const order = resultAction.payload;
-          const orderId = order?._id || order?.id;
-
-          // Criar notificação após pedido criado com sucesso
-          if (reduxUser?._id && orderId) {
-            try {
-              await dispatch(
-                createNotification({
-                  title: "Pedido Realizado",
-                  message: `Seu pedido #${orderId.slice(-6)} foi criado com sucesso. Total: ${finalPrice.toFixed(2)} MZN`,
-                  type: "Pedido",
-                  user: reduxUser._id,
-                  order: orderId,
-                })
-              ).unwrap();
-            } catch (notificationError) {
-              // Não bloquear o fluxo se a notificação falhar
-              console.error("Erro ao criar notificação:", notificationError);
-            }
-          }
-
-          // Marcar cupom como usado se houver um cupom validado
-          if (validatedCoupon && validatedCoupon.coupon.code) {
-            try {
-              await dispatch(
-                useCoupon({
-                  code: validatedCoupon.coupon.code,
-                  userId: reduxUser?._id,
-                })
-              ).unwrap();
-            } catch (useCouponError) {
-              // Não bloquear o fluxo se falhar ao marcar cupom como usado
-              // Mas logar o erro para debug
-              console.error("Erro ao marcar cupom como usado:", useCouponError);
-            }
-          }
-
-          showToast({
-            title: "Pedido realizado!",
-            description: `Seu pedido foi criado com sucesso. Total: ${finalPrice.toFixed(2)} MZN`,
-          });
-
-          // Limpar cupom validado se houver
-          if (validatedCoupon) {
-            dispatch(clearValidatedCoupon());
-          }
-
-          // Redirecionar para a página de pedidos ou home
-          setTimeout(() => {
-            navigate("/");
-          }, 2000);
-        } else {
-          const apiPayload: any = (resultAction as any).payload;
-          const msg =
-            apiPayload?.message ||
-            (resultAction as any).error?.message ||
-            "Erro ao criar pedido";
-          showToast({
-            title: "Erro",
-            description: msg,
-            variant: "destructive",
-          });
-        }
-      } catch (err: any) {
-        showToast({
-          title: "Erro",
-          description: err?.message || "Erro ao criar pedido",
-          variant: "destructive",
-        });
-      }
+      // Preparar itens para o dialog de checkout
+      setIsCheckoutOpen(true);
     });
+  };
+
+  const handleConfirmPayment = async (paymentData: {
+    paymentMethod:
+      | "mpesa"
+      | "emola"
+      | "numerario"
+      | "conta_bancaria"
+      | "transferencia";
+    phoneNumber?: string;
+    bankAccount?: {
+      bankName: string;
+      accountNumber: string;
+      accountHolder: string;
+    };
+  }) => {
+    const paymentMethodMap: Record<string, string> = {
+      mpesa: "mpesa",
+      emola: "emola",
+      numerario: "numerario",
+      conta_bancaria: "transferencia",
+      transferencia: "transferencia",
+    };
+
+    const backendPaymentMethod =
+      paymentMethodMap[paymentData.paymentMethod] || "numerario";
+
+    const payload = {
+      products: [
+        {
+          product: currentProduct!._id,
+          quantity: quantity,
+          price: finalPrice / quantity,
+          ...((hasVariants || selectedColor || selectedSize) && {
+            color: selectedColor || undefined,
+            size: selectedSize || undefined,
+          }),
+        },
+      ],
+      discount: validatedCoupon ? validatedCoupon.discountValue : 0,
+      paymentMethod: backendPaymentMethod,
+      totalPrice: finalPrice,
+      notes: paymentData.bankAccount
+        ? `Conta Bancária: ${paymentData.bankAccount.bankName} - ${paymentData.bankAccount.accountNumber} - ${paymentData.bankAccount.accountHolder}`
+        : paymentData.phoneNumber
+        ? `Telefone: ${paymentData.phoneNumber}`
+        : "",
+    };
+
+    try {
+      const resultAction = await dispatch(createOrder(payload as any));
+
+      if (createOrder.fulfilled.match(resultAction)) {
+        const order = resultAction.payload;
+        const orderId = order?._id || order?.id;
+
+        if (reduxUser?._id && orderId) {
+          try {
+            await dispatch(
+              createNotification({
+                title: "Pedido Realizado",
+                message: `Seu pedido #${orderId.slice(
+                  -6
+                )} foi criado com sucesso. Total: ${finalPrice.toFixed(2)} MZN`,
+                type: "Pedido",
+                user: reduxUser._id,
+                order: orderId,
+              })
+            ).unwrap();
+          } catch (notificationError) {
+            console.error("Erro ao criar notificação:", notificationError);
+          }
+        }
+
+        // Gerar fatura (não bloquear o fluxo se falhar)
+        try {
+          const invoiceNumber =
+            orderId?.slice(-8) || Date.now().toString().slice(-8);
+          const orderDate = order?.createdAt
+            ? new Date(order.createdAt)
+            : new Date();
+          const customerName = reduxUser?.name || "Cliente";
+          const customerPhone = reduxUser?.phone || "";
+          let customerAddress = "";
+          if (reduxUser?.address) {
+            const placeholderTexts = [
+              "Informe a rua e número",
+              "Informe a cidade",
+              "Informe o estado",
+              "Informe o código de endereçamento postal",
+            ];
+            const addressParts = [
+              reduxUser.address.street,
+              reduxUser.address.city,
+              reduxUser.address.state,
+              reduxUser.address.zipCode,
+            ].filter((part) => {
+              if (!part) return false;
+              return !placeholderTexts.some((placeholder) =>
+                part.includes(placeholder)
+              );
+            });
+            customerAddress = addressParts.join(", ");
+          }
+
+          const invoiceItems = [
+            {
+              name: currentProduct!.name,
+              quantity,
+              unitPrice: finalPrice / quantity,
+              total: finalPrice,
+              color: selectedColor,
+              size: selectedSize,
+            },
+          ];
+
+          generateInvoice({
+            invoiceNumber,
+            date: orderDate,
+            customer: {
+              name: customerName,
+              phone: customerPhone,
+              address: customerAddress || undefined,
+            },
+            items: invoiceItems,
+            subtotal: finalPrice,
+            tax: 0,
+            total: finalPrice,
+            paymentMethod: paymentData.paymentMethod,
+            paymentDetails: paymentData.bankAccount
+              ? `${paymentData.bankAccount.bankName} - Conta: ${paymentData.bankAccount.accountNumber} - Titular: ${paymentData.bankAccount.accountHolder}`
+              : paymentData.phoneNumber
+              ? `Telefone: ${paymentData.phoneNumber}`
+              : undefined,
+            businessName: "Wenner",
+            businessAddress: "987 Anywhere St., Any City, Any State 987655",
+          });
+        } catch (invoiceError) {
+          console.error("Erro ao gerar fatura:", invoiceError);
+        }
+
+        showToast({
+          title: "Pedido realizado",
+          description: "Seu pedido foi criado com sucesso.",
+        });
+
+        if (validatedCoupon) {
+          dispatch(clearValidatedCoupon());
+        }
+
+        setIsCheckoutOpen(false);
+        setTimeout(() => navigate("/"), 1200);
+      } else {
+        const apiPayload: any = (resultAction as any).payload;
+        const msg =
+          apiPayload?.message ||
+          (resultAction as any).error?.message ||
+          "Erro ao criar pedido";
+        showToast({ title: "Erro", description: msg, variant: "destructive" });
+      }
+    } catch (err: any) {
+      showToast({
+        title: "Erro",
+        description: err?.message || "Erro ao criar pedido",
+        variant: "destructive",
+      });
+    }
   };
 
   // Substitua a função handleApplyCoupon por:
@@ -1044,7 +1150,7 @@ const ProductDetails = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 md:gap-8 mb-8 sm:mb-12 md:mb-16">
           {/* Image Gallery */}
           <div className="space-y-4">
-            <div 
+            <div
               className="relative aspect-[3/3] bg-muted rounded-lg overflow-hidden group"
               onMouseEnter={() => setIsAutoPlay(false)}
               onMouseLeave={() => setIsAutoPlay(true)}
@@ -1054,7 +1160,8 @@ const ProductDetails = () => {
                 alt={product.name}
                 className="w-full h-full object-cover transition-opacity duration-500"
                 onError={(e) => {
-                  e.currentTarget.src = "https://i.pinimg.com/1200x/a7/2f/db/a72fdbea7e86c3fb70a17c166a36407b.jpg";
+                  e.currentTarget.src =
+                    "https://i.pinimg.com/1200x/a7/2f/db/a72fdbea7e86c3fb70a17c166a36407b.jpg";
                 }}
               />
 
@@ -1245,109 +1352,117 @@ const ProductDetails = () => {
               )}
             </div>
 
-            <p className="text-sm sm:text-base text-muted-foreground">{product.description}</p>
+            <p className="text-sm sm:text-base text-muted-foreground">
+              {product.description}
+            </p>
 
             <Separator />
 
             {/* Color Selection - Mostrar apenas se houver variantes */}
             {hasVariants && (
-            <div>
-              <h3 className="text-sm sm:text-base font-semibold mb-2 sm:mb-3">
-                Cor: {selectedColor || "Selecione"}
-              </h3>
-              <div className="flex gap-2 flex-wrap">
-                {availableColors.length > 0 ? (
-                  availableColors.map((color) => {
-                    // Verificar se há estoque para esta cor (considerando tamanho selecionado)
-                    const hasStock = variants.some(
-                      (v) =>
-                        v.color === color &&
-                        (!selectedSize || v.size === selectedSize) &&
-                        (v.stock || 0) > 0
-                    );
-                    return (
-                      <button
-                        key={color}
-                        onClick={() => hasStock && handleColorSelect(color)}
-                        disabled={!hasStock}
-                        className={cn(
-                          "w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 transition-all",
-                          !hasStock
-                            ? "opacity-50 cursor-not-allowed"
-                            : "hover:scale-110",
-                          selectedColor === color
-                            ? "border-primary ring-2 ring-primary ring-offset-1 sm:ring-offset-2"
-                            : "border-border"
-                        )}
-                        style={{
-                          backgroundColor: color,
-                        }}
-                        title={
-                          !hasStock
-                            ? "Fora de estoque"
-                            : selectedSize
-                            ? `${color} - Verificar estoque para tamanho ${selectedSize}`
-                            : color
-                        }
-                      />
-                    );
-                  })
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    Nenhuma cor disponível em estoque
-                  </p>
-                )}
+              <div>
+                <h3 className="text-sm sm:text-base font-semibold mb-2 sm:mb-3">
+                  Cor: {selectedColor || "Selecione"}
+                </h3>
+                <div className="flex gap-2 flex-wrap">
+                  {availableColors.length > 0 ? (
+                    availableColors.map((color) => {
+                      // Verificar se há estoque para esta cor (considerando tamanho selecionado)
+                      const hasStock = variants.some(
+                        (v) =>
+                          v.color === color &&
+                          (!selectedSize || v.size === selectedSize) &&
+                          (v.stock || 0) > 0
+                      );
+                      return (
+                        <button
+                          key={color}
+                          onClick={() => hasStock && handleColorSelect(color)}
+                          disabled={!hasStock}
+                          className={cn(
+                            "w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 transition-all",
+                            !hasStock
+                              ? "opacity-50 cursor-not-allowed"
+                              : "hover:scale-110",
+                            selectedColor === color
+                              ? "border-primary ring-2 ring-primary ring-offset-1 sm:ring-offset-2"
+                              : "border-border"
+                          )}
+                          style={{
+                            backgroundColor: color,
+                          }}
+                          title={
+                            !hasStock
+                              ? "Fora de estoque"
+                              : selectedSize
+                              ? `${color} - Verificar estoque para tamanho ${selectedSize}`
+                              : color
+                          }
+                        />
+                      );
+                    })
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      Nenhuma cor disponível em estoque
+                    </p>
+                  )}
+                </div>
               </div>
-            </div>
             )}
 
             {/* Size Selection - Mostrar apenas se houver variantes */}
             {hasVariants && (
-            <div>
-              <h3 className="text-sm sm:text-base font-semibold mb-2 sm:mb-3">
-                Tamanho: {selectedSize || "Selecione"}
-              </h3>
-              <div className="flex gap-2 flex-wrap">
-                {availableSizes.length > 0 ? (
-                  availableSizes.map((size) => {
-                    // Verificar estoque para esta combinação de cor e tamanho
-                    const variantForSize = variants.find(
-                      (v) => v.color === selectedColor && v.size === size
-                    );
-                    const stock = variantForSize?.stock ?? 0;
-                    const isOutOfStock = stock <= 0;
+              <div>
+                <h3 className="text-sm sm:text-base font-semibold mb-2 sm:mb-3">
+                  Tamanho: {selectedSize || "Selecione"}
+                </h3>
+                <div className="flex gap-2 flex-wrap">
+                  {availableSizes.length > 0 ? (
+                    availableSizes.map((size) => {
+                      // Verificar estoque para esta combinação de cor e tamanho
+                      const variantForSize = variants.find(
+                        (v) => v.color === selectedColor && v.size === size
+                      );
+                      const stock = variantForSize?.stock ?? 0;
+                      const isOutOfStock = stock <= 0;
 
-                    return (
-                      <button
-                        key={size}
-                        onClick={() => !isOutOfStock && handleSizeSelect(size)}
-                        disabled={isOutOfStock}
-                        className={cn(
-                          "px-4 sm:px-6 py-1.5 sm:py-2 rounded-md border-2 text-sm sm:text-base font-medium transition-all relative",
-                          isOutOfStock
-                            ? "border-muted bg-muted text-muted-foreground cursor-not-allowed opacity-50"
-                            : selectedSize === size
-                            ? "border-primary bg-primary text-primary-foreground hover:border-primary"
-                            : "border-border bg-card text-card-foreground hover:border-primary"
-                        )}
-                        title={isOutOfStock ? "Fora de estoque" : `${stock} disponível(eis)`}
-                      >
-                        {size}
-                        {isOutOfStock && (
-                          <span className="absolute -top-1 -right-1 text-[10px] bg-destructive text-destructive-foreground rounded-full w-4 h-4 flex items-center justify-center">
-                            ×
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    Nenhum tamanho disponível em estoque
-                  </p>
-                )}
+                      return (
+                        <button
+                          key={size}
+                          onClick={() =>
+                            !isOutOfStock && handleSizeSelect(size)
+                          }
+                          disabled={isOutOfStock}
+                          className={cn(
+                            "px-4 sm:px-6 py-1.5 sm:py-2 rounded-md border-2 text-sm sm:text-base font-medium transition-all relative",
+                            isOutOfStock
+                              ? "border-muted bg-muted text-muted-foreground cursor-not-allowed opacity-50"
+                              : selectedSize === size
+                              ? "border-primary bg-primary text-primary-foreground hover:border-primary"
+                              : "border-border bg-card text-card-foreground hover:border-primary"
+                          )}
+                          title={
+                            isOutOfStock
+                              ? "Fora de estoque"
+                              : `${stock} disponível(eis)`
+                          }
+                        >
+                          {size}
+                          {isOutOfStock && (
+                            <span className="absolute -top-1 -right-1 text-[10px] bg-destructive text-destructive-foreground rounded-full w-4 h-4 flex items-center justify-center">
+                              ×
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      Nenhum tamanho disponível em estoque
+                    </p>
+                  )}
+                </div>
               </div>
-            </div>
             )}
 
             {/* Reset Selection Button */}
@@ -1366,7 +1481,9 @@ const ProductDetails = () => {
 
             {/* Quantity */}
             <div>
-              <h3 className="text-sm sm:text-base font-semibold mb-2 sm:mb-3">Quantidade</h3>
+              <h3 className="text-sm sm:text-base font-semibold mb-2 sm:mb-3">
+                Quantidade
+              </h3>
               <div className="flex items-center gap-2 sm:gap-3">
                 <Button
                   variant="outline"
@@ -1390,7 +1507,8 @@ const ProductDetails = () => {
                     } else {
                       showToast({
                         title: "Estoque indisponível",
-                        description: "Não há estoque disponível para este produto.",
+                        description:
+                          "Não há estoque disponível para este produto.",
                         variant: "destructive",
                       });
                     }
@@ -1453,29 +1571,27 @@ const ProductDetails = () => {
 
             {/* Action Buttons */}
             <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-              <Button 
-                size="lg" 
-                className="flex-1 w-full sm:w-auto p-3" 
+              <Button
+                size="lg"
+                className="flex-1 w-full sm:w-auto p-3"
                 onClick={handleAddToCart}
-                disabled={
-                  (() => {
-                    if (variants.length > 0) {
-                      // Produto com variantes
-                      if (selectedColor || selectedSize) {
-                        const matchingVariant = variants.find(
-                          (v) => 
-                            (!selectedColor || v.color === selectedColor) &&
-                            (!selectedSize || v.size === selectedSize)
-                        );
-                        return (matchingVariant?.stock ?? 0) <= 0;
-                      }
-                      return false;
-                    } else {
-                      // Produto sem variantes - verificar estoque do produto
-                      return (product.stock || 0) <= 0;
+                disabled={(() => {
+                  if (variants.length > 0) {
+                    // Produto com variantes
+                    if (selectedColor || selectedSize) {
+                      const matchingVariant = variants.find(
+                        (v) =>
+                          (!selectedColor || v.color === selectedColor) &&
+                          (!selectedSize || v.size === selectedSize)
+                      );
+                      return (matchingVariant?.stock ?? 0) <= 0;
                     }
-                  })()
-                }
+                    return false;
+                  } else {
+                    // Produto sem variantes - verificar estoque do produto
+                    return (product.stock || 0) <= 0;
+                  }
+                })()}
               >
                 <ShoppingCart className="w-4 h-4 sm:w-5 sm:h-5" />
                 <span className="text-sm sm:text-base">
@@ -1484,7 +1600,7 @@ const ProductDetails = () => {
                       // Produto com variantes
                       if (selectedColor || selectedSize) {
                         const matchingVariant = variants.find(
-                          (v) => 
+                          (v) =>
                             (!selectedColor || v.color === selectedColor) &&
                             (!selectedSize || v.size === selectedSize)
                         );
@@ -1518,7 +1634,7 @@ const ProductDetails = () => {
                     isFavorite && "fill-current",
                     (isFavoriteLoading || favoritesLoading) && "animate-pulse"
                   )}
-                  style={isFavorite ? { color: '#0DA2E7' } : undefined}
+                  style={isFavorite ? { color: "#0DA2E7" } : undefined}
                 />
               </Button>
             </div>
@@ -1535,7 +1651,7 @@ const ProductDetails = () => {
                     // Produto com variantes
                     if (selectedColor || selectedSize) {
                       const matchingVariant = variants.find(
-                        (v) => 
+                        (v) =>
                           (!selectedColor || v.color === selectedColor) &&
                           (!selectedSize || v.size === selectedSize)
                       );
@@ -1549,14 +1665,14 @@ const ProductDetails = () => {
                 })()
               }
             >
-              {orderLoading 
-                ? "Processando..." 
+              {orderLoading
+                ? "Processando..."
                 : (() => {
                     if (variants.length > 0) {
                       // Produto com variantes
                       if (selectedColor || selectedSize) {
                         const matchingVariant = variants.find(
-                          (v) => 
+                          (v) =>
                             (!selectedColor || v.color === selectedColor) &&
                             (!selectedSize || v.size === selectedSize)
                         );
@@ -1585,7 +1701,10 @@ const ProductDetails = () => {
                 className="relative rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs sm:text-sm px-3 sm:px-4 whitespace-nowrap"
               >
                 Avaliações
-                <Badge variant="secondary" className="ml-1 sm:ml-2 text-[10px] sm:text-xs">
+                <Badge
+                  variant="secondary"
+                  className="ml-1 sm:ml-2 text-[10px] sm:text-xs"
+                >
                   {totalReviews}
                 </Badge>
               </TabsTrigger>
@@ -1603,14 +1722,19 @@ const ProductDetails = () => {
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="reviews" className="space-y-4 sm:space-y-6 md:space-y-8 pt-4 sm:pt-6 md:pt-8">
+            <TabsContent
+              value="reviews"
+              className="space-y-4 sm:space-y-6 md:space-y-8 pt-4 sm:pt-6 md:pt-8"
+            >
               {/* Rating Overview */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 md:gap-8">
                 {/* Average Rating */}
                 <div className="bg-card rounded-lg p-4 sm:p-6 md:p-8 shadow-card text-center">
                   <div className="text-4xl sm:text-5xl md:text-6xl font-bold text-foreground mb-2">
                     {averageRating.toFixed(1)}
-                    <span className="text-2xl sm:text-3xl text-muted-foreground">/5</span>
+                    <span className="text-2xl sm:text-3xl text-muted-foreground">
+                      /5
+                    </span>
                   </div>
                   <div className="flex items-center justify-center gap-1 mb-2 sm:mb-3">
                     {[...Array(5)].map((_, i) => (
@@ -1643,7 +1767,10 @@ const ProductDetails = () => {
                       const percentage =
                         totalReviews > 0 ? (count / totalReviews) * 100 : 0;
                       return (
-                        <div key={stars} className="flex items-center gap-2 sm:gap-3">
+                        <div
+                          key={stars}
+                          className="flex items-center gap-2 sm:gap-3"
+                        >
                           <span className="text-xs sm:text-sm font-medium w-12 sm:w-16 text-right">
                             {stars} Estrelas
                           </span>
@@ -1673,135 +1800,138 @@ const ProductDetails = () => {
                   </h3>
                   <div className="space-y-3 sm:space-y-4">
                     {currentReviews.map((review) => (
-                    <div
-                      key={review._id}
-                      className="bg-card rounded-lg p-4 sm:p-6 shadow-card border border-border"
-                    >
-                      <div className="flex items-start gap-3 sm:gap-4">
-                        <Avatar className="w-10 h-10 sm:w-12 sm:h-12 flex-shrink-0">
-                          <AvatarFallback className="bg-primary text-primary-foreground text-base sm:text-lg">
-                            {review.user?.name?.[0] || "U"}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">
-                            <div className="flex-1 min-w-0">
-                              <h4 className="text-sm sm:text-base font-semibold text-foreground truncate">
-                                {review.user?.name || "Usuário Anônimo"}
-                              </h4>
-                              <div className="flex items-center gap-2 mt-1">
-                                <div className="flex items-center gap-0.5 sm:gap-1">
-                                  {[...Array(5)].map((_, i) => (
-                                    <Star
-                                      key={i}
-                                      className={cn(
-                                        "w-3 h-3 sm:w-4 sm:h-4",
-                                        i < review.rating
-                                          ? "fill-accent text-accent"
-                                          : "text-muted"
-                                      )}
-                                    />
-                                  ))}
+                      <div
+                        key={review._id}
+                        className="bg-card rounded-lg p-4 sm:p-6 shadow-card border border-border"
+                      >
+                        <div className="flex items-start gap-3 sm:gap-4">
+                          <Avatar className="w-10 h-10 sm:w-12 sm:h-12 flex-shrink-0">
+                            <AvatarFallback className="bg-primary text-primary-foreground text-base sm:text-lg">
+                              {review.user?.name?.[0] || "U"}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">
+                              <div className="flex-1 min-w-0">
+                                <h4 className="text-sm sm:text-base font-semibold text-foreground truncate">
+                                  {review.user?.name || "Usuário Anônimo"}
+                                </h4>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <div className="flex items-center gap-0.5 sm:gap-1">
+                                    {[...Array(5)].map((_, i) => (
+                                      <Star
+                                        key={i}
+                                        className={cn(
+                                          "w-3 h-3 sm:w-4 sm:h-4",
+                                          i < review.rating
+                                            ? "fill-accent text-accent"
+                                            : "text-muted"
+                                        )}
+                                      />
+                                    ))}
+                                  </div>
                                 </div>
                               </div>
+                              <span className="text-xs sm:text-sm text-muted-foreground whitespace-nowrap">
+                                {new Date(review.createdAt).toLocaleDateString(
+                                  "pt-BR"
+                                )}
+                              </span>
                             </div>
-                            <span className="text-xs sm:text-sm text-muted-foreground whitespace-nowrap">
-                              {new Date(review.createdAt).toLocaleDateString(
-                                "pt-BR"
-                              )}
-                            </span>
+                            <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed mt-2 sm:mt-3">
+                              {review.review}
+                            </p>
                           </div>
-                          <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed mt-2 sm:mt-3">
-                            {review.review}
-                          </p>
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Pagination */}
-                {totalPages > 1 && (
-                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-0 pt-4 sm:pt-6 border-t border-border">
-                    <div className="text-xs sm:text-sm text-muted-foreground text-center sm:text-left">
-                      Mostrando {startIndex + 1}-
-                      {Math.min(endIndex, totalReviews)} de {totalReviews}{" "}
-                      avaliações
-                    </div>
-                    <div className="flex items-center gap-1 sm:gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-xs sm:text-sm h-8 sm:h-9"
-                        onClick={() =>
-                          setCurrentPage((prev) => Math.max(1, prev - 1))
-                        }
-                        disabled={currentPage === 1}
-                      >
-                        <ChevronLeft className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
-                        <span className="hidden xs:inline">Anterior</span>
-                      </Button>
-                      <div className="flex items-center gap-1">
-                        {[...Array(totalPages)].map((_, i) => {
-                          const page = i + 1;
-                          if (
-                            page === 1 ||
-                            page === totalPages ||
-                            (page >= currentPage - 1 && page <= currentPage + 1)
-                          ) {
-                            return (
-                              <Button
-                                key={page}
-                                variant={
-                                  currentPage === page ? "default" : "outline"
-                                }
-                                size="sm"
-                                onClick={() => setCurrentPage(page)}
-                                className="w-8 h-8 sm:w-10 sm:h-9 text-xs sm:text-sm"
-                              >
-                                {page}
-                              </Button>
-                            );
-                          } else if (
-                            page === currentPage - 2 ||
-                            page === currentPage + 2
-                          ) {
-                            return (
-                              <span
-                                key={page}
-                                className="px-1 sm:px-2 text-xs sm:text-sm text-muted-foreground"
-                              >
-                                ...
-                              </span>
-                            );
-                          }
-                          return null;
-                        })}
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-xs sm:text-sm h-8 sm:h-9"
-                        onClick={() =>
-                          setCurrentPage((prev) =>
-                            Math.min(totalPages, prev + 1)
-                          )
-                        }
-                        disabled={currentPage === totalPages}
-                      >
-                        <span className="hidden xs:inline">Próxima</span>
-                        <ChevronRight className="w-3 h-3 sm:w-4 sm:h-4 ml-1" />
-                      </Button>
-                    </div>
+                    ))}
                   </div>
-                )}
+
+                  {/* Pagination */}
+                  {totalPages > 1 && (
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-0 pt-4 sm:pt-6 border-t border-border">
+                      <div className="text-xs sm:text-sm text-muted-foreground text-center sm:text-left">
+                        Mostrando {startIndex + 1}-
+                        {Math.min(endIndex, totalReviews)} de {totalReviews}{" "}
+                        avaliações
+                      </div>
+                      <div className="flex items-center gap-1 sm:gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-xs sm:text-sm h-8 sm:h-9"
+                          onClick={() =>
+                            setCurrentPage((prev) => Math.max(1, prev - 1))
+                          }
+                          disabled={currentPage === 1}
+                        >
+                          <ChevronLeft className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
+                          <span className="hidden xs:inline">Anterior</span>
+                        </Button>
+                        <div className="flex items-center gap-1">
+                          {[...Array(totalPages)].map((_, i) => {
+                            const page = i + 1;
+                            if (
+                              page === 1 ||
+                              page === totalPages ||
+                              (page >= currentPage - 1 &&
+                                page <= currentPage + 1)
+                            ) {
+                              return (
+                                <Button
+                                  key={page}
+                                  variant={
+                                    currentPage === page ? "default" : "outline"
+                                  }
+                                  size="sm"
+                                  onClick={() => setCurrentPage(page)}
+                                  className="w-8 h-8 sm:w-10 sm:h-9 text-xs sm:text-sm"
+                                >
+                                  {page}
+                                </Button>
+                              );
+                            } else if (
+                              page === currentPage - 2 ||
+                              page === currentPage + 2
+                            ) {
+                              return (
+                                <span
+                                  key={page}
+                                  className="px-1 sm:px-2 text-xs sm:text-sm text-muted-foreground"
+                                >
+                                  ...
+                                </span>
+                              );
+                            }
+                            return null;
+                          })}
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-xs sm:text-sm h-8 sm:h-9"
+                          onClick={() =>
+                            setCurrentPage((prev) =>
+                              Math.min(totalPages, prev + 1)
+                            )
+                          }
+                          disabled={currentPage === totalPages}
+                        >
+                          <span className="hidden xs:inline">Próxima</span>
+                          <ChevronRight className="w-3 h-3 sm:w-4 sm:h-4 ml-1" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </TabsContent>
 
             <TabsContent value="description" className="pt-4 sm:pt-6 md:pt-8">
               <div className="bg-card rounded-lg p-4 sm:p-6 md:p-8 shadow-card border border-border">
-                <h3 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4">Sobre o Produto</h3>
+                <h3 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4">
+                  Sobre o Produto
+                </h3>
                 <p className="text-sm sm:text-base text-muted-foreground leading-relaxed mb-4 sm:mb-6">
                   {product.description}
                 </p>
@@ -1840,25 +1970,33 @@ const ProductDetails = () => {
                 </h3>
                 <div className="grid gap-3 sm:gap-4">
                   <div className="flex flex-col sm:flex-row py-2 sm:py-3 border-b border-border">
-                    <span className="font-medium w-full sm:w-48 text-sm sm:text-base mb-1 sm:mb-0">Categoria:</span>
+                    <span className="font-medium w-full sm:w-48 text-sm sm:text-base mb-1 sm:mb-0">
+                      Categoria:
+                    </span>
                     <span className="text-sm sm:text-base text-muted-foreground">
                       {product.category}
                     </span>
                   </div>
                   <div className="flex flex-col sm:flex-row py-2 sm:py-3 border-b border-border">
-                    <span className="font-medium w-full sm:w-48 text-sm sm:text-base mb-1 sm:mb-0">Gênero:</span>
+                    <span className="font-medium w-full sm:w-48 text-sm sm:text-base mb-1 sm:mb-0">
+                      Gênero:
+                    </span>
                     <span className="text-sm sm:text-base text-muted-foreground">
                       {product.gender}
                     </span>
                   </div>
                   <div className="flex flex-col sm:flex-row py-2 sm:py-3 border-b border-border">
-                    <span className="font-medium w-full sm:w-48 text-sm sm:text-base mb-1 sm:mb-0">Avaliação:</span>
+                    <span className="font-medium w-full sm:w-48 text-sm sm:text-base mb-1 sm:mb-0">
+                      Avaliação:
+                    </span>
                     <span className="text-sm sm:text-base text-muted-foreground">
                       {averageRating.toFixed(1)}/5.0 estrelas
                     </span>
                   </div>
                   <div className="flex flex-col sm:flex-row py-2 sm:py-3">
-                    <span className="font-medium w-full sm:w-48 text-sm sm:text-base mb-1 sm:mb-0">SKU:</span>
+                    <span className="font-medium w-full sm:w-48 text-sm sm:text-base mb-1 sm:mb-0">
+                      SKU:
+                    </span>
                     <span className="text-sm sm:text-base text-muted-foreground">
                       PRD-{product._id.slice(-6)}
                     </span>
@@ -1882,6 +2020,51 @@ const ProductDetails = () => {
             </div>
           </div>
         )}
+        <CheckoutDialog
+          open={isCheckoutOpen}
+          onOpenChange={setIsCheckoutOpen}
+          items={
+            currentProduct
+              ? [
+                  {
+                    id: currentProduct._id,
+                    name: currentProduct.name,
+                    price: finalPrice / quantity,
+                    quantity,
+                    color: selectedColor || undefined,
+                    size: selectedSize || undefined,
+                    image: (() => {
+                      // Determinar imagem da variante ou do produto
+                      let itemImage = currentProduct.imageCover
+                        ? `${productionUrl}/img/products/${currentProduct.imageCover}`
+                        : "";
+                      const variants =
+                        currentProduct.variants ||
+                        currentProduct.variations ||
+                        [];
+                      if (
+                        variants.length > 0 &&
+                        (selectedColor || selectedSize)
+                      ) {
+                        const matchingVariant = variants.find(
+                          (v: any) =>
+                            (!selectedColor || v.color === selectedColor) &&
+                            (!selectedSize || v.size === selectedSize)
+                        );
+                        if (matchingVariant?.image) {
+                          return `${productionUrl}/img/variants/${matchingVariant.image}`;
+                        }
+                      }
+                      return itemImage;
+                    })(),
+                  },
+                ]
+              : []
+          }
+          totalPrice={finalPrice}
+          onConfirm={handleConfirmPayment}
+          loading={orderLoading}
+        />
       </div>
     </div>
   );

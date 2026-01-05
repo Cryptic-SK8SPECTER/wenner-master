@@ -160,22 +160,41 @@ const notificationSlice = createSlice({
         state.loading = true;
         state.error = null;
         state.success = false;
+        // Otimista: marcar localmente todas como lidas imediatamente para atualizar a UI
+        const now = new Date().toISOString();
+        state.notifications = state.notifications.map((notification) => ({
+          ...notification,
+          isRead: true,
+          read: true,
+          readAt: now,
+        }));
+        if (state.selectedNotification) {
+          state.selectedNotification = {
+            ...state.selectedNotification,
+            isRead: true,
+            read: true,
+            readAt: now,
+          };
+        }
       })
       .addCase(markAllAsRead.fulfilled, (state) => {
         state.loading = false;
         state.success = true;
         // Marcar todas as notificações como lidas
+        const now = new Date().toISOString();
         state.notifications = state.notifications.map((notification) => ({
           ...notification,
           isRead: true,
-          readAt: new Date().toISOString(),
+          read: true,
+          readAt: now,
         }));
         // Atualizar selecionada se existir
         if (state.selectedNotification) {
           state.selectedNotification = {
             ...state.selectedNotification,
             isRead: true,
-            readAt: new Date().toISOString(),
+            read: true,
+            readAt: now,
           };
         }
       })
@@ -195,4 +214,3 @@ export const {
 } = notificationSlice.actions;
 
 export default notificationSlice.reducer;
-

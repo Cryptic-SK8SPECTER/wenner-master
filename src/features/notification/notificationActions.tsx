@@ -15,46 +15,57 @@ const API_URL = "/api/v1/notifications";
 // =========================
 export const getAllNotifications = createAsyncThunk<
   INotification[],
-  void,
+  // if true -> include read notifications, if false/undefined -> only unread
+  boolean | void,
   { rejectValue: string }
->("notifications/getAll", async (_, { rejectWithValue, dispatch }) => {
-  try {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      dispatch(logoutUser());
-      return rejectWithValue("Faça login para continuar");
+>(
+  "notifications/getAll",
+  async (includeRead, { rejectWithValue, dispatch }) => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        dispatch(logoutUser());
+        return rejectWithValue("Faça login para continuar");
+      }
+
+      // If `includeRead` is truthy, request all notifications; otherwise request only unread (read=false)
+      const params: any = includeRead ? {} : { read: false };
+      const response = await customFetch.get(API_URL, {
+        params,
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      // Ajustar conforme a estrutura da resposta da API
+      const notifications =
+        response.data?.data?.notifications ||
+        response.data?.data?.data ||
+        response.data?.data ||
+        [];
+
+      // Mapear read (backend) para isRead (frontend) e garantir estrutura correta
+      const mappedNotifications = Array.isArray(notifications)
+        ? notifications.map((notification: any) => ({
+            ...notification,
+            isRead:
+              notification.read !== undefined
+                ? notification.read
+                : notification.isRead || false,
+            isDelivered: notification.isDelivered || false,
+          }))
+        : [];
+
+      return mappedNotifications;
+    } catch (error: any) {
+      if (error?.response?.status === 401) {
+        dispatch(logoutUser());
+        return rejectWithValue("Sessão expirada. Faça login novamente.");
+      }
+      return rejectWithValue(
+        error.response?.data?.message || "Erro ao buscar notificações"
+      );
     }
-
-    const response = await customFetch.get(API_URL, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-
-    // Ajustar conforme a estrutura da resposta da API
-    const notifications = response.data?.data?.notifications || 
-                         response.data?.data?.data || 
-                         response.data?.data || 
-                         [];
-
-    // Mapear read (backend) para isRead (frontend) e garantir estrutura correta
-    const mappedNotifications = Array.isArray(notifications) 
-      ? notifications.map((notification: any) => ({
-          ...notification,
-          isRead: notification.read !== undefined ? notification.read : notification.isRead || false,
-          isDelivered: notification.isDelivered || false,
-        }))
-      : [];
-
-    return mappedNotifications;
-  } catch (error: any) {
-    if (error?.response?.status === 401) {
-      dispatch(logoutUser());
-      return rejectWithValue("Sessão expirada. Faça login novamente.");
-    }
-    return rejectWithValue(
-      error.response?.data?.message || "Erro ao buscar notificações"
-    );
   }
-});
+);
 
 // =========================
 // GET NOTIFICATION BY ID
@@ -75,9 +86,10 @@ export const getNotification = createAsyncThunk<
       headers: { Authorization: `Bearer ${token}` },
     });
 
-    const notification = response.data?.data?.notification || 
-                        response.data?.data?.data || 
-                        response.data?.data;
+    const notification =
+      response.data?.data?.notification ||
+      response.data?.data?.data ||
+      response.data?.data;
 
     if (!notification) {
       return rejectWithValue("Notificação não encontrada");
@@ -86,7 +98,10 @@ export const getNotification = createAsyncThunk<
     // Mapear read (backend) para isRead (frontend)
     return {
       ...notification,
-      isRead: notification.read !== undefined ? notification.read : notification.isRead || false,
+      isRead:
+        notification.read !== undefined
+          ? notification.read
+          : notification.isRead || false,
       isDelivered: notification.isDelivered || false,
     };
   } catch (error: any) {
@@ -121,9 +136,10 @@ export const createNotification = createAsyncThunk<
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      const notification = response.data?.data?.notification || 
-                          response.data?.data?.data || 
-                          response.data?.data;
+      const notification =
+        response.data?.data?.notification ||
+        response.data?.data?.data ||
+        response.data?.data;
 
       if (!notification) {
         return rejectWithValue("Resposta inválida do servidor");
@@ -132,7 +148,10 @@ export const createNotification = createAsyncThunk<
       // Mapear read (backend) para isRead (frontend)
       return {
         ...notification,
-        isRead: notification.read !== undefined ? notification.read : notification.isRead || false,
+        isRead:
+          notification.read !== undefined
+            ? notification.read
+            : notification.isRead || false,
         isDelivered: notification.isDelivered || false,
       };
     } catch (error: any) {
@@ -171,13 +190,18 @@ export const updateNotification = createAsyncThunk<
         delete backendData.isRead;
       }
 
-      const response = await customFetch.patch(`${API_URL}/${id}`, backendData, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await customFetch.patch(
+        `${API_URL}/${id}`,
+        backendData,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
 
-      const notification = response.data?.data?.notification || 
-                          response.data?.data?.data || 
-                          response.data?.data;
+      const notification =
+        response.data?.data?.notification ||
+        response.data?.data?.data ||
+        response.data?.data;
 
       if (!notification) {
         return rejectWithValue("Resposta inválida do servidor");
@@ -186,7 +210,10 @@ export const updateNotification = createAsyncThunk<
       // Mapear read (backend) para isRead (frontend)
       return {
         ...notification,
-        isRead: notification.read !== undefined ? notification.read : notification.isRead || false,
+        isRead:
+          notification.read !== undefined
+            ? notification.read
+            : notification.isRead || false,
         isDelivered: notification.isDelivered || false,
       };
     } catch (error: any) {
@@ -268,4 +295,3 @@ export const markAllAsRead = createAsyncThunk<
     );
   }
 });
-

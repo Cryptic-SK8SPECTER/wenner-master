@@ -1,6 +1,16 @@
 import Header from "../components/Header";
-import { Package, Tag, Box, Star, Bell, Check } from "lucide-react";
+import {
+  Package,
+  Tag,
+  Box,
+  Star,
+  Bell,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
+import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import {
   Pagination,
@@ -12,7 +22,11 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
-import { getAllNotifications, updateNotification, markAllAsRead as markAllAsReadAction } from "@/features/notification/notificationActions";
+import {
+  getAllNotifications,
+  updateNotification,
+  markAllAsRead as markAllAsReadAction,
+} from "@/features/notification/notificationActions";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale/pt-BR";
 import { useNavigate } from "react-router-dom";
@@ -91,52 +105,85 @@ const formatRelativeTime = (dateString: string) => {
 const Notifications = () => {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
+  const { toast } = useToast();
   const { notifications, loading } = useAppSelector(
     (state) => state.notification
   );
   const { isAuthenticated, user } = useAppSelector((state) => state.user);
   const [currentPage, setCurrentPage] = useState(1);
+  const [hiddenNotificationIds, setHiddenNotificationIds] = useState<string[]>(
+    []
+  );
+  const [showAll, setShowAll] = useState(false);
 
   const ITEMS_PER_PAGE = 10;
 
   // Buscar todas as notificações quando a página for aberta
   useEffect(() => {
     if (isAuthenticated && user?._id) {
-      dispatch(getAllNotifications());
+      // pass true to include read when showAll is true
+      dispatch(getAllNotifications(showAll));
     }
   }, [isAuthenticated, user?._id, dispatch]);
 
   // Filtrar notificações do usuário logado
   const userNotifications = useMemo(() => {
     if (!user?._id) return [];
-    return notifications.filter((notification) => {
+    // Normalizar para garantir que `isRead` exista (compatibilidade com `read`)
+    const normalized = notifications.map((notification: any) => ({
+      ...notification,
+      isRead:
+        notification.isRead !== undefined
+          ? notification.isRead
+          : notification.read !== undefined
+          ? notification.read
+          : false,
+    }));
+
+    return normalized.filter((notification: any) => {
       // O campo user pode ser string (ObjectId) ou objeto populado
-      const notificationUserId = typeof notification.user === "string" 
-        ? notification.user 
-        : (notification.user as any)?._id || notification.user;
+      const notificationUserId =
+        typeof notification.user === "string"
+          ? notification.user
+          : (notification.user as any)?._id || notification.user;
       return notificationUserId === user._id;
     });
   }, [notifications, user?._id]);
 
-  // Ordenar notificações: não lidas primeiro, depois por data (mais recentes primeiro)
-  const sortedNotifications = useMemo(() => {
-    return [...userNotifications].sort((a, b) => {
-      // Primeiro ordena por não lidas
-      if (a.isRead !== b.isRead) {
-        return a.isRead ? 1 : -1;
-      }
-      // Depois ordena por data (mais recentes primeiro)
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    });
-  }, [userNotifications]);
+  // Determine which notifications to display based on `showAll`
+  const displayedNotifications = useMemo(() => {
+    const base = userNotifications.filter(
+      (n) => !hiddenNotificationIds.includes(n._id)
+    );
+    if (showAll) {
+      // show all (read + unread), sort by date desc
+      return base.sort(
+        (a: any, b: any) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+    }
+    // show only unread
+    return base
+      .filter((n) => !(n.isRead || n.read))
+      .sort(
+        (a: any, b: any) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+  }, [userNotifications, hiddenNotificationIds, showAll]);
+
+  const sortedNotifications = displayedNotifications;
 
   // Calcular paginação
   const totalPages = Math.ceil(sortedNotifications.length / ITEMS_PER_PAGE);
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
   const endIndex = startIndex + ITEMS_PER_PAGE;
-  const paginatedNotifications = sortedNotifications.slice(startIndex, endIndex);
-
-  const unreadCount = userNotifications.filter((n) => !n.isRead).length;
+  const paginatedNotifications = sortedNotifications.slice(
+    startIndex,
+    endIndex
+  );
+  const unreadCount = userNotifications.filter(
+    (n) => !(n.isRead || n.read)
+  ).length;
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
@@ -144,39 +191,76 @@ const Notifications = () => {
   };
 
   const markAllAsRead = async () => {
+    // Otimista: esconder imediatamente todas as notificações não lidas
+    const currentUnreadIds = userUnreadNotifications.map((n) => n._id);
+    if (currentUnreadIds.length > 0) setHiddenNotificationIds(currentUnreadIds);
+
     try {
       await dispatch(markAllAsReadAction()).unwrap();
       // Recarregar notificações para garantir sincronização
       await dispatch(getAllNotifications());
+      setCurrentPage(1);
+      // Limpar ocultações locais depois da sincronização
+      setHiddenNotificationIds([]);
+      toast({
+        title: "Notificações marcadas",
+        description: "Todas as notificações foram marcadas como lidas.",
+      });
     } catch (error) {
+      // Reverter ocultação em caso de erro
+      setHiddenNotificationIds([]);
       console.error("Erro ao marcar todas como lidas:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível marcar todas como lidas.",
+        variant: "destructive",
+      });
     }
   };
 
   const markAsRead = async (notificationId: string) => {
-    try {
-      await dispatch(
-        updateNotification({
-          id: notificationId,
-          data: { isRead: true, readAt: new Date().toISOString() },
-        })
-      ).unwrap();
-    } catch (error) {
-      console.error("Erro ao marcar notificação como lida:", error);
-    }
+    // Return the promise so caller can handle success/error and show toasts
+    return dispatch(
+      updateNotification({
+        id: notificationId,
+        // Set both `isRead` and `read` for compatibility with different payloads
+        data: { isRead: true, read: true, readAt: new Date().toISOString() },
+      })
+    ).unwrap();
   };
 
   // Função para lidar com clique em notificação
   const handleNotificationClick = async (notification: any) => {
-    // Marcar como lida se não estiver lida
-    if (!notification.isRead) {
-      await markAsRead(notification._id);
+    // Marcar como lida se não estiver lida (otimista: esconder imediatamente)
+    if (!(notification.isRead || notification.read)) {
+      // Ocultar imediatamente da lista
+      setHiddenNotificationIds((prev) => [...prev, notification._id]);
+      try {
+        await markAsRead(notification._id);
+        toast({
+          title: "Notificação marcada",
+          description: "Notificação marcada como lida.",
+        });
+      } catch (err) {
+        // Reverter ocultação em caso de erro
+        setHiddenNotificationIds((prev) =>
+          prev.filter((id) => id !== notification._id)
+        );
+        toast({
+          title: "Erro",
+          description: "Não foi possível marcar a notificação como lida.",
+          variant: "destructive",
+        });
+        console.error("Erro ao marcar notificação como lida:", err);
+      }
     }
 
     // Se for notificação de cupom/promoção, navegar para aba de cupons no perfil
-    if (notification.type === "Promoção" || 
-        notification.title.toLowerCase().includes("cupom") ||
-        notification.message.toLowerCase().includes("cupom")) {
+    if (
+      notification.type === "Promoção" ||
+      notification.title.toLowerCase().includes("cupom") ||
+      notification.message.toLowerCase().includes("cupom")
+    ) {
       navigate("/profile?tab=coupons");
       return;
     }
@@ -184,13 +268,13 @@ const Notifications = () => {
     // Se for notificação de pedido entregue ou avaliação, navegar para página de avaliações
     if (notification.order) {
       // Verificar se é notificação de entrega ou avaliação
-      const isDeliveryNotification = 
+      const isDeliveryNotification =
         notification.type === "Entregue" ||
         notification.type === "Avaliação" ||
-        (notification.type === "Pedido" && 
-         (notification.title.toLowerCase().includes("entregue") ||
-          notification.title.toLowerCase().includes("avalie") ||
-          notification.message.toLowerCase().includes("avaliar")));
+        (notification.type === "Pedido" &&
+          (notification.title.toLowerCase().includes("entregue") ||
+            notification.title.toLowerCase().includes("avalie") ||
+            notification.message.toLowerCase().includes("avaliar")));
 
       if (isDeliveryNotification) {
         // Navegar para a página de avaliações com o orderId
@@ -203,7 +287,7 @@ const Notifications = () => {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      <main className="container mx-auto px-2 sm:px-4 py-3 sm:py-6 md:py-8">
+      <main className="container mx-auto px-4 sm:px-6 md:px-8 py-3 sm:py-6 md:py-8">
         <div className="max-w-2xl mx-auto w-full">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4 mb-3 sm:mb-6">
             <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
@@ -219,18 +303,34 @@ const Notifications = () => {
                 </p>
               </div>
             </div>
-            {unreadCount > 0 && (
+            <div className="flex items-center gap-2">
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
-                onClick={markAllAsRead}
-                className="gap-1.5 sm:gap-2 w-full sm:w-auto text-[11px] sm:text-sm h-8 sm:h-9 shrink-0"
+                onClick={() => {
+                  setShowAll((s) => !s);
+                  // refetch with the updated flag
+                  dispatch(getAllNotifications(!showAll));
+                }}
+                className="text-[11px] sm:text-sm h-8 sm:h-9"
               >
-                <Check className="h-3 w-3 sm:h-4 sm:w-4" />
-                <span className="hidden sm:inline">Marcar todas como lidas</span>
-                <span className="sm:hidden">Marcar todas</span>
+                {showAll ? "Ver não lidas" : "Ver todas"}
               </Button>
-            )}
+              {unreadCount > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={markAllAsRead}
+                  className="gap-1.5 sm:gap-2 w-full sm:w-auto text-[11px] sm:text-sm h-8 sm:h-9 shrink-0"
+                >
+                  <Check className="h-3 w-3 sm:h-4 sm:w-4" />
+                  <span className="hidden sm:inline">
+                    Marcar todas como lidas
+                  </span>
+                  <span className="sm:hidden">Marcar todas</span>
+                </Button>
+              )}
+            </div>
           </div>
 
           <div className="bg-card border border-border rounded-lg sm:rounded-xl overflow-hidden shadow-sm">
@@ -250,7 +350,7 @@ const Notifications = () => {
               paginatedNotifications.map((notification, index) => {
                 const IconComponent = getNotificationIcon(notification.type);
                 const iconStyles = getNotificationIconStyles(notification.type);
-                const isUnread = !notification.isRead;
+                const isUnread = !(notification.isRead || notification.read);
 
                 return (
                   <div
@@ -314,13 +414,17 @@ const Notifications = () => {
                 <PaginationContent className="flex-wrap gap-0.5 sm:gap-1 min-w-0">
                   <PaginationItem>
                     <PaginationPrevious
-                      onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
-                      className={`text-[10px] sm:text-sm h-7 w-7 sm:h-10 sm:w-10 ${
+                      onClick={() =>
+                        handlePageChange(Math.max(1, currentPage - 1))
+                      }
+                      className={`h-7 w-7 sm:h-10 sm:w-10 flex items-center justify-center mr-5 ${
                         currentPage === 1
                           ? "pointer-events-none opacity-50"
                           : "cursor-pointer"
                       }`}
-                    />
+                    >
+                      <ChevronLeft className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
+                    </PaginationPrevious>
                   </PaginationItem>
 
                   {/* Primeira página - ocultar em mobile se houver muitas páginas */}
@@ -347,18 +451,21 @@ const Notifications = () => {
                     const page = i + 1;
                     // Em mobile, mostrar apenas: página atual, anterior e próxima (se existirem)
                     // Em desktop, mostrar: primeira, última, atual e adjacentes
-                    const isMobileVisible = 
-                      page === currentPage || 
-                      page === currentPage - 1 || 
+                    const isMobileVisible =
+                      page === currentPage ||
+                      page === currentPage - 1 ||
                       page === currentPage + 1;
-                    const isDesktopVisible = 
+                    const isDesktopVisible =
                       page === 1 ||
                       page === totalPages ||
                       (page >= currentPage - 1 && page <= currentPage + 1);
-                    
+
                     if (isMobileVisible || isDesktopVisible) {
                       return (
-                        <PaginationItem key={page} className={isMobileVisible ? "" : "hidden sm:block"}>
+                        <PaginationItem
+                          key={page}
+                          className={isMobileVisible ? "" : "hidden sm:block"}
+                        >
                           <PaginationLink
                             onClick={() => handlePageChange(page)}
                             isActive={currentPage === page}
@@ -405,12 +512,14 @@ const Notifications = () => {
                       onClick={() =>
                         handlePageChange(Math.min(totalPages, currentPage + 1))
                       }
-                      className={`text-[10px] sm:text-sm h-7 w-7 sm:h-10 sm:w-10 ${
+                      className={`h-7 w-7 sm:h-10 sm:w-10 flex items-center justify-center  ml-5 ${
                         currentPage === totalPages
                           ? "pointer-events-none opacity-50"
                           : "cursor-pointer"
                       }`}
-                    />
+                    >
+                      <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
+                    </PaginationNext>
                   </PaginationItem>
                 </PaginationContent>
               </Pagination>

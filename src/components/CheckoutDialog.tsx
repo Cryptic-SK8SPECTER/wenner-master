@@ -1,5 +1,13 @@
 import React, { useState, useEffect } from "react";
-import { X, CreditCard, Wallet, Banknote, Building2, Phone, ArrowRightLeft } from "lucide-react";
+import {
+  X,
+  CreditCard,
+  Wallet,
+  Banknote,
+  Building2,
+  Phone,
+  ArrowRightLeft,
+} from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -15,7 +23,12 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAppSelector } from "@/app/hooks";
 import { productionUrl } from "@/lib/utils";
 
-type PaymentMethod = "mpesa" | "emola" | "numerario" | "conta_bancaria" | "transferencia";
+type PaymentMethod =
+  | "mpesa"
+  | "emola"
+  | "numerario"
+  | "conta_bancaria"
+  | "transferencia";
 
 // Função para converter cor hexadecimal para nome em português
 const hexToColorName = (hex: string): string | null => {
@@ -36,7 +49,7 @@ const hexToColorName = (hex: string): string | null => {
     "#000080": "Azul Marinho",
     "#f5deb3": "Bege",
   };
-  
+
   const normalizedHex = hex.toLowerCase().trim();
   return hexToColorNameMap[normalizedHex] || null;
 };
@@ -79,6 +92,18 @@ export const CheckoutDialog = ({
 }: CheckoutDialogProps) => {
   const { user } = useAppSelector((state) => state.user);
   const { products } = useAppSelector((state) => state.product);
+
+  // Helper to detect placeholder address parts and hide them
+  const isPlaceholderAddress = (value?: string) => {
+    if (!value) return true;
+    const placeholders = [
+      "Informe a rua e número",
+      "Informe a cidade",
+      "Informe o estado",
+      "Informe o código de endereçamento postal",
+    ];
+    return placeholders.some((ph) => value.includes(ph));
+  };
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | "">("");
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -155,19 +180,32 @@ export const CheckoutDialog = ({
     }
 
     // Validações específicas por método
-    if ((paymentMethod === "mpesa" || paymentMethod === "emola") && !phoneNumber) {
+    if (
+      (paymentMethod === "mpesa" || paymentMethod === "emola") &&
+      !phoneNumber
+    ) {
       return;
     }
 
-    if (paymentMethod === "conta_bancaria" || paymentMethod === "transferencia") {
-      if (!bankAccount.bankName || !bankAccount.accountNumber || !bankAccount.accountHolder) {
+    if (
+      paymentMethod === "conta_bancaria" ||
+      paymentMethod === "transferencia"
+    ) {
+      if (
+        !bankAccount.bankName ||
+        !bankAccount.accountNumber ||
+        !bankAccount.accountHolder
+      ) {
         return;
       }
     }
 
     onConfirm({
       paymentMethod: paymentMethod as PaymentMethod,
-      phoneNumber: (paymentMethod === "mpesa" || paymentMethod === "emola") ? phoneNumber : undefined,
+      phoneNumber:
+        paymentMethod === "mpesa" || paymentMethod === "emola"
+          ? phoneNumber
+          : undefined,
       bankAccount: paymentMethod === "conta_bancaria" ? bankAccount : undefined,
     });
   };
@@ -179,7 +217,10 @@ export const CheckoutDialog = ({
       return !!phoneNumber;
     }
 
-    if (paymentMethod === "conta_bancaria" || paymentMethod === "transferencia") {
+    if (
+      paymentMethod === "conta_bancaria" ||
+      paymentMethod === "transferencia"
+    ) {
       return !!(
         bankAccount.bankName &&
         bankAccount.accountNumber &&
@@ -206,7 +247,9 @@ export const CheckoutDialog = ({
       <DialogContent className="max-w-6xl max-h-[90vh] sm:max-h-[95vh] overflow-hidden p-0 flex flex-col w-[95vw] sm:w-full">
         <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-3 sm:pb-4 border-b flex-shrink-0">
           <div className="flex items-center justify-between">
-            <DialogTitle className="text-lg sm:text-2xl font-bold">Checkout</DialogTitle>
+            <DialogTitle className="text-lg sm:text-2xl font-bold">
+              Checkout
+            </DialogTitle>
             <Button
               variant="ghost"
               size="icon"
@@ -223,26 +266,36 @@ export const CheckoutDialog = ({
           <div className="flex-1 p-4 sm:p-6 overflow-y-auto border-b lg:border-b-0 lg:border-r">
             <div className="max-w-2xl mx-auto space-y-4 sm:space-y-6">
               <div>
-                <h2 className="text-lg sm:text-xl font-bold mb-2">Método de Pagamento</h2>
+                <h2 className="text-lg sm:text-xl font-bold mb-2">
+                  Método de Pagamento
+                </h2>
                 <p className="text-xs sm:text-sm text-muted-foreground mb-4 sm:mb-6">
                   Todas as transações são seguras e protegidas.
                 </p>
 
                 <RadioGroup
                   value={paymentMethod}
-                  onValueChange={(value) => setPaymentMethod(value as PaymentMethod)}
+                  onValueChange={(value) =>
+                    setPaymentMethod(value as PaymentMethod)
+                  }
                   className="space-y-3 sm:space-y-4"
                 >
                   {/* M-Pesa */}
                   <div className="flex items-start space-x-2 sm:space-x-3 p-3 sm:p-4 border rounded-lg hover:bg-accent/50 transition-colors">
-                    <RadioGroupItem value="mpesa" id="mpesa" className="mt-0.5 sm:mt-1 flex-shrink-0" />
+                    <RadioGroupItem
+                      value="mpesa"
+                      id="mpesa"
+                      className="mt-0.5 sm:mt-1 flex-shrink-0"
+                    />
                     <label
                       htmlFor="mpesa"
                       className="flex-1 cursor-pointer space-y-2 min-w-0"
                     >
                       <div className="flex items-center gap-2">
                         <Phone className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
-                        <span className="font-semibold text-sm sm:text-base">M-Pesa</span>
+                        <span className="font-semibold text-sm sm:text-base">
+                          M-Pesa
+                        </span>
                       </div>
                       {paymentMethod === "mpesa" && (
                         <div className="mt-3 sm:mt-4 space-y-3 pl-0 sm:pl-7">
@@ -270,7 +323,10 @@ export const CheckoutDialog = ({
                           </div>
                           {!useRegisteredPhone && (
                             <div className="space-y-2">
-                              <Label htmlFor="mpesa-phone" className="text-xs sm:text-sm">
+                              <Label
+                                htmlFor="mpesa-phone"
+                                className="text-xs sm:text-sm"
+                              >
                                 Número do M-Pesa *
                               </Label>
                               <Input
@@ -290,14 +346,20 @@ export const CheckoutDialog = ({
 
                   {/* E-Mola */}
                   <div className="flex items-start space-x-2 sm:space-x-3 p-3 sm:p-4 border rounded-lg hover:bg-accent/50 transition-colors">
-                    <RadioGroupItem value="emola" id="emola" className="mt-0.5 sm:mt-1 flex-shrink-0" />
+                    <RadioGroupItem
+                      value="emola"
+                      id="emola"
+                      className="mt-0.5 sm:mt-1 flex-shrink-0"
+                    />
                     <label
                       htmlFor="emola"
                       className="flex-1 cursor-pointer space-y-2 min-w-0"
                     >
                       <div className="flex items-center gap-2">
                         <Wallet className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
-                        <span className="font-semibold text-sm sm:text-base">E-Mola</span>
+                        <span className="font-semibold text-sm sm:text-base">
+                          E-Mola
+                        </span>
                       </div>
                       {paymentMethod === "emola" && (
                         <div className="mt-3 sm:mt-4 space-y-3 pl-0 sm:pl-7">
@@ -325,7 +387,10 @@ export const CheckoutDialog = ({
                           </div>
                           {!useRegisteredPhone && (
                             <div className="space-y-2">
-                              <Label htmlFor="emola-phone" className="text-xs sm:text-sm">
+                              <Label
+                                htmlFor="emola-phone"
+                                className="text-xs sm:text-sm"
+                              >
                                 Número do E-Mola *
                               </Label>
                               <Input
@@ -345,14 +410,20 @@ export const CheckoutDialog = ({
 
                   {/* Numerário */}
                   <div className="flex items-start space-x-2 sm:space-x-3 p-3 sm:p-4 border rounded-lg hover:bg-accent/50 transition-colors">
-                    <RadioGroupItem value="numerario" id="numerario" className="mt-0.5 sm:mt-1 flex-shrink-0" />
+                    <RadioGroupItem
+                      value="numerario"
+                      id="numerario"
+                      className="mt-0.5 sm:mt-1 flex-shrink-0"
+                    />
                     <label
                       htmlFor="numerario"
                       className="flex-1 cursor-pointer min-w-0"
                     >
                       <div className="flex items-center gap-2">
                         <Banknote className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
-                        <span className="font-semibold text-sm sm:text-base">Numerário</span>
+                        <span className="font-semibold text-sm sm:text-base">
+                          Numerário
+                        </span>
                       </div>
                       <p className="text-xs sm:text-sm text-muted-foreground mt-1 ml-0 sm:ml-7">
                         Pagamento em dinheiro na entrega
@@ -362,19 +433,28 @@ export const CheckoutDialog = ({
 
                   {/* Conta Bancária */}
                   <div className="flex items-start space-x-2 sm:space-x-3 p-3 sm:p-4 border rounded-lg hover:bg-accent/50 transition-colors">
-                    <RadioGroupItem value="conta_bancaria" id="conta_bancaria" className="mt-0.5 sm:mt-1 flex-shrink-0" />
+                    <RadioGroupItem
+                      value="conta_bancaria"
+                      id="conta_bancaria"
+                      className="mt-0.5 sm:mt-1 flex-shrink-0"
+                    />
                     <label
                       htmlFor="conta_bancaria"
                       className="flex-1 cursor-pointer space-y-2 min-w-0"
                     >
                       <div className="flex items-center gap-2">
                         <Building2 className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
-                        <span className="font-semibold text-sm sm:text-base">Conta Bancária</span>
+                        <span className="font-semibold text-sm sm:text-base">
+                          Conta Bancária
+                        </span>
                       </div>
                       {paymentMethod === "conta_bancaria" && (
                         <div className="mt-3 sm:mt-4 space-y-3 pl-0 sm:pl-7">
                           <div className="space-y-2">
-                            <Label htmlFor="bank-name" className="text-xs sm:text-sm">
+                            <Label
+                              htmlFor="bank-name"
+                              className="text-xs sm:text-sm"
+                            >
                               Nome do Banco *
                             </Label>
                             <Input
@@ -391,7 +471,10 @@ export const CheckoutDialog = ({
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label htmlFor="account-number" className="text-xs sm:text-sm">
+                            <Label
+                              htmlFor="account-number"
+                              className="text-xs sm:text-sm"
+                            >
                               Número da Conta *
                             </Label>
                             <Input
@@ -408,7 +491,10 @@ export const CheckoutDialog = ({
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label htmlFor="account-holder" className="text-xs sm:text-sm">
+                            <Label
+                              htmlFor="account-holder"
+                              className="text-xs sm:text-sm"
+                            >
                               Titular da Conta *
                             </Label>
                             <Input
@@ -431,19 +517,28 @@ export const CheckoutDialog = ({
 
                   {/* Transferência */}
                   <div className="flex items-start space-x-2 sm:space-x-3 p-3 sm:p-4 border rounded-lg hover:bg-accent/50 transition-colors">
-                    <RadioGroupItem value="transferencia" id="transferencia" className="mt-0.5 sm:mt-1 flex-shrink-0" />
+                    <RadioGroupItem
+                      value="transferencia"
+                      id="transferencia"
+                      className="mt-0.5 sm:mt-1 flex-shrink-0"
+                    />
                     <label
                       htmlFor="transferencia"
                       className="flex-1 cursor-pointer space-y-2 min-w-0"
                     >
                       <div className="flex items-center gap-2">
                         <ArrowRightLeft className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
-                        <span className="font-semibold text-sm sm:text-base">Transferência</span>
+                        <span className="font-semibold text-sm sm:text-base">
+                          Transferência
+                        </span>
                       </div>
                       {paymentMethod === "transferencia" && (
                         <div className="mt-3 sm:mt-4 space-y-3 pl-0 sm:pl-7">
                           <div className="space-y-2">
-                            <Label htmlFor="transfer-bank-name" className="text-xs sm:text-sm">
+                            <Label
+                              htmlFor="transfer-bank-name"
+                              className="text-xs sm:text-sm"
+                            >
                               Nome do Banco *
                             </Label>
                             <Input
@@ -460,7 +555,10 @@ export const CheckoutDialog = ({
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label htmlFor="transfer-account-number" className="text-xs sm:text-sm">
+                            <Label
+                              htmlFor="transfer-account-number"
+                              className="text-xs sm:text-sm"
+                            >
                               Número da Conta *
                             </Label>
                             <Input
@@ -477,7 +575,10 @@ export const CheckoutDialog = ({
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label htmlFor="transfer-account-holder" className="text-xs sm:text-sm">
+                            <Label
+                              htmlFor="transfer-account-holder"
+                              className="text-xs sm:text-sm"
+                            >
                               Titular da Conta *
                             </Label>
                             <Input
@@ -504,7 +605,8 @@ export const CheckoutDialog = ({
 
               <div className="space-y-2">
                 <p className="text-[10px] sm:text-xs text-muted-foreground">
-                  Ao clicar em "Confirmar Pagamento", você concorda com os Termos e Condições.
+                  Ao clicar em "Confirmar Pagamento", você concorda com os
+                  Termos e Condições.
                 </p>
                 <Button
                   onClick={handleConfirm}
@@ -522,12 +624,22 @@ export const CheckoutDialog = ({
           <div className="w-full lg:w-96 bg-muted/30 p-4 sm:p-6 overflow-y-auto flex flex-col border-t lg:border-t-0 lg:border-l">
             <div className="space-y-4 sm:space-y-6">
               <div>
-                <h3 className="text-base sm:text-lg font-bold mb-3 sm:mb-4">Resumo do Pedido</h3>
+                <h3 className="text-base sm:text-lg font-bold mb-3 sm:mb-4">
+                  Resumo do Pedido
+                </h3>
                 <div className="space-y-2">
                   <div className="flex justify-between text-xs sm:text-sm">
-                    <span>{items.length} {items.length === 1 ? "item" : "itens"}</span>
+                    <span>
+                      {items.length} {items.length === 1 ? "item" : "itens"}
+                    </span>
                     <span className="font-semibold">
-                      {items.reduce((sum, item) => sum + item.price * item.quantity, 0).toFixed(2)} MZN
+                      {items
+                        .reduce(
+                          (sum, item) => sum + item.price * item.quantity,
+                          0
+                        )
+                        .toFixed(2)}{" "}
+                      MZN
                     </span>
                   </div>
                   <div className="flex justify-between text-xs sm:text-sm">
@@ -549,7 +661,9 @@ export const CheckoutDialog = ({
               <Separator />
 
               <div>
-                <h3 className="text-base sm:text-lg font-bold mb-3 sm:mb-4">Detalhes do Pedido</h3>
+                <h3 className="text-base sm:text-lg font-bold mb-3 sm:mb-4">
+                  Detalhes do Pedido
+                </h3>
                 <ScrollArea className="h-[300px] sm:h-[400px]">
                   <div className="space-y-3 sm:space-y-4">
                     {items.map((item) => (
@@ -564,17 +678,24 @@ export const CheckoutDialog = ({
                           }}
                         />
                         <div className="flex-1 min-w-0">
-                          <h4 className="font-medium text-xs sm:text-sm truncate">{item.name}</h4>
-                          {(item.color || item.size) && (() => {
-                            const colorName = item.color ? hexToColorName(item.color) : null;
-                            return (
-                              <div className="text-[10px] sm:text-xs text-muted-foreground mt-1">
-                                {colorName && <span>Cor: {colorName}</span>}
-                                {colorName && item.size && <span> • </span>}
-                                {item.size && <span>Tamanho: {item.size}</span>}
-                              </div>
-                            );
-                          })()}
+                          <h4 className="font-medium text-xs sm:text-sm truncate">
+                            {item.name}
+                          </h4>
+                          {(item.color || item.size) &&
+                            (() => {
+                              const colorName = item.color
+                                ? hexToColorName(item.color)
+                                : null;
+                              return (
+                                <div className="text-[10px] sm:text-xs text-muted-foreground mt-1">
+                                  {colorName && <span>Cor: {colorName}</span>}
+                                  {colorName && item.size && <span> • </span>}
+                                  {item.size && (
+                                    <span>Tamanho: {item.size}</span>
+                                  )}
+                                </div>
+                              );
+                            })()}
                           <div className="text-[10px] sm:text-xs text-muted-foreground mt-1">
                             Quantidade: {item.quantity}
                           </div>
@@ -588,28 +709,33 @@ export const CheckoutDialog = ({
                 </ScrollArea>
               </div>
 
-              {user?.address && (
-                <>
-                  <Separator />
-                  <div>
-                    <h3 className="text-base sm:text-lg font-bold mb-2">Endereço de Entrega</h3>
-                    <div className="text-xs sm:text-sm text-muted-foreground space-y-1">
-                      {user.address.street && (
-                        <p>{user.address.street}</p>
-                      )}
-                      {user.address.city && (
-                        <p>{user.address.city}</p>
-                      )}
-                      {user.address.state && (
-                        <p>{user.address.state}</p>
-                      )}
-                      {user.address.zipCode && (
-                        <p>{user.address.zipCode}</p>
-                      )}
-                    </div>
-                  </div>
-                </>
-              )}
+              {user?.address &&
+                (() => {
+                  const addressParts = [
+                    user.address.street,
+                    user.address.city,
+                    user.address.state,
+                    user.address.zipCode,
+                  ].filter((p) => !!p && !isPlaceholderAddress(p));
+
+                  if (addressParts.length === 0) return null;
+
+                  return (
+                    <>
+                      <Separator />
+                      <div>
+                        <h3 className="text-base sm:text-lg font-bold mb-2">
+                          Endereço de Entrega
+                        </h3>
+                        <div className="text-xs sm:text-sm text-muted-foreground space-y-1">
+                          {addressParts.map((part, idx) => (
+                            <p key={idx}>{part}</p>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
             </div>
           </div>
         </div>
@@ -617,4 +743,3 @@ export const CheckoutDialog = ({
     </Dialog>
   );
 };
-

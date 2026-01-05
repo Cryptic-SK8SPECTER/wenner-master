@@ -89,7 +89,12 @@ import {
   updateProduct,
   deleteProduct,
 } from "@/features/product/productActions";
-import { createVariant, updateVariant, deleteVariant, fetchAllVariants } from "@/features/variants/variantActions";
+import {
+  createVariant,
+  updateVariant,
+  deleteVariant,
+  fetchAllVariants,
+} from "@/features/variants/variantActions";
 import { deleteUser, fetchUsers } from "@/features/user/userActions";
 import {
   fetchOrders,
@@ -110,7 +115,34 @@ import {
 } from "@/features/report/reportActions";
 import { Order, OrderStatus } from "@/features/order/orderTypes";
 import { productionUrl } from "@/lib/utils";
-import { createCoupon, getAllCoupons, updateCoupon, deleteCoupon } from "@/features/coupon/cupomActions";
+// Helper para converter hex em nome de cor em português
+const hexToColorName = (hex?: string | null) => {
+  if (!hex) return null;
+  const map: Record<string, string> = {
+    "#000000": "Preto",
+    "#ffffff": "Branco",
+    "#ff0000": "Vermelho",
+    "#00ff00": "Verde",
+    "#008000": "Verde",
+    "#0000ff": "Azul",
+    "#ffff00": "Amarelo",
+    "#ff00ff": "Magenta",
+    "#00ffff": "Ciano",
+    "#808080": "Cinza",
+    "#ffa500": "Laranja",
+    "#800080": "Roxo",
+    "#a52a2a": "Marrom",
+    "#ff69b4": "Rosa",
+  };
+  const key = hex.toLowerCase().trim();
+  return map[key] || null;
+};
+import {
+  createCoupon,
+  getAllCoupons,
+  updateCoupon,
+  deleteCoupon,
+} from "@/features/coupon/cupomActions";
 import { ICoupon } from "@/features/coupon/cupomTypes";
 import { resetCouponState } from "@/features/coupon/cupomSlice";
 import { getAllReviews, deleteReview } from "@/features/reviews/reviewActions";
@@ -207,7 +239,14 @@ const AdminContent = () => {
   // Confirmation dialog state for destructive actions
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean;
-    action: null | "removeCustomer" | "cancelOrder" | "deleteProduct" | "deleteCoupon" | "deleteReview" | "deleteVariant";
+    action:
+      | null
+      | "removeCustomer"
+      | "cancelOrder"
+      | "deleteProduct"
+      | "deleteCoupon"
+      | "deleteReview"
+      | "deleteVariant";
     id?: string;
     name?: string;
     reviewId?: string;
@@ -216,21 +255,26 @@ const AdminContent = () => {
     variantSku?: string;
   }>({ open: false, action: null });
   const [isConfirming, setIsConfirming] = useState(false);
-  
+
   // Estado para edição de variante
-  const [editingVariant, setEditingVariant] = useState<ProductVariation | null>(null);
+  const [editingVariant, setEditingVariant] = useState<ProductVariation | null>(
+    null
+  );
   const [isEditVariantMode, setIsEditVariantMode] = useState(false);
   const [variantForm, setVariantForm] = useState<VariantFormState>(() =>
     createEmptyVariantForm()
   );
-  
+
   // Estado para aba de variantes
   const [variantsPage, setVariantsPage] = useState(1);
   const [variantSearchTerm, setVariantSearchTerm] = useState("");
   const [allVariants, setAllVariants] = useState<ProductVariation[]>([]);
-  const [selectedProductForVariant, setSelectedProductForVariant] = useState<string>("");
-  const [variantProductFilter, setVariantProductFilter] = useState<string>("all");
-  const [isProductSelectModalOpen, setIsProductSelectModalOpen] = useState(false);
+  const [selectedProductForVariant, setSelectedProductForVariant] =
+    useState<string>("");
+  const [variantProductFilter, setVariantProductFilter] =
+    useState<string>("all");
+  const [isProductSelectModalOpen, setIsProductSelectModalOpen] =
+    useState(false);
   const [productSearchTerm, setProductSearchTerm] = useState("");
   const [productSelectPage, setProductSelectPage] = useState(1);
   const productSelectItemsPerPage = 10;
@@ -244,7 +288,8 @@ const AdminContent = () => {
   const [couponSearchTerm, setCouponSearchTerm] = useState("");
   const [editingCoupon, setEditingCoupon] = useState<ICoupon | null>(null);
   const [isEditCouponDialogOpen, setIsEditCouponDialogOpen] = useState(false);
-  const [isCreateCouponDialogOpen, setIsCreateCouponDialogOpen] = useState(false);
+  const [isCreateCouponDialogOpen, setIsCreateCouponDialogOpen] =
+    useState(false);
 
   //  do formulário de cupom
   const [couponForm, setCouponForm] = useState({
@@ -268,7 +313,7 @@ const AdminContent = () => {
     error: couponError,
     success: couponSuccess,
   } = useAppSelector((state) => state.coupon);
-  
+
   const {
     reviews,
     loading: reviewsLoading,
@@ -283,11 +328,11 @@ const AdminContent = () => {
     user: currentUser,
     isAuthenticated,
   } = useAppSelector((state) => state.user);
-  
+
   // Verificar se o usuário é manager (deve estar logo após currentUser ser declarado)
   const isManager = currentUser?.role === "manager";
   const isAdmin = currentUser?.role === "admin";
-  
+
   const {
     orders,
     currentOrder,
@@ -295,10 +340,10 @@ const AdminContent = () => {
     error: ordersError,
   } = useAppSelector((state) => state.order as any);
 
-  const { 
-    variants: variantsFromState, 
+  const {
+    variants: variantsFromState,
     loading: variantLoading,
-    error: variantError 
+    error: variantError,
   } = useAppSelector((state) => state.variant);
 
   const {
@@ -315,8 +360,7 @@ const AdminContent = () => {
     error: reportError,
   } = useAppSelector((state) => state.report as any);
 
-  console.log('check it  ', totalRevenue, averageTicket);
-
+  console.log("check it  ", totalRevenue, averageTicket);
 
   // Agora TODOS os useEffect vêm depois de todos os useAppSelector
   // Atualizar clients quando topClients mudar
@@ -780,10 +824,17 @@ const AdminContent = () => {
       // Cabeçalho
       pdf.setFillColor(0, 0, 0);
       pdf.rect(0, 0, pageWidth, 40, "F");
-      
+
       addText("DASHBOARD", margin, 25, 24, true, [255, 255, 255]);
-      addText("Relatório de Vendas e Análises", margin, 33, 10, false, [255, 255, 255]);
-      
+      addText(
+        "Relatório de Vendas e Análises",
+        margin,
+        33,
+        10,
+        false,
+        [255, 255, 255]
+      );
+
       const date = new Date();
       const dateStr = date.toLocaleDateString("pt-BR", {
         day: "2-digit",
@@ -794,8 +845,16 @@ const AdminContent = () => {
         hour: "2-digit",
         minute: "2-digit",
       });
-      addText(`Gerado em: ${dateStr} às ${timeStr}`, pageWidth - margin, 33, 9, false, [255, 255, 255], "right");
-      
+      addText(
+        `Gerado em: ${dateStr} às ${timeStr}`,
+        pageWidth - margin,
+        33,
+        9,
+        false,
+        [255, 255, 255],
+        "right"
+      );
+
       yPosition = 50;
 
       // Resumo Executivo
@@ -837,7 +896,15 @@ const AdminContent = () => {
       addText("Status", margin + 2, yPosition, 9, true);
       addText("Quantidade", margin + 60, yPosition, 9, true);
       addText("Valor Total", margin + 100, yPosition, 9, true);
-      addText("Percentual", pageWidth - margin - 25, yPosition, 9, true, undefined, "right");
+      addText(
+        "Percentual",
+        pageWidth - margin - 25,
+        yPosition,
+        9,
+        true,
+        undefined,
+        "right"
+      );
       yPosition += 10;
 
       const statusLabels: Record<string, string> = {
@@ -856,28 +923,47 @@ const AdminContent = () => {
         cancelado: [239, 68, 68],
       };
 
-      const statusData = salesByStatus && salesByStatus.length > 0
-        ? salesByStatus
-        : ["pendente", "confirmado", "enviado", "entregue", "cancelado"].map((status) => {
-            const ordersWithStatus = allOrders.filter((o) => o.status === status);
-            const total = ordersWithStatus.reduce((sum, o) => sum + o.total, 0);
-            return {
-              status,
-              count: ordersWithStatus.length,
-              total,
-            };
-          });
+      const statusData =
+        salesByStatus && salesByStatus.length > 0
+          ? salesByStatus
+          : ["pendente", "confirmado", "enviado", "entregue", "cancelado"].map(
+              (status) => {
+                const ordersWithStatus = allOrders.filter(
+                  (o) => o.status === status
+                );
+                const total = ordersWithStatus.reduce(
+                  (sum, o) => sum + o.total,
+                  0
+                );
+                return {
+                  status,
+                  count: ordersWithStatus.length,
+                  total,
+                };
+              }
+            );
 
       statusData.forEach((item: any) => {
         checkPageBreak(10);
-        const percentage = ((item.count / (totalOrdersValue || 1)) * 100).toFixed(1);
+        const percentage = (
+          (item.count / (totalOrdersValue || 1)) *
+          100
+        ).toFixed(1);
         const statusLabel = statusLabels[item.status] || item.status;
         const statusColor = statusColors[item.status] || secondaryColor;
 
         addText(statusLabel, margin + 2, yPosition, 9, false, statusColor);
         addText(item.count.toString(), margin + 60, yPosition, 9);
         addText(`${item.total.toFixed(2)} MZN`, margin + 100, yPosition, 9);
-        addText(`${percentage}%`, pageWidth - margin - 2, yPosition, 9, false, undefined, "right");
+        addText(
+          `${percentage}%`,
+          pageWidth - margin - 2,
+          yPosition,
+          9,
+          false,
+          undefined,
+          "right"
+        );
         yPosition += lineHeight + 2;
       });
 
@@ -895,14 +981,23 @@ const AdminContent = () => {
       addText("Cliente", margin + 2, yPosition, 9, true);
       addText("Pedidos", margin + 100, yPosition, 9, true);
       addText("Total Gasto", margin + 130, yPosition, 9, true);
-      addText("Último Pedido", pageWidth - margin - 2, yPosition, 9, true, undefined, "right");
+      addText(
+        "Último Pedido",
+        pageWidth - margin - 2,
+        yPosition,
+        9,
+        true,
+        undefined,
+        "right"
+      );
       yPosition += 10;
 
-      const clientsToShow = topClients && topClients.length > 0
-        ? topClients.slice(0, 5)
-        : customersFromApi
-            .sort((a, b) => b.totalSpent - a.totalSpent)
-            .slice(0, 5);
+      const clientsToShow =
+        topClients && topClients.length > 0
+          ? topClients.slice(0, 5)
+          : customersFromApi
+              .sort((a, b) => b.totalSpent - a.totalSpent)
+              .slice(0, 5);
 
       clientsToShow.forEach((client: any) => {
         checkPageBreak(10);
@@ -912,9 +1007,27 @@ const AdminContent = () => {
           : "N/A";
 
         addText(clientName, margin + 2, yPosition, 9);
-        addText((client.totalOrders || 0).toString(), margin + 100, yPosition, 9);
-        addText(`${(client.totalSpent || 0).toFixed(2)} MZN`, margin + 130, yPosition, 9);
-        addText(lastOrder, pageWidth - margin - 2, yPosition, 9, false, undefined, "right");
+        addText(
+          (client.totalOrders || 0).toString(),
+          margin + 100,
+          yPosition,
+          9
+        );
+        addText(
+          `${(client.totalSpent || 0).toFixed(2)} MZN`,
+          margin + 130,
+          yPosition,
+          9
+        );
+        addText(
+          lastOrder,
+          pageWidth - margin - 2,
+          yPosition,
+          9,
+          false,
+          undefined,
+          "right"
+        );
         yPosition += lineHeight + 2;
       });
 
@@ -932,20 +1045,55 @@ const AdminContent = () => {
       addText("Produto", margin + 2, yPosition, 9, true);
       addText("Categoria", margin + 80, yPosition, 9, true);
       addText("Quantidade", margin + 130, yPosition, 9, true);
-      addText("Receita", pageWidth - margin - 2, yPosition, 9, true, undefined, "right");
+      addText(
+        "Receita",
+        pageWidth - margin - 2,
+        yPosition,
+        9,
+        true,
+        undefined,
+        "right"
+      );
       yPosition += 10;
 
       if (topProducts && topProducts.length > 0) {
         topProducts.forEach((product: any) => {
           checkPageBreak(10);
           addText(product.productName || "N/A", margin + 2, yPosition, 9);
-          addText(product.category || "N/A", margin + 80, yPosition, 9, false, secondaryColor);
-          addText((product.totalQuantity || 0).toString(), margin + 130, yPosition, 9);
-          addText(`${(product.totalRevenue || 0).toFixed(2)} MZN`, pageWidth - margin - 2, yPosition, 9, false, undefined, "right");
+          addText(
+            product.category || "N/A",
+            margin + 80,
+            yPosition,
+            9,
+            false,
+            secondaryColor
+          );
+          addText(
+            (product.totalQuantity || 0).toString(),
+            margin + 130,
+            yPosition,
+            9
+          );
+          addText(
+            `${(product.totalRevenue || 0).toFixed(2)} MZN`,
+            pageWidth - margin - 2,
+            yPosition,
+            9,
+            false,
+            undefined,
+            "right"
+          );
           yPosition += lineHeight + 2;
         });
       } else {
-        addText("Nenhum produto encontrado", margin + 2, yPosition, 9, false, secondaryColor);
+        addText(
+          "Nenhum produto encontrado",
+          margin + 2,
+          yPosition,
+          9,
+          false,
+          secondaryColor
+        );
         yPosition += lineHeight;
       }
 
@@ -963,20 +1111,55 @@ const AdminContent = () => {
       addText("Produto", margin + 2, yPosition, 9, true);
       addText("Categoria", margin + 80, yPosition, 9, true);
       addText("Quantidade", margin + 130, yPosition, 9, true);
-      addText("Receita", pageWidth - margin - 2, yPosition, 9, true, undefined, "right");
+      addText(
+        "Receita",
+        pageWidth - margin - 2,
+        yPosition,
+        9,
+        true,
+        undefined,
+        "right"
+      );
       yPosition += 10;
 
       if (leastSoldProducts && leastSoldProducts.length > 0) {
         leastSoldProducts.forEach((product: any) => {
           checkPageBreak(10);
           addText(product.productName || "N/A", margin + 2, yPosition, 9);
-          addText(product.category || "N/A", margin + 80, yPosition, 9, false, secondaryColor);
-          addText((product.totalQuantity || 0).toString(), margin + 130, yPosition, 9);
-          addText(`${(product.totalRevenue || 0).toFixed(2)} MZN`, pageWidth - margin - 2, yPosition, 9, false, undefined, "right");
+          addText(
+            product.category || "N/A",
+            margin + 80,
+            yPosition,
+            9,
+            false,
+            secondaryColor
+          );
+          addText(
+            (product.totalQuantity || 0).toString(),
+            margin + 130,
+            yPosition,
+            9
+          );
+          addText(
+            `${(product.totalRevenue || 0).toFixed(2)} MZN`,
+            pageWidth - margin - 2,
+            yPosition,
+            9,
+            false,
+            undefined,
+            "right"
+          );
           yPosition += lineHeight + 2;
         });
       } else {
-        addText("Nenhum produto encontrado", margin + 2, yPosition, 9, false, secondaryColor);
+        addText(
+          "Nenhum produto encontrado",
+          margin + 2,
+          yPosition,
+          9,
+          false,
+          secondaryColor
+        );
         yPosition += lineHeight;
       }
 
@@ -1088,9 +1271,13 @@ const AdminContent = () => {
   };
 
   // Função para gerar SKU automaticamente
-  const generateSKU = (productName: string, color: string, size: string): string => {
+  const generateSKU = (
+    productName: string,
+    color: string,
+    size: string
+  ): string => {
     if (!productName || !size) return "";
-    
+
     // Normalizar texto: remover acentos, converter para minúsculas, substituir espaços por hífens
     const normalizeText = (text: string): string => {
       return text
@@ -1105,7 +1292,7 @@ const AdminContent = () => {
 
     const normalizedProduct = normalizeText(productName);
     const normalizedSize = normalizeText(size);
-    
+
     // Converter cor hex para nome (se possível) ou usar código hex sem #
     let colorPart = "";
     if (color) {
@@ -1124,13 +1311,13 @@ const AdminContent = () => {
         "#800080": "roxo",
         "#a52a2a": "marrom",
       };
-      
+
       const lowerColor = color.toLowerCase();
       colorPart = hexToColorName[lowerColor] || lowerColor.replace("#", "");
     }
-    
+
     const normalizedColor = colorPart ? normalizeText(colorPart) : "";
-    
+
     // Montar SKU: produto-cor-tamanho (ou produto-tamanho se não houver cor)
     if (normalizedColor) {
       return `${normalizedProduct}-${normalizedColor}-${normalizedSize}`;
@@ -1145,14 +1332,21 @@ const AdminContent = () => {
   useEffect(() => {
     // Só gerar se não estiver editando, tiver tamanho preenchido, produto selecionado e SKU não foi editado manualmente
     if (!isEditVariantMode && variantForm.size && !skuManuallyEdited.current) {
-      const productId = activeTab === "variants" 
-        ? selectedProductForVariant 
-        : (editingProduct?._id || (editingProduct as { id?: string })?.id);
-      
+      const productId =
+        activeTab === "variants"
+          ? selectedProductForVariant
+          : editingProduct?._id || (editingProduct as { id?: string })?.id;
+
       if (productId && products.length > 0) {
-        const product = products.find(p => p._id === productId || p.id === productId);
+        const product = products.find(
+          (p) => p._id === productId || p.id === productId
+        );
         if (product && product.name) {
-          const autoSKU = generateSKU(product.name, variantForm.color, variantForm.size);
+          const autoSKU = generateSKU(
+            product.name,
+            variantForm.color,
+            variantForm.size
+          );
           if (autoSKU) {
             setVariantForm((prev) => ({
               ...prev,
@@ -1162,7 +1356,16 @@ const AdminContent = () => {
         }
       }
     }
-  }, [selectedProductForVariant, editingProduct?._id, editingProduct?.id, variantForm.color, variantForm.size, isEditVariantMode, activeTab, products]);
+  }, [
+    selectedProductForVariant,
+    editingProduct?._id,
+    editingProduct?.id,
+    variantForm.color,
+    variantForm.size,
+    isEditVariantMode,
+    activeTab,
+    products,
+  ]);
 
   // Resetar flag quando entrar em modo de criação ou abrir o modal
   useEffect(() => {
@@ -1170,14 +1373,21 @@ const AdminContent = () => {
       skuManuallyEdited.current = false;
       // Se já tiver produto e tamanho selecionados, gerar SKU imediatamente
       if (variantForm.size) {
-        const productId = activeTab === "variants" 
-          ? selectedProductForVariant 
-          : (editingProduct?._id || (editingProduct as { id?: string })?.id);
-        
+        const productId =
+          activeTab === "variants"
+            ? selectedProductForVariant
+            : editingProduct?._id || (editingProduct as { id?: string })?.id;
+
         if (productId && products.length > 0) {
-          const product = products.find(p => p._id === productId || p.id === productId);
+          const product = products.find(
+            (p) => p._id === productId || p.id === productId
+          );
           if (product && product.name) {
-            const autoSKU = generateSKU(product.name, variantForm.color, variantForm.size);
+            const autoSKU = generateSKU(
+              product.name,
+              variantForm.color,
+              variantForm.size
+            );
             if (autoSKU) {
               setVariantForm((prev) => ({
                 ...prev,
@@ -1188,7 +1398,16 @@ const AdminContent = () => {
         }
       }
     }
-  }, [isEditVariantMode, isVariantDialogOpen, activeTab, selectedProductForVariant, editingProduct, products, variantForm.size, variantForm.color]);
+  }, [
+    isEditVariantMode,
+    isVariantDialogOpen,
+    activeTab,
+    selectedProductForVariant,
+    editingProduct,
+    products,
+    variantForm.size,
+    variantForm.color,
+  ]);
 
   const handleVariantImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1247,8 +1466,9 @@ const AdminContent = () => {
         })
       ).unwrap();
 
-      const productName = updated.name || name || editingProduct.name || "Produto";
-      
+      const productName =
+        updated.name || name || editingProduct.name || "Produto";
+
       toast({
         title: "Produto atualizado!",
         description: `${productName} foi atualizado com sucesso.`,
@@ -1272,31 +1492,40 @@ const AdminContent = () => {
   const handleCreateVariant = async () => {
     // Se estiver editando, usar o produto da variante existente
     let productIdToUse: string | undefined;
-    
+
     if (isEditVariantMode && editingVariant) {
       // Ao editar, pegar o produto da variante existente
       // O produto pode vir como objeto populado ou como string (ID)
       if (editingVariant.product) {
-        if (typeof editingVariant.product === 'object' && editingVariant.product !== null) {
+        if (
+          typeof editingVariant.product === "object" &&
+          editingVariant.product !== null
+        ) {
           // Produto populado como objeto
-          productIdToUse = (editingVariant.product as any)?._id || (editingVariant.product as any)?.id;
-        } else if (typeof editingVariant.product === 'string') {
+          productIdToUse =
+            (editingVariant.product as any)?._id ||
+            (editingVariant.product as any)?.id;
+        } else if (typeof editingVariant.product === "string") {
           // Produto como string (ID)
           productIdToUse = editingVariant.product;
         }
       }
-      
+
       // Se ainda não encontrou o productId, tentar buscar na lista de produtos usando o nome do produto
-      if (!productIdToUse && typeof editingVariant.product === 'object' && editingVariant.product !== null) {
+      if (
+        !productIdToUse &&
+        typeof editingVariant.product === "object" &&
+        editingVariant.product !== null
+      ) {
         const productName = (editingVariant.product as any)?.name;
         if (productName) {
-          const foundProduct = products.find(p => p.name === productName);
+          const foundProduct = products.find((p) => p.name === productName);
           if (foundProduct) {
             productIdToUse = foundProduct._id || foundProduct.id;
           }
         }
       }
-      
+
       // Debug: se ainda não encontrou, logar para debug
       if (!productIdToUse) {
         console.warn("⚠️ Não foi possível extrair productId da variante:", {
@@ -1307,29 +1536,35 @@ const AdminContent = () => {
       }
     } else {
       // Ao criar, usar selectedProductForVariant se estiver na aba de variantes, senão usar editingProduct
-      productIdToUse = activeTab === "variants" 
-        ? selectedProductForVariant 
-        : (editingProduct?._id || (editingProduct as { id?: string })?.id);
+      productIdToUse =
+        activeTab === "variants"
+          ? selectedProductForVariant
+          : editingProduct?._id || (editingProduct as { id?: string })?.id;
     }
-    
+
     // Só validar se não estiver editando (ao editar, o produto já está associado)
     if (!isEditVariantMode && !productIdToUse) {
       toast({
         title: "Selecione um produto",
-        description: activeTab === "variants" 
-          ? "Selecione um produto para adicionar variantes."
-          : "Abra um produto para adicionar variantes.",
+        description:
+          activeTab === "variants"
+            ? "Selecione um produto para adicionar variantes."
+            : "Abra um produto para adicionar variantes.",
         variant: "destructive",
       });
       return;
     }
-    
+
     // Se estiver editando e ainda não tem productId, mostrar erro mais específico
     if (isEditVariantMode && !productIdToUse) {
-      console.error("❌ Erro ao editar variante: productId não encontrado", editingVariant);
+      console.error(
+        "❌ Erro ao editar variante: productId não encontrado",
+        editingVariant
+      );
       toast({
         title: "Erro",
-        description: "Não foi possível identificar o produto da variante. Por favor, recarregue a página e tente novamente.",
+        description:
+          "Não foi possível identificar o produto da variante. Por favor, recarregue a página e tente novamente.",
         variant: "destructive",
       });
       return;
@@ -1468,7 +1703,7 @@ const AdminContent = () => {
       action: "deleteVariant",
       variantId: variant._id,
       variantSku: variant.sku,
-      name: `${variant.color} • ${variant.size}`,
+      name: `${variant.sku} • ${variant.size}`,
     });
   };
 
@@ -1544,24 +1779,28 @@ const AdminContent = () => {
   ) => {
     try {
       setIsUpdatingStatus(true);
-      
+
       // Se for marcar como "entregue", verificar se o cliente confirmou primeiro
       if (newStatus === "entregue") {
         try {
           const orderResult = await dispatch(fetchOrderById(orderId)).unwrap();
           const actualOrder = (orderResult as any)?.data || orderResult;
-          
+
           if (!actualOrder.clientConfirmed) {
             toast({
               title: "Confirmação necessária",
-              description: "O cliente precisa confirmar o recebimento antes de marcar como entregue.",
+              description:
+                "O cliente precisa confirmar o recebimento antes de marcar como entregue.",
               variant: "destructive",
             });
             setIsUpdatingStatus(false);
             return;
           }
         } catch (fetchError: any) {
-          console.error("❌ Erro ao verificar confirmação do cliente:", fetchError);
+          console.error(
+            "❌ Erro ao verificar confirmação do cliente:",
+            fetchError
+          );
           toast({
             title: "Erro",
             description: "Não foi possível verificar a confirmação do cliente.",
@@ -1571,49 +1810,57 @@ const AdminContent = () => {
           return;
         }
       }
-      
+
       // SEMPRE buscar o pedido completo da API ANTES de atualizar para garantir dados corretos
       let userId: string | null = null;
       let orderData: Order | null = null;
-      
+
       try {
         const orderResult = await dispatch(fetchOrderById(orderId)).unwrap();
-        
+
         // A API retorna { data: { ... } }, então precisamos acessar orderResult.data
         const actualOrder = (orderResult as any)?.data || orderResult;
         orderData = actualOrder;
-       
-        
+
         // Extrair userId - tentar múltiplas formas
         if (actualOrder.user) {
           if (typeof actualOrder.user === "string") {
             userId = actualOrder.user;
-          } else if (typeof actualOrder.user === "object" && actualOrder.user !== null) {
+          } else if (
+            typeof actualOrder.user === "object" &&
+            actualOrder.user !== null
+          ) {
             // Tentar todas as propriedades possíveis
             const userObj = actualOrder.user as any;
             userId = userObj._id || userObj.id || userObj.userId || null;
-         
           }
         } else {
           console.warn("⚠️ actualOrder.user está vazio/null/undefined");
         }
-        
+
         // Se ainda não encontrou userId, tentar de outras fontes
         if (!userId) {
-          
           // Tentar do currentOrder
-          if (currentOrder && (currentOrder._id === orderId || currentOrder.id === orderId)) {
+          if (
+            currentOrder &&
+            (currentOrder._id === orderId || currentOrder.id === orderId)
+          ) {
             if (typeof currentOrder.user === "string") {
               userId = currentOrder.user;
-            } else if (currentOrder.user && typeof currentOrder.user === "object") {
+            } else if (
+              currentOrder.user &&
+              typeof currentOrder.user === "object"
+            ) {
               const userObj = currentOrder.user as any;
               userId = userObj._id || userObj.id || userObj.userId || null;
             }
           }
-          
+
           // Tentar da lista de pedidos
           if (!userId) {
-            const orderFromList = allOrders.find((o) => o.id === orderId || o._id === orderId);
+            const orderFromList = allOrders.find(
+              (o) => o.id === orderId || o._id === orderId
+            );
             if (orderFromList && orderFromList.user) {
               if (typeof orderFromList.user === "string") {
                 userId = orderFromList.user;
@@ -1624,14 +1871,14 @@ const AdminContent = () => {
             }
           }
         }
-        
-       
       } catch (fetchError: any) {
         console.error("❌ Erro ao buscar pedido:", fetchError);
-       
+
         toast({
           title: "Erro",
-          description: `Não foi possível buscar os dados do pedido: ${fetchError?.message || "Erro desconhecido"}`,
+          description: `Não foi possível buscar os dados do pedido: ${
+            fetchError?.message || "Erro desconhecido"
+          }`,
           variant: "destructive",
         });
         setIsUpdatingStatus(false);
@@ -1642,27 +1889,38 @@ const AdminContent = () => {
       if (!userId) {
         console.error("❌ userId não encontrado após todas as tentativas");
         console.error("❌ Dados disponíveis:", {
-          orderData: orderData ? {
-            exists: true,
-            hasUser: !!orderData.user,
-            userType: typeof orderData.user,
-            keys: Object.keys(orderData),
-          } : "não existe",
-          currentOrder: currentOrder ? {
-            exists: true,
-            hasUser: !!currentOrder.user,
-            userType: typeof currentOrder.user,
-            id: currentOrder._id || currentOrder.id,
-          } : "não existe",
+          orderData: orderData
+            ? {
+                exists: true,
+                hasUser: !!orderData.user,
+                userType: typeof orderData.user,
+                keys: Object.keys(orderData),
+              }
+            : "não existe",
+          currentOrder: currentOrder
+            ? {
+                exists: true,
+                hasUser: !!currentOrder.user,
+                userType: typeof currentOrder.user,
+                id: currentOrder._id || currentOrder.id,
+              }
+            : "não existe",
           allOrdersCount: allOrders.length,
-          orderInList: allOrders.find((o) => o.id === orderId || o._id === orderId) ? {
-            found: true,
-            hasUser: !!allOrders.find((o) => o.id === orderId || o._id === orderId)?.user,
-          } : "não encontrado"
+          orderInList: allOrders.find(
+            (o) => o.id === orderId || o._id === orderId
+          )
+            ? {
+                found: true,
+                hasUser: !!allOrders.find(
+                  (o) => o.id === orderId || o._id === orderId
+                )?.user,
+              }
+            : "não encontrado",
         });
         toast({
           title: "Erro",
-          description: "Não foi possível identificar o cliente do pedido. Abra o console (F12) para ver detalhes de debug.",
+          description:
+            "Não foi possível identificar o cliente do pedido. Abra o console (F12) para ver detalhes de debug.",
           variant: "destructive",
         });
         setIsUpdatingStatus(false);
@@ -1680,25 +1938,40 @@ const AdminContent = () => {
       });
 
       // Criar notificação para o cliente baseado no status
-      const statusMessages: Record<string, { title: string; message: string; type: "Pedido" | "Entregue" | "Cancelado" }> = {
+      const statusMessages: Record<
+        string,
+        {
+          title: string;
+          message: string;
+          type: "Pedido" | "Entregue" | "Cancelado";
+        }
+      > = {
         confirmado: {
           title: "Pedido Confirmado",
-          message: `Seu pedido #${orderId.slice(-8)} foi confirmado e está sendo preparado.`,
+          message: `Seu pedido #${orderId.slice(
+            -8
+          )} foi confirmado e está sendo preparado.`,
           type: "Pedido",
         },
         enviado: {
           title: "Pedido Enviado",
-          message: `Seu pedido #${orderId.slice(-8)} foi enviado e está a caminho. Por favor, confirme o recebimento quando o pedido chegar.`,
+          message: `Seu pedido #${orderId.slice(
+            -8
+          )} foi enviado e está a caminho. Por favor, confirme o recebimento quando o pedido chegar.`,
           type: "Pedido",
         },
         entregue: {
           title: "Pedido Entregue",
-          message: `Seu pedido #${orderId.slice(-8)} foi entregue com sucesso! Obrigado pela compra.`,
+          message: `Seu pedido #${orderId.slice(
+            -8
+          )} foi entregue com sucesso! Obrigado pela compra.`,
           type: "Entregue",
         },
         cancelado: {
           title: "Pedido Cancelado",
-          message: `Seu pedido #${orderId.slice(-8)} foi cancelado. Entre em contato conosco se tiver dúvidas.`,
+          message: `Seu pedido #${orderId.slice(
+            -8
+          )} foi cancelado. Entre em contato conosco se tiver dúvidas.`,
           type: "Cancelado",
         },
       };
@@ -1716,10 +1989,14 @@ const AdminContent = () => {
             })
           ).unwrap();
         } catch (notificationError: any) {
-          console.error("❌ Erro ao criar notificação de status:", notificationError);
+          console.error(
+            "❌ Erro ao criar notificação de status:",
+            notificationError
+          );
           toast({
             title: "Aviso",
-            description: "Status atualizado, mas não foi possível criar notificação.",
+            description:
+              "Status atualizado, mas não foi possível criar notificação.",
             variant: "destructive",
           });
         }
@@ -1731,55 +2008,84 @@ const AdminContent = () => {
         // Usar actualOrder que já tem a estrutura correta (orderResult.data)
         let finalOrderData = orderData;
 
-        if (!finalOrderData || !finalOrderData.products || finalOrderData.products.length === 0) {
+        if (
+          !finalOrderData ||
+          !finalOrderData.products ||
+          finalOrderData.products.length === 0
+        ) {
           try {
-            const updatedOrderResult = await dispatch(fetchOrderById(orderId)).unwrap();
+            const updatedOrderResult = await dispatch(
+              fetchOrderById(orderId)
+            ).unwrap();
             // A API retorna { data: { ... } }, então precisamos acessar orderResult.data
-            finalOrderData = (updatedOrderResult as any)?.data || updatedOrderResult;
-       
+            finalOrderData =
+              (updatedOrderResult as any)?.data || updatedOrderResult;
           } catch (e: any) {
             console.error("❌ Erro ao buscar pedido atualizado:", e);
           }
         }
 
-        if (finalOrderData && finalOrderData.products && finalOrderData.products.length > 0) {
+        if (
+          finalOrderData &&
+          finalOrderData.products &&
+          finalOrderData.products.length > 0
+        ) {
           try {
             // Obter produtos únicos do pedido
-            const uniqueProducts = new Map<string, { id: string; name: string }>();
-            
-            
+            const uniqueProducts = new Map<
+              string,
+              { id: string; name: string }
+            >();
+
             finalOrderData.products.forEach((orderProduct: any) => {
-              
               // Tentar obter o ID do produto
               let productId: string | null = null;
               if (typeof orderProduct.product === "string") {
                 productId = orderProduct.product;
-              } else if (orderProduct.product && typeof orderProduct.product === "object") {
-                productId = (orderProduct.product as any)?._id || (orderProduct.product as any)?.id || null;
+              } else if (
+                orderProduct.product &&
+                typeof orderProduct.product === "object"
+              ) {
+                productId =
+                  (orderProduct.product as any)?._id ||
+                  (orderProduct.product as any)?.id ||
+                  null;
               } else {
-                console.warn("⚠️ orderProduct.product não é string nem objeto:", orderProduct.product);
+                console.warn(
+                  "⚠️ orderProduct.product não é string nem objeto:",
+                  orderProduct.product
+                );
               }
 
               if (productId) {
                 // Tentar obter o nome do produto
                 let productName = "produto";
-                
+
                 // Primeiro tentar do orderProduct.name (se estiver populado)
                 if (orderProduct.name) {
                   productName = orderProduct.name;
-                } 
+                }
                 // Se não, tentar do objeto product populado
-                else if (orderProduct.product && typeof orderProduct.product === "object") {
-                  productName = (orderProduct.product as any)?.name || "produto";
+                else if (
+                  orderProduct.product &&
+                  typeof orderProduct.product === "object"
+                ) {
+                  productName =
+                    (orderProduct.product as any)?.name || "produto";
                 }
 
                 // Adicionar ao mapa (sobrescreve se já existir, mantendo o nome mais completo)
-                if (!uniqueProducts.has(productId) || uniqueProducts.get(productId)?.name === "produto") {
-                  uniqueProducts.set(productId, { id: productId, name: productName });
+                if (
+                  !uniqueProducts.has(productId) ||
+                  uniqueProducts.get(productId)?.name === "produto"
+                ) {
+                  uniqueProducts.set(productId, {
+                    id: productId,
+                    name: productName,
+                  });
                 }
               }
             });
-
 
             // Criar uma notificação para cada produto único
             let notificationsCreated = 0;
@@ -1788,7 +2094,11 @@ const AdminContent = () => {
                 await dispatch(
                   createNotification({
                     title: "Avalie seu produto",
-                    message: `Seu pedido #${orderId.slice(-8)} foi entregue! Que tal avaliar o ${productInfo.name}? Sua opinião é muito importante para nós.`,
+                    message: `Seu pedido #${orderId.slice(
+                      -8
+                    )} foi entregue! Que tal avaliar o ${
+                      productInfo.name
+                    }? Sua opinião é muito importante para nós.`,
                     type: "Avaliação",
                     user: userId,
                     order: orderId,
@@ -1796,20 +2106,25 @@ const AdminContent = () => {
                 ).unwrap();
                 notificationsCreated++;
               } catch (productNotificationError: any) {
-                console.error(`❌ Erro ao criar notificação de avaliação para ${productInfo.name}:`, productNotificationError);
+                console.error(
+                  `❌ Erro ao criar notificação de avaliação para ${productInfo.name}:`,
+                  productNotificationError
+                );
               }
             }
-            
           } catch (e: any) {
             console.error("❌ Erro ao processar produtos para avaliação:", e);
             toast({
               title: "Aviso",
-              description: "Pedido marcado como entregue, mas não foi possível criar todas as notificações de avaliação.",
+              description:
+                "Pedido marcado como entregue, mas não foi possível criar todas as notificações de avaliação.",
               variant: "destructive",
             });
           }
         } else {
-          console.warn("⚠️ Pedido marcado como entregue, mas não há produtos para criar notificações");
+          console.warn(
+            "⚠️ Pedido marcado como entregue, mas não há produtos para criar notificações"
+          );
         }
       }
 
@@ -1827,7 +2142,10 @@ const AdminContent = () => {
 
       // close modal? keep it open but update content
     } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : "Não foi possível atualizar o status do pedido";
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : "Não foi possível atualizar o status do pedido";
       toast({
         title: "Erro",
         description: errorMessage,
@@ -1846,6 +2164,16 @@ const AdminContent = () => {
     try {
       if (confirmDialog.action === "removeCustomer" && confirmDialog.id) {
         await dispatch(deleteUser(confirmDialog.id)).unwrap();
+        // Recarregar lista de usuários para atualizar a tabela automaticamente
+        try {
+          await dispatch(fetchUsers()).unwrap();
+        } catch (e) {
+          // se o re-fetch falhar, apenas logamos e continuamos (a remoção já ocorreu)
+          console.warn("Falha ao recarregar usuários após exclusão:", e);
+        }
+        // Garantir que a paginação volte para a primeira página visível
+        setCustomersPage(1);
+
         toast({
           title: "Cliente desativado",
           description: `"${
@@ -1869,18 +2197,28 @@ const AdminContent = () => {
           description: `O cupom "${confirmDialog.name || ""}" foi removido.`,
         });
         await dispatch(getAllCoupons());
-      } else if (confirmDialog.action === "deleteReview" && confirmDialog.reviewId) {
+      } else if (
+        confirmDialog.action === "deleteReview" &&
+        confirmDialog.reviewId
+      ) {
         await dispatch(deleteReview(confirmDialog.reviewId)).unwrap();
         toast({
           title: "Comentário excluído",
           description: "O comentário foi removido com sucesso.",
         });
         // Não recarregar reviews - o slice já atualiza o estado localmente
-      } else if (confirmDialog.action === "deleteVariant" && confirmDialog.variantId) {
-        await dispatch(deleteVariant({ variantId: confirmDialog.variantId })).unwrap();
+      } else if (
+        confirmDialog.action === "deleteVariant" &&
+        confirmDialog.variantId
+      ) {
+        await dispatch(
+          deleteVariant({ variantId: confirmDialog.variantId })
+        ).unwrap();
         toast({
           title: "Variante eliminada",
-          description: `A variante "${confirmDialog.variantSku || ""}" foi removida com sucesso.`,
+          description: `A variante "${
+            confirmDialog.variantSku || ""
+          }" foi removida com sucesso.`,
         });
         // Atualizar o produto editado removendo a variante
         if (editingProduct) {
@@ -1904,7 +2242,7 @@ const AdminContent = () => {
     } catch (err: unknown) {
       // Extrair mensagem de erro de forma mais robusta
       let errorMessage = "Erro ao processar a ação";
-      
+
       if (err instanceof Error) {
         errorMessage = err.message;
       } else if (typeof err === "string") {
@@ -1916,7 +2254,7 @@ const AdminContent = () => {
       } else if ((err as any)?.payload) {
         errorMessage = (err as any).payload;
       }
-      
+
       toast({
         title: "Erro",
         description: errorMessage,
@@ -2004,9 +2342,9 @@ const AdminContent = () => {
     } catch (error: any) {
       console.error("Erro ao cadastrar produto:", error);
       // O erro pode vir como objeto com message ou como string
-      const errorMsg = 
-        error?.message || 
-        (typeof error === 'string' ? error : "Erro ao cadastrar produto");
+      const errorMsg =
+        error?.message ||
+        (typeof error === "string" ? error : "Erro ao cadastrar produto");
       toast({
         title: "Erro",
         description: errorMsg,
@@ -2036,42 +2374,70 @@ const AdminContent = () => {
             defaultValue="orders"
             className="w-full"
           >
-            <TabsList className={`grid w-full ${isManager ? 'grid-cols-5' : 'grid-cols-8'} h-auto p-1 overflow-x-auto`}>
-              <TabsTrigger value="orders" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
+            <TabsList
+              className={`grid w-full ${
+                isManager ? "grid-cols-5" : "grid-cols-8"
+              } h-auto p-1 overflow-x-auto`}
+            >
+              <TabsTrigger
+                value="orders"
+                className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3"
+              >
                 <ShoppingBag className="h-3 w-3 sm:h-4 sm:w-4" />
                 <span className="hidden sm:inline">Pedidos</span>
               </TabsTrigger>
               {!isManager && (
-                <TabsTrigger value="customers" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
+                <TabsTrigger
+                  value="customers"
+                  className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3"
+                >
                   <Users className="h-3 w-3 sm:h-4 sm:w-4" />
                   <span className="hidden sm:inline">Clientes</span>
                 </TabsTrigger>
               )}
               {!isManager && (
-                <TabsTrigger value="reports" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
+                <TabsTrigger
+                  value="reports"
+                  className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3"
+                >
                   <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4" />
                   <span className="hidden sm:inline">Relatórios</span>
                 </TabsTrigger>
               )}
-              <TabsTrigger value="products" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
+              <TabsTrigger
+                value="products"
+                className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3"
+              >
                 <Package className="h-3 w-3 sm:h-4 sm:w-4" />
                 <span className="hidden sm:inline">Produtos</span>
               </TabsTrigger>
-              <TabsTrigger value="variants" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
+              <TabsTrigger
+                value="variants"
+                className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3"
+              >
                 <Layers className="h-3 w-3 sm:h-4 sm:w-4" />
                 <span className="hidden sm:inline">Variantes</span>
               </TabsTrigger>
-              <TabsTrigger value="reviews" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
+              <TabsTrigger
+                value="reviews"
+                className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3"
+              >
                 <MessageSquare className="h-3 w-3 sm:h-4 sm:w-4" />
                 <span className="hidden sm:inline">Comentários</span>
               </TabsTrigger>
               {!isManager && (
-                <TabsTrigger value="coupons" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
+                <TabsTrigger
+                  value="coupons"
+                  className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3"
+                >
                   <Ticket className="h-3 w-3 sm:h-4 sm:w-4" />
                   <span className="hidden sm:inline">Cupons</span>
                 </TabsTrigger>
               )}
-              <TabsTrigger value="add-product" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
+              <TabsTrigger
+                value="add-product"
+                className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3"
+              >
                 <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
                 <span className="hidden sm:inline">Novo</span>
               </TabsTrigger>
@@ -2083,7 +2449,9 @@ const AdminContent = () => {
                 <CardHeader className="p-4 sm:p-6">
                   <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                     <div>
-                      <CardTitle className="text-lg sm:text-xl">Gestão de Pedidos</CardTitle>
+                      <CardTitle className="text-lg sm:text-xl">
+                        Gestão de Pedidos
+                      </CardTitle>
                       <CardDescription className="text-xs sm:text-sm">
                         {filteredOrders.length} pedidos encontrados
                       </CardDescription>
@@ -2176,7 +2544,9 @@ const AdminContent = () => {
                             <p className="text-xs sm:text-sm text-muted-foreground">
                               Data:{" "}
                               {order.createdAt
-                                ? new Date(order.createdAt).toLocaleDateString("pt-BR")
+                                ? new Date(order.createdAt).toLocaleDateString(
+                                    "pt-BR"
+                                  )
                                 : order.date || "Data não disponível"}
                             </p>
                           </div>
@@ -2273,188 +2643,201 @@ const AdminContent = () => {
             {/* Customers Tab - Apenas para admin */}
             {!isManager && (
               <TabsContent value="customers" className="mt-6">
-              <Card>
-                <CardHeader className="p-4 sm:p-6">
-                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                    <div>
-                      <CardTitle className="text-lg sm:text-xl">Gestão de Clientes</CardTitle>
-                      <CardDescription className="text-xs sm:text-sm">
-                        {filteredCustomers.length} clientes cadastrados
-                      </CardDescription>
+                <Card>
+                  <CardHeader className="p-4 sm:p-6">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                      <div>
+                        <CardTitle className="text-lg sm:text-xl">
+                          Gestão de Clientes
+                        </CardTitle>
+                        <CardDescription className="text-xs sm:text-sm">
+                          {filteredCustomers.length} clientes cadastrados
+                        </CardDescription>
+                      </div>
+                      <div className="relative w-full md:w-64">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input
+                          placeholder="Buscar clientes..."
+                          value={customerSearchTerm}
+                          onChange={(e) =>
+                            handleCustomerSearchChange(e.target.value)
+                          }
+                          className="pl-10 text-sm"
+                        />
+                      </div>
                     </div>
-                    <div className="relative w-full md:w-64">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input
-                        placeholder="Buscar clientes..."
-                        value={customerSearchTerm}
-                        onChange={(e) =>
-                          handleCustomerSearchChange(e.target.value)
-                        }
-                        className="pl-10 text-sm"
-                      />
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="p-4 sm:p-6">
-                  <div className="space-y-3 sm:space-y-4">
-                    {paginatedCustomers.map((customer) => (
-                      <div
-                        key={customer.id}
-                        className="p-3 sm:p-4 border border-border rounded-lg hover:border-accent transition-colors"
-                      >
-                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
-                              <h3 className="font-semibold text-sm sm:text-base text-foreground break-words">
-                                {customer.name}
-                              </h3>
-                              <Badge variant="outline" className="text-xs">
-                                ID: {customer.id?.slice(-8)}
-                              </Badge>
-                            </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs sm:text-sm text-muted-foreground">
-                              <div className="flex items-center gap-2 break-words">
-                                <Mail className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-                                <span className="truncate">{customer.email}</span>
+                  </CardHeader>
+                  <CardContent className="p-4 sm:p-6">
+                    <div className="space-y-3 sm:space-y-4">
+                      {paginatedCustomers.map((customer) => (
+                        <div
+                          key={customer.id}
+                          className="p-3 sm:p-4 border border-border rounded-lg hover:border-accent transition-colors"
+                        >
+                          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
+                                <h3 className="font-semibold text-sm sm:text-base text-foreground break-words">
+                                  {customer.name}
+                                </h3>
+                                <Badge variant="outline" className="text-xs">
+                                  ID: {customer.id?.slice(-8)}
+                                </Badge>
                               </div>
-                              <div className="flex items-center gap-2">
-                                <Phone className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-                                <span className="truncate">{customer.phone}</span>
-                              </div>
-                              <div className="flex items-start gap-2 sm:col-span-2">
-                                <MapPin className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0 mt-0.5" />
-                                <span className="break-words">{customer.address}</span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Calendar className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-                                <span className="text-xs sm:text-sm">
-                                  Cliente desde:{" "}
-                                  {new Date(customer.joinDate).toLocaleDateString(
-                                    "pt-BR"
-                                  )}
-                                </span>
-                              </div>
-                            </div>
-                            <div className="mt-2 sm:hidden">
-                              <p className="text-xs text-muted-foreground">
-                                {customer.totalOrders} pedidos
-                              </p>
-                              <p className="text-base font-bold text-foreground">
-                                {customer.totalSpent} MZN
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <div className="text-right mr-4 hidden sm:block">
-                              <p className="text-sm text-muted-foreground">
-                                {customer.totalOrders} pedidos
-                              </p>
-                              <p className="text-lg font-bold text-foreground">
-                                {customer.totalSpent} MZN
-                              </p>
-                            </div>
-                            <Dialog>
-                              <DialogTrigger asChild>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => setSelectedCustomer(customer)}
-                                >
-                                  <Eye className="h-4 w-4 mr-2" />
-                                  <span className="hidden sm:inline">
-                                    Detalhes
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs sm:text-sm text-muted-foreground">
+                                <div className="flex items-center gap-2 break-words">
+                                  <Mail className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                                  <span className="truncate">
+                                    {customer.email}
                                   </span>
-                                </Button>
-                              </DialogTrigger>
-                              <DialogContent className="max-w-[95vw] sm:max-w-2xl p-4 sm:p-6">
-                                <DialogHeader className="pb-4">
-                                  <DialogTitle className="text-lg sm:text-xl">Detalhes do Cliente</DialogTitle>
-                                  <DialogDescription className="text-xs sm:text-sm">
-                                    Informações completas sobre {customer.name}
-                                  </DialogDescription>
-                                </DialogHeader>
-                                {selectedCustomer && (
-                                  <div className="space-y-4">
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                      <div>
-                                        <Label className="text-xs sm:text-sm text-muted-foreground">
-                                          ID do Cliente
-                                        </Label>
-                                        <p className="font-semibold text-sm sm:text-base">
-                                          {selectedCustomer.id?.slice(-8)}
-                                        </p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Phone className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                                  <span className="truncate">
+                                    {customer.phone}
+                                  </span>
+                                </div>
+                                <div className="flex items-start gap-2 sm:col-span-2">
+                                  <MapPin className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0 mt-0.5" />
+                                  <span className="break-words">
+                                    {customer.address}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Calendar className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                                  <span className="text-xs sm:text-sm">
+                                    Cliente desde:{" "}
+                                    {new Date(
+                                      customer.joinDate
+                                    ).toLocaleDateString("pt-BR")}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="mt-2 sm:hidden">
+                                <p className="text-xs text-muted-foreground">
+                                  {customer.totalOrders} pedidos
+                                </p>
+                                <p className="text-base font-bold text-foreground">
+                                  {customer.totalSpent} MZN
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <div className="text-right mr-4 hidden sm:block">
+                                <p className="text-sm text-muted-foreground">
+                                  {customer.totalOrders} pedidos
+                                </p>
+                                <p className="text-lg font-bold text-foreground">
+                                  {customer.totalSpent} MZN
+                                </p>
+                              </div>
+                              <Dialog>
+                                <DialogTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() =>
+                                      setSelectedCustomer(customer)
+                                    }
+                                  >
+                                    <Eye className="h-4 w-4 mr-2" />
+                                    <span className="hidden sm:inline">
+                                      Detalhes
+                                    </span>
+                                  </Button>
+                                </DialogTrigger>
+                                <DialogContent className="max-w-[95vw] sm:max-w-2xl p-4 sm:p-6">
+                                  <DialogHeader className="pb-4">
+                                    <DialogTitle className="text-lg sm:text-xl">
+                                      Detalhes do Cliente
+                                    </DialogTitle>
+                                    <DialogDescription className="text-xs sm:text-sm">
+                                      Informações completas sobre{" "}
+                                      {customer.name}
+                                    </DialogDescription>
+                                  </DialogHeader>
+                                  {selectedCustomer && (
+                                    <div className="space-y-4">
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <div>
+                                          <Label className="text-xs sm:text-sm text-muted-foreground">
+                                            ID do Cliente
+                                          </Label>
+                                          <p className="font-semibold text-sm sm:text-base">
+                                            {selectedCustomer.id?.slice(-8)}
+                                          </p>
+                                        </div>
+                                        <div>
+                                          <Label className="text-xs sm:text-sm text-muted-foreground">
+                                            Nome Completo
+                                          </Label>
+                                          <p className="font-semibold text-sm sm:text-base break-words">
+                                            {selectedCustomer.name}
+                                          </p>
+                                        </div>
+                                        <div>
+                                          <Label className="text-xs sm:text-sm text-muted-foreground">
+                                            Email
+                                          </Label>
+                                          <p className="font-semibold text-sm sm:text-base break-words">
+                                            {selectedCustomer.email}
+                                          </p>
+                                        </div>
+                                        <div>
+                                          <Label className="text-xs sm:text-sm text-muted-foreground">
+                                            Telefone
+                                          </Label>
+                                          <p className="font-semibold text-sm sm:text-base">
+                                            {selectedCustomer.phone}
+                                          </p>
+                                        </div>
+                                        <div className="col-span-1 sm:col-span-2">
+                                          <Label className="text-xs sm:text-sm text-muted-foreground">
+                                            Endereço
+                                          </Label>
+                                          <p className="font-semibold text-sm sm:text-base break-words">
+                                            {selectedCustomer.address}
+                                          </p>
+                                        </div>
+                                        <div>
+                                          <Label className="text-xs sm:text-sm text-muted-foreground">
+                                            Cliente desde
+                                          </Label>
+                                          <p className="font-semibold text-sm sm:text-base">
+                                            {new Date(
+                                              selectedCustomer.joinDate
+                                            ).toLocaleDateString("pt-BR")}
+                                          </p>
+                                        </div>
+                                        <div>
+                                          <Label className="text-xs sm:text-sm text-muted-foreground">
+                                            Último Pedido
+                                          </Label>
+                                          <p className="font-semibold text-sm sm:text-base">
+                                            {new Date(
+                                              selectedCustomer.lastOrder
+                                            ).toLocaleDateString("pt-BR")}
+                                          </p>
+                                        </div>
+                                        <div>
+                                          <Label className="text-xs sm:text-sm text-muted-foreground">
+                                            Total de Pedidos
+                                          </Label>
+                                          <p className="font-semibold text-sm sm:text-base text-accent">
+                                            {selectedCustomer.totalOrders}{" "}
+                                            pedidos
+                                          </p>
+                                        </div>
+                                        <div>
+                                          <Label className="text-xs sm:text-sm text-muted-foreground">
+                                            Total Gasto
+                                          </Label>
+                                          <p className="font-semibold text-sm sm:text-base text-accent">
+                                            {selectedCustomer.totalSpent} MZN
+                                          </p>
+                                        </div>
                                       </div>
-                                      <div>
-                                        <Label className="text-xs sm:text-sm text-muted-foreground">
-                                          Nome Completo
-                                        </Label>
-                                        <p className="font-semibold text-sm sm:text-base break-words">
-                                          {selectedCustomer.name}
-                                        </p>
-                                      </div>
-                                      <div>
-                                        <Label className="text-xs sm:text-sm text-muted-foreground">
-                                          Email
-                                        </Label>
-                                        <p className="font-semibold text-sm sm:text-base break-words">
-                                          {selectedCustomer.email}
-                                        </p>
-                                      </div>
-                                      <div>
-                                        <Label className="text-xs sm:text-sm text-muted-foreground">
-                                          Telefone
-                                        </Label>
-                                        <p className="font-semibold text-sm sm:text-base">
-                                          {selectedCustomer.phone}
-                                        </p>
-                                      </div>
-                                      <div className="col-span-1 sm:col-span-2">
-                                        <Label className="text-xs sm:text-sm text-muted-foreground">
-                                          Endereço
-                                        </Label>
-                                        <p className="font-semibold text-sm sm:text-base break-words">
-                                          {selectedCustomer.address}
-                                        </p>
-                                      </div>
-                                      <div>
-                                        <Label className="text-xs sm:text-sm text-muted-foreground">
-                                          Cliente desde
-                                        </Label>
-                                        <p className="font-semibold text-sm sm:text-base">
-                                          {new Date(
-                                            selectedCustomer.joinDate
-                                          ).toLocaleDateString("pt-BR")}
-                                        </p>
-                                      </div>
-                                      <div>
-                                        <Label className="text-xs sm:text-sm text-muted-foreground">
-                                          Último Pedido
-                                        </Label>
-                                        <p className="font-semibold text-sm sm:text-base">
-                                          {new Date(
-                                            selectedCustomer.lastOrder
-                                          ).toLocaleDateString("pt-BR")}
-                                        </p>
-                                      </div>
-                                      <div>
-                                        <Label className="text-xs sm:text-sm text-muted-foreground">
-                                          Total de Pedidos
-                                        </Label>
-                                        <p className="font-semibold text-sm sm:text-base text-accent">
-                                          {selectedCustomer.totalOrders} pedidos
-                                        </p>
-                                      </div>
-                                      <div>
-                                        <Label className="text-xs sm:text-sm text-muted-foreground">
-                                          Total Gasto
-                                        </Label>
-                                        <p className="font-semibold text-sm sm:text-base text-accent">
-                                          {selectedCustomer.totalSpent}{" "}
-                                          MZN
-                                        </p>
-                                      </div>
-                                    </div>
-                                    {/* <Separator />
+                                      {/* <Separator />
                                     <div>
                                       <h4 className="font-semibold mb-2">
                                         Histórico de Pedidos Recentes
@@ -2491,889 +2874,1010 @@ const AdminContent = () => {
                                           ))}
                                       </div>
                                     </div> */}
-                                  </div>
-                                )}
-                              </DialogContent>
-                            </Dialog>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() =>
-                                handleRemoveCustomer(customer.id, customer.name)
-                              }
-                              aria-label="Desativar cliente"
-                              title="Desativar cliente"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                                    </div>
+                                  )}
+                                </DialogContent>
+                              </Dialog>
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() =>
+                                  handleRemoveCustomer(
+                                    customer.id,
+                                    customer.name
+                                  )
+                                }
+                                aria-label="Desativar cliente"
+                                title="Desativar cliente"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
 
-                    {filteredCustomers.length === 0 && (
-                      <div className="text-center py-12 text-muted-foreground">
-                        Nenhum cliente encontrado
+                      {filteredCustomers.length === 0 && (
+                        <div className="text-center py-12 text-muted-foreground">
+                          Nenhum cliente encontrado
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Pagination for Customers */}
+                    {filteredCustomers.length > itemsPerPage && (
+                      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 pt-4">
+                        <p className="text-xs sm:text-sm text-muted-foreground text-center sm:text-left">
+                          Mostrando {(customersPage - 1) * itemsPerPage + 1} a{" "}
+                          {Math.min(
+                            customersPage * itemsPerPage,
+                            filteredCustomers.length
+                          )}{" "}
+                          de {filteredCustomers.length} clientes
+                        </p>
+                        <div className="flex items-center gap-1 sm:gap-2 flex-wrap justify-center">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              setCustomersPage((p) => Math.max(1, p - 1))
+                            }
+                            disabled={customersPage === 1}
+                            className="text-xs sm:text-sm"
+                          >
+                            Anterior
+                          </Button>
+                          <div className="flex items-center gap-1 overflow-x-auto">
+                            {Array.from(
+                              { length: totalCustomersPages },
+                              (_, i) => i + 1
+                            ).map((page) => (
+                              <Button
+                                key={page}
+                                variant={
+                                  page === customersPage ? "default" : "outline"
+                                }
+                                size="sm"
+                                onClick={() => setCustomersPage(page)}
+                                className="w-8 h-8 sm:w-10 sm:h-10 text-xs sm:text-sm"
+                              >
+                                {page}
+                              </Button>
+                            ))}
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              setCustomersPage((p) =>
+                                Math.min(totalCustomersPages, p + 1)
+                              )
+                            }
+                            disabled={customersPage === totalCustomersPages}
+                            className="text-xs sm:text-sm"
+                          >
+                            Próxima
+                          </Button>
+                        </div>
                       </div>
                     )}
-                  </div>
-
-                  {/* Pagination for Customers */}
-                  {filteredCustomers.length > itemsPerPage && (
-                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 pt-4">
-                      <p className="text-xs sm:text-sm text-muted-foreground text-center sm:text-left">
-                        Mostrando {(customersPage - 1) * itemsPerPage + 1} a{" "}
-                        {Math.min(
-                          customersPage * itemsPerPage,
-                          filteredCustomers.length
-                        )}{" "}
-                        de {filteredCustomers.length} clientes
-                      </p>
-                      <div className="flex items-center gap-1 sm:gap-2 flex-wrap justify-center">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() =>
-                            setCustomersPage((p) => Math.max(1, p - 1))
-                          }
-                          disabled={customersPage === 1}
-                          className="text-xs sm:text-sm"
-                        >
-                          Anterior
-                        </Button>
-                        <div className="flex items-center gap-1 overflow-x-auto">
-                          {Array.from(
-                            { length: totalCustomersPages },
-                            (_, i) => i + 1
-                          ).map((page) => (
-                            <Button
-                              key={page}
-                              variant={
-                                page === customersPage ? "default" : "outline"
-                              }
-                              size="sm"
-                              onClick={() => setCustomersPage(page)}
-                              className="w-8 h-8 sm:w-10 sm:h-10 text-xs sm:text-sm"
-                            >
-                              {page}
-                            </Button>
-                          ))}
-                        </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() =>
-                            setCustomersPage((p) =>
-                              Math.min(totalCustomersPages, p + 1)
-                            )
-                          }
-                          disabled={customersPage === totalCustomersPages}
-                          className="text-xs sm:text-sm"
-                        >
-                          Próxima
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
               </TabsContent>
             )}
 
             {/* Reports Tab - Apenas para admin */}
             {!isManager && (
               <TabsContent value="reports" className="mt-6">
-              <div className="space-y-6" ref={reportRef}>
-                {/* Header com botão de exportar */}
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
-                  <div>
-                    <h2 className="text-2xl sm:text-3xl font-bold text-foreground">Dashboard</h2>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Visão geral das vendas e relatórios
-                    </p>
-                  </div>
-                  <Button
-                    onClick={handleExportPDF}
-                    disabled={isExportingPDF || reportLoading}
-                    className="bg-black text-white hover:bg-black/90 gap-2 px-4 py-2 h-auto"
-                    data-export-button
-                  >
-                    {isExportingPDF ? (
-                      <>
-                        <span className="animate-spin">⏳</span>
-                        Exportando...
-                      </>
-                    ) : (
-                      <>
-                        <FileDown className="h-4 w-4" />
-                        Exportar Relatório
-                      </>
-                    )}
-                  </Button>
-                </div>
-                {/* Summary Cards */}
-                <div className="grid gap-3 sm:gap-4 grid-cols-2 md:grid-cols-2 lg:grid-cols-4">
-                  <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4 sm:p-6">
-                      <CardTitle className="text-xs sm:text-sm font-medium">
-                        Receita Total
-                      </CardTitle>
-                      <DollarSign className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent className="p-4 sm:p-6 pt-0">
-                      <div className="text-xl sm:text-2xl font-bold">
-                        {reportLoading ? (
-                          <Skeleton className="h-6 w-20 sm:w-24" />
-                        ) : (
-                          `${totalRevenue} MZN`
-                        )}
-                      </div>
-                      {reportLoading ? (
-                        <Skeleton className="h-3 w-24 sm:w-32 mt-2" />
-                      ) : (
-                        <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
-                          De {totalOrders} pedidos
-                        </p>
-                      )}
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4 sm:p-6">
-                      <CardTitle className="text-xs sm:text-sm font-medium">
-                        Ticket Médio
-                      </CardTitle>
-                      <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent className="p-4 sm:p-6 pt-0">
-                      <div className="text-xl sm:text-2xl font-bold">
-                        {reportLoading ? (
-                          <Skeleton className="h-6 w-16 sm:w-20" />
-                        ) : (
-                          `${averageTicket} MZN`
-                        )}
-                      </div>
-                      <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
-                        Por pedido
+                <div className="space-y-6" ref={reportRef}>
+                  {/* Header com botão de exportar */}
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
+                    <div>
+                      <h2 className="text-2xl sm:text-3xl font-bold text-foreground">
+                        Dashboard
+                      </h2>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Visão geral das vendas e relatórios
                       </p>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4 sm:p-6">
-                      <CardTitle className="text-xs sm:text-sm font-medium">
-                        Total de Pedidos
-                      </CardTitle>
-                      <ShoppingBag className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent className="p-4 sm:p-6 pt-0">
-                      <div className="text-xl sm:text-2xl font-bold">
-                        {reportLoading ? (
-                          <Skeleton className="h-6 w-10 sm:w-12" />
-                        ) : (
-                          totalOrdersValue
-                        )}
-                      </div>
-                      {reportLoading ? (
-                        <Skeleton className="h-3 w-16 sm:w-20 mt-2" />
-                      ) : (
-                        <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
-                          {deliveredOrders} entregues
-                        </p>
-                      )}
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4 sm:p-6">
-                      <CardTitle className="text-xs sm:text-sm font-medium">
-                        Taxa de Entrega
-                      </CardTitle>
-                      <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent className="p-4 sm:p-6 pt-0">
-                      <div className="text-xl sm:text-2xl font-bold">
-                        {reportLoading ? (
-                          <Skeleton className="h-6 w-10 sm:w-12" />
-                        ) : (
-                          `${deliveryRate}%`
-                        )}
-                      </div>
-                      <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
-                        De todos os pedidos
-                      </p>
-                    </CardContent>
-                  </Card>
-                </div>
-
-                {/* Sales by Status */}
-                <Card>
-                  <CardHeader className="p-4 sm:p-6">
-                    <CardTitle className="text-lg sm:text-xl">Vendas por Status</CardTitle>
-                    <CardDescription className="text-xs sm:text-sm">
-                      Distribuição de pedidos por status
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="p-4 sm:p-6">
-                    <div className="overflow-x-auto">
-                      <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Status</TableHead>
-                          <TableHead className="text-right">
-                            Quantidade
-                          </TableHead>
-                          <TableHead className="text-right">
-                            Valor Total
-                          </TableHead>
-                          <TableHead className="text-right">
-                            Percentual
-                          </TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {salesByStatus && salesByStatus.length > 0
-                          ? salesByStatus.map((s) => (
-                              <TableRow key={s.status}>
-                                <TableCell>
-                                  {getStatusBadge(s.status)}
-                                </TableCell>
-                                <TableCell className="text-right font-medium">
-                                  {s.count}
-                                </TableCell>
-                                <TableCell className="text-right font-medium">
-                                  {s.total.toFixed(2)} MZN
-                                </TableCell>
-                                <TableCell className="text-right">
-                                  {(
-                                    (s.count / (totalOrdersValue || 1)) *
-                                    100
-                                  ).toFixed(1)}
-                                  %
-                                </TableCell>
-                              </TableRow>
-                            ))
-                          : [
-                              "pendente",
-                              "confirmado",
-                              "enviado",
-                              "entregue",
-                              "cancelado",
-                            ].map((status) => {
-                              const ordersWithStatus = allOrders.filter(
-                                (o) => o.status === status
-                              );
-                              const total = ordersWithStatus.reduce(
-                                (sum, o) => sum + o.total,
-                                0
-                              );
-                              const percentage =
-                                (ordersWithStatus.length /
-                                  (totalOrdersValue || 1)) *
-                                100;
-
-                              return (
-                                <TableRow key={status}>
-                                  <TableCell>
-                                    {getStatusBadge(status)}
-                                  </TableCell>
-                                  <TableCell className="text-right font-medium">
-                                    {ordersWithStatus.length}
-                                  </TableCell>
-                                  <TableCell className="text-right font-medium">
-                                    {total.toFixed(2)} MZN
-                                  </TableCell>
-                                  <TableCell className="text-right">
-                                    {percentage.toFixed(1)}%
-                                  </TableCell>
-                                </TableRow>
-                              );
-                            })}
-                      </TableBody>
-                    </Table>
                     </div>
-                  </CardContent>
-                </Card>
-
-                {/* Top Customers */}
-                <Card>
-                  <CardHeader className="p-4 sm:p-6">
-                    <CardTitle className="text-lg sm:text-xl">Principais Clientes</CardTitle>
-                    <CardDescription className="text-xs sm:text-sm">
-                      Clientes com maior volume de compras
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="p-4 sm:p-6">
-                    <div className="overflow-x-auto">
-                      {reportLoading ? (
-                        <div className="space-y-4">
-                          {[...Array(5)].map((_, idx) => (
-                            <div key={idx} className="flex items-center gap-4">
-                              <Skeleton className="h-12 flex-1" />
-                              <Skeleton className="h-12 w-20" />
-                              <Skeleton className="h-12 w-24" />
-                              <Skeleton className="h-12 w-28" />
-                              <Skeleton className="h-12 w-24" />
-                              <Skeleton className="h-12 w-32" />
-                            </div>
-                          ))}
-                        </div>
+                    <Button
+                      onClick={handleExportPDF}
+                      disabled={isExportingPDF || reportLoading}
+                      className="bg-black text-white hover:bg-black/90 gap-2 px-4 py-2 h-auto"
+                      data-export-button
+                    >
+                      {isExportingPDF ? (
+                        <>
+                          <span className="animate-spin">⏳</span>
+                          Exportando...
+                        </>
                       ) : (
+                        <>
+                          <FileDown className="h-4 w-4" />
+                          Exportar Relatório
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                  {/* Summary Cards */}
+                  <div className="grid gap-3 sm:gap-4 grid-cols-2 md:grid-cols-2 lg:grid-cols-4">
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4 sm:p-6">
+                        <CardTitle className="text-xs sm:text-sm font-medium">
+                          Receita Total
+                        </CardTitle>
+                        <DollarSign className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
+                      </CardHeader>
+                      <CardContent className="p-4 sm:p-6 pt-0">
+                        <div className="text-xl sm:text-2xl font-bold">
+                          {reportLoading ? (
+                            <Skeleton className="h-6 w-20 sm:w-24" />
+                          ) : (
+                            `${totalRevenue} MZN`
+                          )}
+                        </div>
+                        {reportLoading ? (
+                          <Skeleton className="h-3 w-24 sm:w-32 mt-2" />
+                        ) : (
+                          <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
+                            De {totalOrders} pedidos
+                          </p>
+                        )}
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4 sm:p-6">
+                        <CardTitle className="text-xs sm:text-sm font-medium">
+                          Ticket Médio
+                        </CardTitle>
+                        <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
+                      </CardHeader>
+                      <CardContent className="p-4 sm:p-6 pt-0">
+                        <div className="text-xl sm:text-2xl font-bold">
+                          {reportLoading ? (
+                            <Skeleton className="h-6 w-16 sm:w-20" />
+                          ) : (
+                            `${averageTicket} MZN`
+                          )}
+                        </div>
+                        <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
+                          Por pedido
+                        </p>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4 sm:p-6">
+                        <CardTitle className="text-xs sm:text-sm font-medium">
+                          Total de Pedidos
+                        </CardTitle>
+                        <ShoppingBag className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
+                      </CardHeader>
+                      <CardContent className="p-4 sm:p-6 pt-0">
+                        <div className="text-xl sm:text-2xl font-bold">
+                          {reportLoading ? (
+                            <Skeleton className="h-6 w-10 sm:w-12" />
+                          ) : (
+                            totalOrdersValue
+                          )}
+                        </div>
+                        {reportLoading ? (
+                          <Skeleton className="h-3 w-16 sm:w-20 mt-2" />
+                        ) : (
+                          <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
+                            {deliveredOrders} entregues
+                          </p>
+                        )}
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4 sm:p-6">
+                        <CardTitle className="text-xs sm:text-sm font-medium">
+                          Taxa de Entrega
+                        </CardTitle>
+                        <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
+                      </CardHeader>
+                      <CardContent className="p-4 sm:p-6 pt-0">
+                        <div className="text-xl sm:text-2xl font-bold">
+                          {reportLoading ? (
+                            <Skeleton className="h-6 w-10 sm:w-12" />
+                          ) : (
+                            `${deliveryRate}%`
+                          )}
+                        </div>
+                        <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
+                          De todos os pedidos
+                        </p>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Sales by Status */}
+                  <Card>
+                    <CardHeader className="p-4 sm:p-6">
+                      <CardTitle className="text-lg sm:text-xl">
+                        Vendas por Status
+                      </CardTitle>
+                      <CardDescription className="text-xs sm:text-sm">
+                        Distribuição de pedidos por status
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-4 sm:p-6">
+                      <div className="overflow-x-auto">
                         <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Cliente</TableHead>
-                            <TableHead className="text-right">Pedidos</TableHead>
-                            <TableHead className="text-right">
-                              Total Gasto
-                            </TableHead>
-                            <TableHead className="text-right">
-                              Último Pedido
-                            </TableHead>
-                            <TableHead className="text-center">
-                              Cupons Atribuídos
-                            </TableHead>
-                            <TableHead className="text-right">Ações</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {topClients && topClients.length > 0
-                          ? topClients.slice(0, 5).map((c, idx) => (
-                              <TableRow key={c.id || `topClient-${idx}`}>
-                                <TableCell className="font-medium">
-                                  {c.clientName}
-                                </TableCell>
-                                <TableCell className="text-right">
-                                  {c.totalOrders}
-                                </TableCell>
-                                <TableCell className="text-right font-semibold text-accent">
-                                  {c.totalSpent.toFixed(2)} MZN
-                                </TableCell>
-                                <TableCell className="text-right">
-                                  {c.lastOrder}
-                                </TableCell>
-                                <TableCell className="text-center">
-                                  {apiCoupons.filter(
-                                    (coupon) =>
-                                      coupon.assignedTo === c.clientId &&
-                                      coupon.isActive // Use clientId aqui
-                                  ).length > 0 ? (
-                                    <Badge variant="secondary">
-                                      {
-                                        apiCoupons.filter(
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Status</TableHead>
+                              <TableHead className="text-right">
+                                Quantidade
+                              </TableHead>
+                              <TableHead className="text-right">
+                                Valor Total
+                              </TableHead>
+                              <TableHead className="text-right">
+                                Percentual
+                              </TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {salesByStatus && salesByStatus.length > 0
+                              ? salesByStatus.map((s) => (
+                                  <TableRow key={s.status}>
+                                    <TableCell>
+                                      {getStatusBadge(s.status)}
+                                    </TableCell>
+                                    <TableCell className="text-right font-medium">
+                                      {s.count}
+                                    </TableCell>
+                                    <TableCell className="text-right font-medium">
+                                      {s.total.toFixed(2)} MZN
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                      {(
+                                        (s.count / (totalOrdersValue || 1)) *
+                                        100
+                                      ).toFixed(1)}
+                                      %
+                                    </TableCell>
+                                  </TableRow>
+                                ))
+                              : [
+                                  "pendente",
+                                  "confirmado",
+                                  "enviado",
+                                  "entregue",
+                                  "cancelado",
+                                ].map((status) => {
+                                  const ordersWithStatus = allOrders.filter(
+                                    (o) => o.status === status
+                                  );
+                                  const total = ordersWithStatus.reduce(
+                                    (sum, o) => sum + o.total,
+                                    0
+                                  );
+                                  const percentage =
+                                    (ordersWithStatus.length /
+                                      (totalOrdersValue || 1)) *
+                                    100;
+
+                                  return (
+                                    <TableRow key={status}>
+                                      <TableCell>
+                                        {getStatusBadge(status)}
+                                      </TableCell>
+                                      <TableCell className="text-right font-medium">
+                                        {ordersWithStatus.length}
+                                      </TableCell>
+                                      <TableCell className="text-right font-medium">
+                                        {total.toFixed(2)} MZN
+                                      </TableCell>
+                                      <TableCell className="text-right">
+                                        {percentage.toFixed(1)}%
+                                      </TableCell>
+                                    </TableRow>
+                                  );
+                                })}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Top Customers */}
+                  <Card>
+                    <CardHeader className="p-4 sm:p-6">
+                      <CardTitle className="text-lg sm:text-xl">
+                        Principais Clientes
+                      </CardTitle>
+                      <CardDescription className="text-xs sm:text-sm">
+                        Clientes com maior volume de compras
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-4 sm:p-6">
+                      <div className="overflow-x-auto">
+                        {reportLoading ? (
+                          <div className="space-y-4">
+                            {[...Array(5)].map((_, idx) => (
+                              <div
+                                key={idx}
+                                className="flex items-center gap-4"
+                              >
+                                <Skeleton className="h-12 flex-1" />
+                                <Skeleton className="h-12 w-20" />
+                                <Skeleton className="h-12 w-24" />
+                                <Skeleton className="h-12 w-28" />
+                                <Skeleton className="h-12 w-24" />
+                                <Skeleton className="h-12 w-32" />
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Cliente</TableHead>
+                                <TableHead className="text-right">
+                                  Pedidos
+                                </TableHead>
+                                <TableHead className="text-right">
+                                  Total Gasto
+                                </TableHead>
+                                <TableHead className="text-right">
+                                  Último Pedido
+                                </TableHead>
+                                <TableHead className="text-center">
+                                  Cupons Atribuídos
+                                </TableHead>
+                                <TableHead className="text-right">
+                                  Ações
+                                </TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {topClients && topClients.length > 0
+                                ? topClients.slice(0, 5).map((c, idx) => (
+                                    <TableRow key={c.id || `topClient-${idx}`}>
+                                      <TableCell className="font-medium">
+                                        {c.clientName}
+                                      </TableCell>
+                                      <TableCell className="text-right">
+                                        {c.totalOrders}
+                                      </TableCell>
+                                      <TableCell className="text-right font-semibold text-accent">
+                                        {c.totalSpent.toFixed(2)} MZN
+                                      </TableCell>
+                                      <TableCell className="text-right">
+                                        {c.lastOrder}
+                                      </TableCell>
+                                      <TableCell className="text-center">
+                                        {apiCoupons.filter(
                                           (coupon) =>
                                             coupon.assignedTo === c.clientId &&
-                                            coupon.isActive
-                                        ).length
-                                      }
-                                    </Badge>
-                                  ) : (
-                                    <span className="text-muted-foreground text-sm">
-                                      Nenhum
-                                    </span>
-                                  )}
-                                </TableCell>
-                                <TableCell className="text-right">
-                                  <Dialog
-                                    open={
-                                      isDialogOpen &&
-                                      selectedClient?.clientId === c.clientId
-                                    } // Use clientId aqui
-                                    onOpenChange={(open) => {
-                                      setIsDialogOpen(open);
-                                      if (!open) setSelectedClient(null);
-                                    }}
-                                  >
-                                    <DialogTrigger asChild>
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        className="gap-2 opacity-70 group-hover:opacity-100 transition-opacity"
-                                        onClick={() => setSelectedClient(c)}
-                                      >
-                                        <Ticket className="h-4 w-4" />
-                                        Atribuir Cupom
-                                      </Button>
-                                    </DialogTrigger>
-                                    <DialogContent className="sm:max-w-md max-w-[95vw] max-h-[90vh] flex flex-col p-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                                      {/* Header Fixo */}
-                                      <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-3 sm:pb-4 flex-shrink-0 border-b">
-                                        <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
-                                          <Gift className="h-4 w-4 sm:h-5 sm:w-5 text-[hsl(var(--product-pink))]" />
-                                          Atribuir Cupom
-                                        </DialogTitle>
-                                        <DialogDescription className="text-xs sm:text-sm">
-                                          Crie um cupom exclusivo para{" "}
-                                          <strong>
-                                            {selectedClient?.clientName}
-                                          </strong>
-                                        </DialogDescription>
-                                      </DialogHeader>
-                                      
-                                      {/* Conteúdo com Scroll */}
-                                      <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-3 sm:py-4 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                                        <div className="space-y-3 sm:space-y-4">
-                                        {/* Código do Cupom */}
-                                        <div className="space-y-2">
-                                          <Label htmlFor="code" className="text-sm">
-                                            Código do Cupom *
-                                          </Label>
-                                          <div className="flex flex-col sm:flex-row gap-2">
-                                            <Input
-                                              id="code"
-                                              placeholder="Ex: VIP20"
-                                              value={couponForm.code}
-                                              onChange={(e) =>
-                                                setCouponForm((prev) => ({
-                                                  ...prev,
-                                                  code: e.target.value.toUpperCase(),
-                                                }))
-                                              }
-                                              className="uppercase text-sm flex-1"
-                                              maxLength={20}
-                                            />
-                                            <Button
-                                              type="button"
-                                              variant="secondary"
-                                              onClick={generateCouponCode}
-                                              className="text-sm whitespace-nowrap"
-                                            >
-                                              Gerar
-                                            </Button>
-                                          </div>
-                                        </div>
-
-                                        {/* Desconto e Tipo */}
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                          <div className="space-y-2">
-                                            <Label htmlFor="discount" className="text-sm">
-                                              Desconto *
-                                            </Label>
-                                            <Input
-                                              id="discount"
-                                              type="number"
-                                              step="0.01"
-                                              min="0"
-                                              placeholder="10"
-                                              value={couponForm.discount}
-                                              onChange={(e) =>
-                                                setCouponForm((prev) => ({
-                                                  ...prev,
-                                                  discount: e.target.value,
-                                                }))
-                                              }
-                                              className="text-sm"
-                                            />
-                                          </div>
-                                          <div className="space-y-2">
-                                            <Label className="text-sm">Tipo *</Label>
-                                            <Select
-                                              value={couponForm.type}
-                                              onValueChange={(
-                                                value: "percentage" | "fixed"
-                                              ) =>
-                                                setCouponForm((prev) => ({
-                                                  ...prev,
-                                                  type: value,
-                                                }))
-                                              }
-                                            >
-                                              <SelectTrigger className="text-sm">
-                                                <SelectValue />
-                                              </SelectTrigger>
-                                              <SelectContent>
-                                                <SelectItem value="percentage">
-                                                  Percentual (%)
-                                                </SelectItem>
-                                                <SelectItem value="fixed">
-                                                  Valor Fixo (MZN)
-                                                </SelectItem>
-                                              </SelectContent>
-                                            </Select>
-                                          </div>
-                                        </div>
-
-                                        {/* Data de Expiração e Limite de Uso */}
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                          <div className="space-y-2">
-                                            <Label htmlFor="expiresAt" className="text-sm">
-                                              Expira em *
-                                            </Label>
-                                            <Input
-                                              id="expiresAt"
-                                              type="date"
-                                              min={getMinDate()}
-                                              value={couponForm.expiresAt}
-                                              onChange={(e) =>
-                                                setCouponForm((prev) => ({
-                                                  ...prev,
-                                                  expiresAt: e.target.value,
-                                                }))
-                                              }
-                                              className="text-sm"
-                                            />
-                                          </div>
-                                          <div className="space-y-2">
-                                            <Label htmlFor="usageLimit" className="text-sm">
-                                              Limite de uso *
-                                            </Label>
-                                            <Input
-                                              id="usageLimit"
-                                              type="number"
-                                              min="1"
-                                              placeholder="1"
-                                              value={couponForm.usageLimit}
-                                              onChange={(e) =>
-                                                setCouponForm((prev) => ({
-                                                  ...prev,
-                                                  usageLimit: e.target.value,
-                                                }))
-                                              }
-                                              className="text-sm"
-                                            />
-                                          </div>
-                                        </div>
-
-                                        {/* Valor Mínimo de Compra */}
-                                        <div className="space-y-2">
-                                          <Label htmlFor="minPurchase" className="text-sm">
-                                            Valor mínimo de compra (opcional)
-                                          </Label>
-                                          <Input
-                                            id="minPurchase"
-                                            type="number"
-                                            step="0.01"
-                                            min="0"
-                                            placeholder="100.00"
-                                            value={couponForm.minPurchaseAmount}
-                                            onChange={(e) =>
-                                              setCouponForm((prev) => ({
-                                                ...prev,
-                                                minPurchaseAmount:
-                                                  e.target.value,
-                                              }))
+                                            coupon.isActive // Use clientId aqui
+                                        ).length > 0 ? (
+                                          <Badge variant="secondary">
+                                            {
+                                              apiCoupons.filter(
+                                                (coupon) =>
+                                                  coupon.assignedTo ===
+                                                    c.clientId &&
+                                                  coupon.isActive
+                                              ).length
                                             }
-                                            className="text-sm"
-                                          />
-                                          <p className="text-[10px] sm:text-xs text-muted-foreground">
-                                            Valor mínimo do carrinho para usar o
-                                            cupom
-                                          </p>
-                                        </div>
-
-                                        {/* Desconto Máximo (apenas para percentual) */}
-                                        {couponForm.type === "percentage" && (
-                                          <div className="space-y-2">
-                                            <Label htmlFor="maxDiscount" className="text-sm">
-                                              Desconto máximo (opcional)
-                                            </Label>
-                                            <Input
-                                              id="maxDiscount"
-                                              type="number"
-                                              step="0.01"
-                                              min="0"
-                                              placeholder="50.00"
-                                              value={
-                                                couponForm.maxDiscountAmount
-                                              }
-                                              onChange={(e) =>
-                                                setCouponForm((prev) => ({
-                                                  ...prev,
-                                                  maxDiscountAmount:
-                                                    e.target.value,
-                                                }))
-                                              }
-                                              className="text-sm"
-                                            />
-                                            <p className="text-[10px] sm:text-xs text-muted-foreground">
-                                              Valor máximo de desconto em MZN
-                                            </p>
-                                          </div>
+                                          </Badge>
+                                        ) : (
+                                          <span className="text-muted-foreground text-sm">
+                                            Nenhum
+                                          </span>
                                         )}
+                                      </TableCell>
+                                      <TableCell className="text-right">
+                                        <Dialog
+                                          open={
+                                            isDialogOpen &&
+                                            selectedClient?.clientId ===
+                                              c.clientId
+                                          } // Use clientId aqui
+                                          onOpenChange={(open) => {
+                                            setIsDialogOpen(open);
+                                            if (!open) setSelectedClient(null);
+                                          }}
+                                        >
+                                          <DialogTrigger asChild>
+                                            <Button
+                                              size="sm"
+                                              variant="outline"
+                                              className="gap-2 opacity-70 group-hover:opacity-100 transition-opacity"
+                                              onClick={() =>
+                                                setSelectedClient(c)
+                                              }
+                                            >
+                                              <Ticket className="h-4 w-4" />
+                                              Atribuir Cupom
+                                            </Button>
+                                          </DialogTrigger>
+                                          <DialogContent className="sm:max-w-md max-w-[95vw] max-h-[90vh] flex flex-col p-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                                            {/* Header Fixo */}
+                                            <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-3 sm:pb-4 flex-shrink-0 border-b">
+                                              <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+                                                <Gift className="h-4 w-4 sm:h-5 sm:w-5 text-[hsl(var(--product-pink))]" />
+                                                Atribuir Cupom
+                                              </DialogTitle>
+                                              <DialogDescription className="text-xs sm:text-sm">
+                                                Crie um cupom exclusivo para{" "}
+                                                <strong>
+                                                  {selectedClient?.clientName}
+                                                </strong>
+                                              </DialogDescription>
+                                            </DialogHeader>
 
-                                        {/* Preview do Cupom */}
-                                        {couponForm.code &&
-                                          couponForm.discount &&
-                                          couponForm.expiresAt && (
-                                            <div className="p-3 sm:p-4 rounded-lg bg-secondary/50 border border-border">
-                                              <p className="text-xs sm:text-sm text-muted-foreground mb-1">
-                                                Prévia do cupom:
-                                              </p>
-                                              <div className="space-y-1">
-                                                <p className="font-bold text-base sm:text-lg break-words">
-                                                  {couponForm.code} →{" "}
-                                                  {couponForm.discount}
-                                                  {couponForm.type ===
-                                                  "percentage"
-                                                    ? "% OFF"
-                                                    : " MZN OFF"}
-                                                </p>
-                                                <p className="text-[10px] sm:text-xs text-muted-foreground">
-                                                  Válido até:{" "}
-                                                  {new Date(
-                                                    couponForm.expiresAt
-                                                  ).toLocaleDateString("pt-BR")}
-                                                </p>
-                                                {couponForm.minPurchaseAmount && (
-                                                  <p className="text-[10px] sm:text-xs text-muted-foreground">
-                                                    Compra mínima:{" "}
-                                                    {
+                                            {/* Conteúdo com Scroll */}
+                                            <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-3 sm:py-4 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                                              <div className="space-y-3 sm:space-y-4">
+                                                {/* Código do Cupom */}
+                                                <div className="space-y-2">
+                                                  <Label
+                                                    htmlFor="code"
+                                                    className="text-sm"
+                                                  >
+                                                    Código do Cupom *
+                                                  </Label>
+                                                  <div className="flex flex-col sm:flex-row gap-2">
+                                                    <Input
+                                                      id="code"
+                                                      placeholder="Ex: VIP20"
+                                                      value={couponForm.code}
+                                                      onChange={(e) =>
+                                                        setCouponForm(
+                                                          (prev) => ({
+                                                            ...prev,
+                                                            code: e.target.value.toUpperCase(),
+                                                          })
+                                                        )
+                                                      }
+                                                      className="uppercase text-sm flex-1"
+                                                      maxLength={20}
+                                                    />
+                                                    <Button
+                                                      type="button"
+                                                      variant="secondary"
+                                                      onClick={
+                                                        generateCouponCode
+                                                      }
+                                                      className="text-sm whitespace-nowrap"
+                                                    >
+                                                      Gerar
+                                                    </Button>
+                                                  </div>
+                                                </div>
+
+                                                {/* Desconto e Tipo */}
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                  <div className="space-y-2">
+                                                    <Label
+                                                      htmlFor="discount"
+                                                      className="text-sm"
+                                                    >
+                                                      Desconto *
+                                                    </Label>
+                                                    <Input
+                                                      id="discount"
+                                                      type="number"
+                                                      step="0.01"
+                                                      min="0"
+                                                      placeholder="10"
+                                                      value={
+                                                        couponForm.discount
+                                                      }
+                                                      onChange={(e) =>
+                                                        setCouponForm(
+                                                          (prev) => ({
+                                                            ...prev,
+                                                            discount:
+                                                              e.target.value,
+                                                          })
+                                                        )
+                                                      }
+                                                      className="text-sm"
+                                                    />
+                                                  </div>
+                                                  <div className="space-y-2">
+                                                    <Label className="text-sm">
+                                                      Tipo *
+                                                    </Label>
+                                                    <Select
+                                                      value={couponForm.type}
+                                                      onValueChange={(
+                                                        value:
+                                                          | "percentage"
+                                                          | "fixed"
+                                                      ) =>
+                                                        setCouponForm(
+                                                          (prev) => ({
+                                                            ...prev,
+                                                            type: value,
+                                                          })
+                                                        )
+                                                      }
+                                                    >
+                                                      <SelectTrigger className="text-sm">
+                                                        <SelectValue />
+                                                      </SelectTrigger>
+                                                      <SelectContent>
+                                                        <SelectItem value="percentage">
+                                                          Percentual (%)
+                                                        </SelectItem>
+                                                        <SelectItem value="fixed">
+                                                          Valor Fixo (MZN)
+                                                        </SelectItem>
+                                                      </SelectContent>
+                                                    </Select>
+                                                  </div>
+                                                </div>
+
+                                                {/* Data de Expiração e Limite de Uso */}
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                  <div className="space-y-2">
+                                                    <Label
+                                                      htmlFor="expiresAt"
+                                                      className="text-sm"
+                                                    >
+                                                      Expira em *
+                                                    </Label>
+                                                    <Input
+                                                      id="expiresAt"
+                                                      type="date"
+                                                      min={getMinDate()}
+                                                      value={
+                                                        couponForm.expiresAt
+                                                      }
+                                                      onChange={(e) =>
+                                                        setCouponForm(
+                                                          (prev) => ({
+                                                            ...prev,
+                                                            expiresAt:
+                                                              e.target.value,
+                                                          })
+                                                        )
+                                                      }
+                                                      className="text-sm"
+                                                    />
+                                                  </div>
+                                                  <div className="space-y-2">
+                                                    <Label
+                                                      htmlFor="usageLimit"
+                                                      className="text-sm"
+                                                    >
+                                                      Limite de uso *
+                                                    </Label>
+                                                    <Input
+                                                      id="usageLimit"
+                                                      type="number"
+                                                      min="1"
+                                                      placeholder="1"
+                                                      value={
+                                                        couponForm.usageLimit
+                                                      }
+                                                      onChange={(e) =>
+                                                        setCouponForm(
+                                                          (prev) => ({
+                                                            ...prev,
+                                                            usageLimit:
+                                                              e.target.value,
+                                                          })
+                                                        )
+                                                      }
+                                                      className="text-sm"
+                                                    />
+                                                  </div>
+                                                </div>
+
+                                                {/* Valor Mínimo de Compra */}
+                                                <div className="space-y-2">
+                                                  <Label
+                                                    htmlFor="minPurchase"
+                                                    className="text-sm"
+                                                  >
+                                                    Valor mínimo de compra
+                                                    (opcional)
+                                                  </Label>
+                                                  <Input
+                                                    id="minPurchase"
+                                                    type="number"
+                                                    step="0.01"
+                                                    min="0"
+                                                    placeholder="100.00"
+                                                    value={
                                                       couponForm.minPurchaseAmount
-                                                    }{" "}
-                                                    MZN
+                                                    }
+                                                    onChange={(e) =>
+                                                      setCouponForm((prev) => ({
+                                                        ...prev,
+                                                        minPurchaseAmount:
+                                                          e.target.value,
+                                                      }))
+                                                    }
+                                                    className="text-sm"
+                                                  />
+                                                  <p className="text-[10px] sm:text-xs text-muted-foreground">
+                                                    Valor mínimo do carrinho
+                                                    para usar o cupom
                                                   </p>
-                                                )}
-                                                {couponForm.maxDiscountAmount &&
-                                                  couponForm.type ===
-                                                    "percentage" && (
-                                                    <p className="text-[10px] sm:text-xs text-muted-foreground">
-                                                      Desconto máximo:{" "}
-                                                      {
+                                                </div>
+
+                                                {/* Desconto Máximo (apenas para percentual) */}
+                                                {couponForm.type ===
+                                                  "percentage" && (
+                                                  <div className="space-y-2">
+                                                    <Label
+                                                      htmlFor="maxDiscount"
+                                                      className="text-sm"
+                                                    >
+                                                      Desconto máximo (opcional)
+                                                    </Label>
+                                                    <Input
+                                                      id="maxDiscount"
+                                                      type="number"
+                                                      step="0.01"
+                                                      min="0"
+                                                      placeholder="50.00"
+                                                      value={
                                                         couponForm.maxDiscountAmount
-                                                      }{" "}
-                                                      MZN
+                                                      }
+                                                      onChange={(e) =>
+                                                        setCouponForm(
+                                                          (prev) => ({
+                                                            ...prev,
+                                                            maxDiscountAmount:
+                                                              e.target.value,
+                                                          })
+                                                        )
+                                                      }
+                                                      className="text-sm"
+                                                    />
+                                                    <p className="text-[10px] sm:text-xs text-muted-foreground">
+                                                      Valor máximo de desconto
+                                                      em MZN
                                                     </p>
+                                                  </div>
+                                                )}
+
+                                                {/* Preview do Cupom */}
+                                                {couponForm.code &&
+                                                  couponForm.discount &&
+                                                  couponForm.expiresAt && (
+                                                    <div className="p-3 sm:p-4 rounded-lg bg-secondary/50 border border-border">
+                                                      <p className="text-xs sm:text-sm text-muted-foreground mb-1">
+                                                        Prévia do cupom:
+                                                      </p>
+                                                      <div className="space-y-1">
+                                                        <p className="font-bold text-base sm:text-lg break-words">
+                                                          {couponForm.code} →{" "}
+                                                          {couponForm.discount}
+                                                          {couponForm.type ===
+                                                          "percentage"
+                                                            ? "% OFF"
+                                                            : " MZN OFF"}
+                                                        </p>
+                                                        <p className="text-[10px] sm:text-xs text-muted-foreground">
+                                                          Válido até:{" "}
+                                                          {new Date(
+                                                            couponForm.expiresAt
+                                                          ).toLocaleDateString(
+                                                            "pt-BR"
+                                                          )}
+                                                        </p>
+                                                        {couponForm.minPurchaseAmount && (
+                                                          <p className="text-[10px] sm:text-xs text-muted-foreground">
+                                                            Compra mínima:{" "}
+                                                            {
+                                                              couponForm.minPurchaseAmount
+                                                            }{" "}
+                                                            MZN
+                                                          </p>
+                                                        )}
+                                                        {couponForm.maxDiscountAmount &&
+                                                          couponForm.type ===
+                                                            "percentage" && (
+                                                            <p className="text-[10px] sm:text-xs text-muted-foreground">
+                                                              Desconto máximo:{" "}
+                                                              {
+                                                                couponForm.maxDiscountAmount
+                                                              }{" "}
+                                                              MZN
+                                                            </p>
+                                                          )}
+                                                        <p className="text-[10px] sm:text-xs text-muted-foreground">
+                                                          Usos permitidos:{" "}
+                                                          {
+                                                            couponForm.usageLimit
+                                                          }
+                                                        </p>
+                                                      </div>
+                                                    </div>
                                                   )}
-                                                <p className="text-[10px] sm:text-xs text-muted-foreground">
-                                                  Usos permitidos:{" "}
-                                                  {couponForm.usageLimit}
-                                                </p>
                                               </div>
                                             </div>
-                                          )}
+
+                                            {/* Footer Fixo */}
+                                            <DialogFooter className="px-4 sm:px-6 pb-4 sm:pb-6 pt-3 sm:pt-4 flex-shrink-0 border-t flex-col sm:flex-row gap-2">
+                                              <Button
+                                                variant="outline"
+                                                onClick={() => {
+                                                  setIsDialogOpen(false);
+                                                  setSelectedClient(null);
+                                                  setCouponForm({
+                                                    code: "",
+                                                    discount: "",
+                                                    type: "percentage",
+                                                    expiresAt: "",
+                                                    minPurchaseAmount: "",
+                                                    maxDiscountAmount: "",
+                                                    usageLimit: "1",
+                                                    assignedTo: "",
+                                                  });
+                                                }}
+                                                disabled={couponLoading}
+                                                className="w-full sm:w-auto text-sm"
+                                              >
+                                                Cancelar
+                                              </Button>
+                                              <Button
+                                                onClick={handleAssignCoupon}
+                                                className="gap-2 w-full sm:w-auto text-sm"
+                                                disabled={couponLoading}
+                                              >
+                                                {couponLoading ? (
+                                                  <>
+                                                    <span className="animate-spin">
+                                                      ⏳
+                                                    </span>
+                                                    Criando...
+                                                  </>
+                                                ) : (
+                                                  <>
+                                                    <Check className="h-3 w-3 sm:h-4 sm:w-4" />
+                                                    Atribuir Cupom
+                                                  </>
+                                                )}
+                                              </Button>
+                                            </DialogFooter>
+                                          </DialogContent>
+                                        </Dialog>
+                                      </TableCell>
+                                    </TableRow>
+                                  ))
+                                : customersFromApi
+                                    .sort((a, b) => b.totalSpent - a.totalSpent)
+                                    .slice(0, 5)
+                                    .map((customer, idx) => (
+                                      <TableRow
+                                        key={customer.id || `customer-${idx}`}
+                                      >
+                                        <TableCell className="font-medium">
+                                          {customer.name}
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                          {customer.totalOrders}
+                                        </TableCell>
+                                        <TableCell className="text-right font-semibold text-accent">
+                                          {customer.totalSpent} MZN
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                          {new Date(
+                                            customer.lastOrder
+                                          ).toLocaleDateString("pt-BR")}
+                                        </TableCell>
+                                      </TableRow>
+                                    ))}
+                            </TableBody>
+                          </Table>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Top Products */}
+                  <Card>
+                    <CardHeader className="p-4 sm:p-6">
+                      <CardTitle className="text-lg sm:text-xl">
+                        Produtos Mais Comprados
+                      </CardTitle>
+                      <CardDescription className="text-xs sm:text-sm">
+                        Top 5 produtos com maior volume de vendas
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-4 sm:p-6">
+                      <div className="overflow-x-auto">
+                        {reportLoading ? (
+                          <div className="space-y-4">
+                            {[...Array(5)].map((_, idx) => (
+                              <div
+                                key={idx}
+                                className="flex items-center gap-4"
+                              >
+                                <Skeleton className="h-16 w-16 rounded-md" />
+                                <Skeleton className="h-12 flex-1" />
+                                <Skeleton className="h-12 w-24" />
+                                <Skeleton className="h-12 w-28" />
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Produto</TableHead>
+                                <TableHead className="text-right">
+                                  Quantidade Vendida
+                                </TableHead>
+                                <TableHead className="text-right">
+                                  Receita Total
+                                </TableHead>
+                                <TableHead className="text-right">
+                                  Pedidos
+                                </TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {topProducts && topProducts.length > 0 ? (
+                                topProducts.map((product, idx) => (
+                                  <TableRow
+                                    key={
+                                      product.productId || `topProduct-${idx}`
+                                    }
+                                  >
+                                    <TableCell>
+                                      <div className="flex items-center gap-3">
+                                        <img
+                                          src={`${productionUrl}/img/products/${product.productImage}`}
+                                          alt={product.productName}
+                                          className="h-12 w-12 object-cover rounded-md"
+                                          onError={(e) => {
+                                            e.currentTarget.src =
+                                              "https://i.pinimg.com/1200x/a7/2f/db/a72fdbea7e86c3fb70a17c166a36407b.jpg";
+                                          }}
+                                        />
+                                        <div>
+                                          <p className="font-medium">
+                                            {product.productName}
+                                          </p>
+                                          <p className="text-xs text-muted-foreground">
+                                            {product.category}
+                                          </p>
                                         </div>
                                       </div>
-                                      
-                                      {/* Footer Fixo */}
-                                      <DialogFooter className="px-4 sm:px-6 pb-4 sm:pb-6 pt-3 sm:pt-4 flex-shrink-0 border-t flex-col sm:flex-row gap-2">
-                                        <Button
-                                          variant="outline"
-                                          onClick={() => {
-                                            setIsDialogOpen(false);
-                                            setSelectedClient(null);
-                                            setCouponForm({
-                                              code: "",
-                                              discount: "",
-                                              type: "percentage",
-                                              expiresAt: "",
-                                              minPurchaseAmount: "",
-                                              maxDiscountAmount: "",
-                                              usageLimit: "1",
-                                              assignedTo: "",
-                                            });
+                                    </TableCell>
+                                    <TableCell className="text-right font-semibold">
+                                      {product.totalQuantity}
+                                    </TableCell>
+                                    <TableCell className="text-right font-semibold text-accent">
+                                      {product.totalRevenue.toFixed(2)} MZN
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                      {product.orderCount}
+                                    </TableCell>
+                                  </TableRow>
+                                ))
+                              ) : (
+                                <TableRow>
+                                  <TableCell
+                                    colSpan={4}
+                                    className="text-center text-muted-foreground"
+                                  >
+                                    Nenhum produto encontrado
+                                  </TableCell>
+                                </TableRow>
+                              )}
+                            </TableBody>
+                          </Table>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Least Sold Products */}
+                  <Card>
+                    <CardHeader className="p-4 sm:p-6">
+                      <CardTitle className="text-lg sm:text-xl">
+                        Produtos Menos Comprados
+                      </CardTitle>
+                      <CardDescription className="text-xs sm:text-sm">
+                        Produtos com menor volume de vendas
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-4 sm:p-6">
+                      <div className="overflow-x-auto">
+                        {reportLoading ? (
+                          <div className="space-y-4">
+                            {[...Array(5)].map((_, idx) => (
+                              <div
+                                key={idx}
+                                className="flex items-center gap-4"
+                              >
+                                <Skeleton className="h-16 w-16 rounded-md" />
+                                <Skeleton className="h-12 flex-1" />
+                                <Skeleton className="h-12 w-24" />
+                                <Skeleton className="h-12 w-28" />
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Produto</TableHead>
+                                <TableHead className="text-right">
+                                  Quantidade Vendida
+                                </TableHead>
+                                <TableHead className="text-right">
+                                  Receita Total
+                                </TableHead>
+                                <TableHead className="text-right">
+                                  Pedidos
+                                </TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {leastSoldProducts &&
+                              leastSoldProducts.length > 0 ? (
+                                leastSoldProducts.map((product, idx) => (
+                                  <TableRow
+                                    key={
+                                      product.productId || `leastProduct-${idx}`
+                                    }
+                                  >
+                                    <TableCell>
+                                      <div className="flex items-center gap-3">
+                                        <img
+                                          src={`${productionUrl}/img/products/${product.productImage}`}
+                                          alt={product.productName}
+                                          className="h-12 w-12 object-cover rounded-md"
+                                          onError={(e) => {
+                                            e.currentTarget.src =
+                                              "https://i.pinimg.com/1200x/a7/2f/db/a72fdbea7e86c3fb70a17c166a36407b.jpg";
                                           }}
-                                          disabled={couponLoading}
-                                          className="w-full sm:w-auto text-sm"
-                                        >
-                                          Cancelar
-                                        </Button>
-                                        <Button
-                                          onClick={handleAssignCoupon}
-                                          className="gap-2 w-full sm:w-auto text-sm"
-                                          disabled={couponLoading}
-                                        >
-                                          {couponLoading ? (
-                                            <>
-                                              <span className="animate-spin">
-                                                ⏳
-                                              </span>
-                                              Criando...
-                                            </>
-                                          ) : (
-                                            <>
-                                              <Check className="h-3 w-3 sm:h-4 sm:w-4" />
-                                              Atribuir Cupom
-                                            </>
-                                          )}
-                                        </Button>
-                                      </DialogFooter>
-                                    </DialogContent>
-                                  </Dialog>
-                                </TableCell>
-                              </TableRow>
-                            ))
-                          : customersFromApi
-                              .sort((a, b) => b.totalSpent - a.totalSpent)
-                              .slice(0, 5)
-                              .map((customer, idx) => (
-                                <TableRow
-                                  key={customer.id || `customer-${idx}`}
-                                >
-                                  <TableCell className="font-medium">
-                                    {customer.name}
-                                  </TableCell>
-                                  <TableCell className="text-right">
-                                    {customer.totalOrders}
-                                  </TableCell>
-                                  <TableCell className="text-right font-semibold text-accent">
-                                    {customer.totalSpent} MZN
-                                  </TableCell>
-                                  <TableCell className="text-right">
-                                    {new Date(
-                                      customer.lastOrder
-                                    ).toLocaleDateString("pt-BR")}
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                        </TableBody>
-                      </Table>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Top Products */}
-                <Card>
-                  <CardHeader className="p-4 sm:p-6">
-                    <CardTitle className="text-lg sm:text-xl">Produtos Mais Comprados</CardTitle>
-                    <CardDescription className="text-xs sm:text-sm">
-                      Top 5 produtos com maior volume de vendas
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="p-4 sm:p-6">
-                    <div className="overflow-x-auto">
-                      {reportLoading ? (
-                        <div className="space-y-4">
-                          {[...Array(5)].map((_, idx) => (
-                            <div key={idx} className="flex items-center gap-4">
-                              <Skeleton className="h-16 w-16 rounded-md" />
-                              <Skeleton className="h-12 flex-1" />
-                              <Skeleton className="h-12 w-24" />
-                              <Skeleton className="h-12 w-28" />
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Produto</TableHead>
-                              <TableHead className="text-right">Quantidade Vendida</TableHead>
-                              <TableHead className="text-right">Receita Total</TableHead>
-                              <TableHead className="text-right">Pedidos</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {topProducts && topProducts.length > 0 ? (
-                              topProducts.map((product, idx) => (
-                                <TableRow key={product.productId || `topProduct-${idx}`}>
-                                  <TableCell>
-                                    <div className="flex items-center gap-3">
-                                      <img
-                                        src={`${productionUrl}/img/products/${product.productImage}`}
-                                        alt={product.productName}
-                                        className="h-12 w-12 object-cover rounded-md"
-                                        onError={(e) => {
-                                          e.currentTarget.src = "https://i.pinimg.com/1200x/a7/2f/db/a72fdbea7e86c3fb70a17c166a36407b.jpg";
-                                        }}
-                                      />
-                                      <div>
-                                        <p className="font-medium">{product.productName}</p>
-                                        <p className="text-xs text-muted-foreground">{product.category}</p>
+                                        />
+                                        <div>
+                                          <p className="font-medium">
+                                            {product.productName}
+                                          </p>
+                                          <p className="text-xs text-muted-foreground">
+                                            {product.category}
+                                          </p>
+                                        </div>
                                       </div>
-                                    </div>
-                                  </TableCell>
-                                  <TableCell className="text-right font-semibold">
-                                    {product.totalQuantity}
-                                  </TableCell>
-                                  <TableCell className="text-right font-semibold text-accent">
-                                    {product.totalRevenue.toFixed(2)} MZN
-                                  </TableCell>
-                                  <TableCell className="text-right">
-                                    {product.orderCount}
-                                  </TableCell>
-                                </TableRow>
-                              ))
-                            ) : (
-                              <TableRow>
-                                <TableCell colSpan={4} className="text-center text-muted-foreground">
-                                  Nenhum produto encontrado
-                                </TableCell>
-                              </TableRow>
-                            )}
-                          </TableBody>
-                        </Table>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Least Sold Products */}
-                <Card>
-                  <CardHeader className="p-4 sm:p-6">
-                    <CardTitle className="text-lg sm:text-xl">Produtos Menos Comprados</CardTitle>
-                    <CardDescription className="text-xs sm:text-sm">
-                      Produtos com menor volume de vendas
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="p-4 sm:p-6">
-                    <div className="overflow-x-auto">
-                      {reportLoading ? (
-                        <div className="space-y-4">
-                          {[...Array(5)].map((_, idx) => (
-                            <div key={idx} className="flex items-center gap-4">
-                              <Skeleton className="h-16 w-16 rounded-md" />
-                              <Skeleton className="h-12 flex-1" />
-                              <Skeleton className="h-12 w-24" />
-                              <Skeleton className="h-12 w-28" />
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Produto</TableHead>
-                              <TableHead className="text-right">Quantidade Vendida</TableHead>
-                              <TableHead className="text-right">Receita Total</TableHead>
-                              <TableHead className="text-right">Pedidos</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {leastSoldProducts && leastSoldProducts.length > 0 ? (
-                              leastSoldProducts.map((product, idx) => (
-                                <TableRow key={product.productId || `leastProduct-${idx}`}>
-                                  <TableCell>
-                                    <div className="flex items-center gap-3">
-                                      <img
-                                        src={`${productionUrl}/img/products/${product.productImage}`}
-                                        alt={product.productName}
-                                        className="h-12 w-12 object-cover rounded-md"
-                                        onError={(e) => {
-                                          e.currentTarget.src = "https://i.pinimg.com/1200x/a7/2f/db/a72fdbea7e86c3fb70a17c166a36407b.jpg";
-                                        }}
-                                      />
-                                      <div>
-                                        <p className="font-medium">{product.productName}</p>
-                                        <p className="text-xs text-muted-foreground">{product.category}</p>
-                                      </div>
-                                    </div>
-                                  </TableCell>
-                                  <TableCell className="text-right font-semibold">
-                                    {product.totalQuantity}
-                                  </TableCell>
-                                  <TableCell className="text-right font-semibold text-accent">
-                                    {product.totalRevenue.toFixed(2)} MZN
-                                  </TableCell>
-                                  <TableCell className="text-right">
-                                    {product.orderCount}
+                                    </TableCell>
+                                    <TableCell className="text-right font-semibold">
+                                      {product.totalQuantity}
+                                    </TableCell>
+                                    <TableCell className="text-right font-semibold text-accent">
+                                      {product.totalRevenue.toFixed(2)} MZN
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                      {product.orderCount}
+                                    </TableCell>
+                                  </TableRow>
+                                ))
+                              ) : (
+                                <TableRow>
+                                  <TableCell
+                                    colSpan={4}
+                                    className="text-center text-muted-foreground"
+                                  >
+                                    Nenhum produto encontrado
                                   </TableCell>
                                 </TableRow>
-                              ))
-                            ) : (
-                              <TableRow>
-                                <TableCell colSpan={4} className="text-center text-muted-foreground">
-                                  Nenhum produto encontrado
-                                </TableCell>
-                              </TableRow>
-                            )}
-                          </TableBody>
-                        </Table>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
+                              )}
+                            </TableBody>
+                          </Table>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
               </TabsContent>
             )}
 
@@ -3383,7 +3887,9 @@ const AdminContent = () => {
                 <CardHeader className="p-4 sm:p-6">
                   <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                     <div>
-                      <CardTitle className="text-lg sm:text-xl">Produtos Cadastrados</CardTitle>
+                      <CardTitle className="text-lg sm:text-xl">
+                        Produtos Cadastrados
+                      </CardTitle>
                       <CardDescription className="text-xs sm:text-sm">
                         {filteredProducts.length} produtos no catálogo
                       </CardDescription>
@@ -3403,121 +3909,132 @@ const AdminContent = () => {
                   <div className="space-y-3 sm:space-y-4">
                     {paginatedProducts.map((product) => {
                       // Verificar se o produto está fora de estoque
-                      const hasVariants = (product.variants && product.variants.length > 0) || 
-                                        (product.variations && product.variations.length > 0) ||
-                                        (product.colors && product.colors.length > 0);
-                      
+                      const hasVariants =
+                        (product.variants && product.variants.length > 0) ||
+                        (product.variations && product.variations.length > 0) ||
+                        (product.colors && product.colors.length > 0);
+
                       let isOutOfStock = false;
                       let totalStock = 0;
-                      
+
                       if (!hasVariants) {
                         // Produto sem variantes: verificar stock direto
                         isOutOfStock = (product.stock || 0) <= 0;
                         totalStock = product.stock || 0;
                       } else {
                         // Produto com variantes: verificar se todas as variantes estão fora de estoque
-                        const variants = product.variants || product.variations || [];
-                        const totalVariantStock = variants.reduce((sum: number, v: any) => sum + (v.stock || 0), 0);
+                        const variants =
+                          product.variants || product.variations || [];
+                        const totalVariantStock = variants.reduce(
+                          (sum: number, v: any) => sum + (v.stock || 0),
+                          0
+                        );
                         totalStock = totalVariantStock;
                         isOutOfStock = totalVariantStock <= 0;
                       }
-                      
+
                       return (
-                      <div
-                        key={product._id}
-                        className={`flex gap-3 sm:gap-4 p-3 sm:p-4 border rounded-lg transition-colors ${
-                          isOutOfStock 
-                            ? "border-destructive/50 bg-destructive/5 hover:border-destructive" 
-                            : "border-border hover:border-accent"
-                        }`}
-                      >
-                        <div className="relative flex-shrink-0">
-                          <img
-                            src={`${productionUrl}/img/products/${product.imageCover}`}
-                            alt={product.name}
-                            className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-md"
-                            onError={(e) => {
-                              e.currentTarget.src =
-                                "https://i.pinimg.com/1200x/a7/2f/db/a72fdbea7e86c3fb70a17c166a36407b.jpg";
-                            }}
-                          />
-                          {isOutOfStock && (
-                            <div className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full p-1">
-                              <AlertTriangle className="h-3 w-3 sm:h-4 sm:w-4" />
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-2 sm:gap-4">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
-                                <h3 className="font-semibold text-sm sm:text-base text-foreground break-words">
-                                  {product.name}
-                                </h3>
-                                {isOutOfStock && (
-                                  <Badge variant="destructive" className="text-xs flex items-center gap-1">
-                                    <AlertTriangle className="h-3 w-3" />
-                                    Fora de Estoque
-                                  </Badge>
-                                )}
+                        <div
+                          key={product._id}
+                          className={`flex gap-3 sm:gap-4 p-3 sm:p-4 border rounded-lg transition-colors ${
+                            isOutOfStock
+                              ? "border-destructive/50 bg-destructive/5 hover:border-destructive"
+                              : "border-border hover:border-accent"
+                          }`}
+                        >
+                          <div className="relative flex-shrink-0">
+                            <img
+                              src={`${productionUrl}/img/products/${product.imageCover}`}
+                              alt={product.name}
+                              className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-md"
+                              onError={(e) => {
+                                e.currentTarget.src =
+                                  "https://i.pinimg.com/1200x/a7/2f/db/a72fdbea7e86c3fb70a17c166a36407b.jpg";
+                              }}
+                            />
+                            {isOutOfStock && (
+                              <div className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full p-1">
+                                <AlertTriangle className="h-3 w-3 sm:h-4 sm:w-4" />
                               </div>
-                              <p className="text-xs sm:text-sm text-muted-foreground">
-                                {product.category} • {product.gender}
-                              </p>
-                              <div className="flex items-center gap-2 sm:gap-3 mt-1 flex-wrap">
-                                {product.priceDiscount && product.priceDiscount > 0 ? (
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <p className="text-sm sm:text-base text-muted-foreground line-through">
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-2 sm:gap-4">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <h3 className="font-semibold text-sm sm:text-base text-foreground break-words">
+                                    {product.name}
+                                  </h3>
+                                  {isOutOfStock && (
+                                    <Badge
+                                      variant="destructive"
+                                      className="text-xs flex items-center gap-1"
+                                    >
+                                      <AlertTriangle className="h-3 w-3" />
+                                      Fora de Estoque
+                                    </Badge>
+                                  )}
+                                </div>
+                                <p className="text-xs sm:text-sm text-muted-foreground">
+                                  {product.category} • {product.gender}
+                                </p>
+                                <div className="flex items-center gap-2 sm:gap-3 mt-1 flex-wrap">
+                                  {product.priceDiscount &&
+                                  product.priceDiscount > 0 ? (
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <p className="text-sm sm:text-base text-muted-foreground line-through">
+                                        {product.price.toFixed(2)} MZN
+                                      </p>
+                                      <p className="text-base sm:text-lg font-bold text-accent">
+                                        {product.priceDiscount.toFixed(2)} MZN
+                                      </p>
+                                    </div>
+                                  ) : (
+                                    <p className="text-base sm:text-lg font-bold text-accent">
                                       {product.price.toFixed(2)} MZN
                                     </p>
-                                    <p className="text-base sm:text-lg font-bold text-accent">
-                                      {product.priceDiscount.toFixed(2)} MZN
-                                    </p>
-                                  </div>
-                                ) : (
-                                  <p className="text-base sm:text-lg font-bold text-accent">
-                                    {product.price.toFixed(2)} MZN
-                                  </p>
-                                )}
-                                {/* Mostrar estoque sempre, com destaque se fora de estoque */}
-                                <Badge 
-                                  variant={totalStock > 0 ? "default" : "destructive"}
-                                  className={`text-xs flex items-center gap-1 ${isOutOfStock ? "font-semibold" : ""}`}
-                                >
-                                  {hasVariants ? (
-                                    <>
-                                      <Package className="h-3 w-3" />
-                                      Estoque Total: {totalStock}
-                                    </>
-                                  ) : (
-                                    <>
-                                      Estoque: {totalStock}
-                                    </>
                                   )}
-                                </Badge>
+                                  {/* Mostrar estoque sempre, com destaque se fora de estoque */}
+                                  <Badge
+                                    variant={
+                                      totalStock > 0 ? "default" : "destructive"
+                                    }
+                                    className={`text-xs flex items-center gap-1 ${
+                                      isOutOfStock ? "font-semibold" : ""
+                                    }`}
+                                  >
+                                    {hasVariants ? (
+                                      <>
+                                        <Package className="h-3 w-3" />
+                                        Estoque Total: {totalStock}
+                                      </>
+                                    ) : (
+                                      <>Estoque: {totalStock}</>
+                                    )}
+                                  </Badge>
+                                </div>
                               </div>
-                            </div>
-                            <div className="flex gap-1 sm:gap-2 flex-shrink-0">
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                onClick={() => handleEditProduct(product)}
-                                className="h-8 w-8 sm:h-10 sm:w-10"
-                              >
-                                <Pencil className="h-3 w-3 sm:h-4 sm:w-4" />
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                onClick={() => handleDeleteProduct(product)}
-                                className="h-8 w-8 sm:h-10 sm:w-10"
-                              >
-                                <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
-                              </Button>
+                              <div className="flex gap-1 sm:gap-2 flex-shrink-0">
+                                <Button
+                                  variant="outline"
+                                  size="icon"
+                                  onClick={() => handleEditProduct(product)}
+                                  className="h-8 w-8 sm:h-10 sm:w-10"
+                                >
+                                  <Pencil className="h-3 w-3 sm:h-4 sm:w-4" />
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="icon"
+                                  onClick={() => handleDeleteProduct(product)}
+                                  className="h-8 w-8 sm:h-10 sm:w-10"
+                                >
+                                  <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
+                                </Button>
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
                       );
                     })}
 
@@ -3595,9 +4112,13 @@ const AdminContent = () => {
                 <CardHeader className="p-4 sm:p-6">
                   <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                     <div>
-                      <CardTitle className="text-lg sm:text-xl">Gestão de Variantes</CardTitle>
+                      <CardTitle className="text-lg sm:text-xl">
+                        Gestão de Variantes
+                      </CardTitle>
                       <CardDescription className="text-xs sm:text-sm">
-                        {allVariants.length} variante{allVariants.length !== 1 ? "s" : ""} cadastrada{allVariants.length !== 1 ? "s" : ""}
+                        {allVariants.length} variante
+                        {allVariants.length !== 1 ? "s" : ""} cadastrada
+                        {allVariants.length !== 1 ? "s" : ""}
                       </CardDescription>
                     </div>
                     <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
@@ -3616,9 +4137,10 @@ const AdminContent = () => {
                         className="w-full sm:w-64 text-sm justify-start"
                       >
                         <Filter className="h-4 w-4 mr-2" />
-                        {variantProductFilter === "all" 
-                          ? "Filtrar por produto" 
-                          : products.find(p => p._id === variantProductFilter)?.name || "Filtrar por produto"}
+                        {variantProductFilter === "all"
+                          ? "Filtrar por produto"
+                          : products.find((p) => p._id === variantProductFilter)
+                              ?.name || "Filtrar por produto"}
                       </Button>
                       <Button
                         onClick={() => {
@@ -3649,71 +4171,104 @@ const AdminContent = () => {
                       <div className="space-y-3 sm:space-y-4">
                         {(() => {
                           // Filtrar variantes por produto e termo de busca
-                          const filteredVariants = allVariants.filter((variant) => {
-                            // Filtro por produto
-                            if (variantProductFilter !== "all") {
-                              const productId = typeof variant.product === 'object' && variant.product !== null
-                                ? (variant.product as any)?._id || (variant.product as any)?.id
-                                : variant.product;
-                              if (productId !== variantProductFilter) {
-                                return false;
+                          const filteredVariants = allVariants.filter(
+                            (variant) => {
+                              // Filtro por produto
+                              if (variantProductFilter !== "all") {
+                                const productId =
+                                  typeof variant.product === "object" &&
+                                  variant.product !== null
+                                    ? (variant.product as any)?._id ||
+                                      (variant.product as any)?.id
+                                    : variant.product;
+                                if (productId !== variantProductFilter) {
+                                  return false;
+                                }
                               }
+
+                              // Filtro por termo de busca
+                              if (!variantSearchTerm) return true;
+                              const searchLower =
+                                variantSearchTerm.toLowerCase();
+                              // Lidar com produto como string ou objeto populado
+                              const productId =
+                                typeof variant.product === "object" &&
+                                variant.product !== null
+                                  ? (variant.product as any)?._id ||
+                                    (variant.product as any)?.id
+                                  : variant.product;
+                              const product = products.find(
+                                (p) => p._id === productId || p.id === productId
+                              );
+                              const productName =
+                                product?.name ||
+                                (typeof variant.product === "object" &&
+                                variant.product !== null
+                                  ? (variant.product as any)?.name
+                                  : "");
+                              return (
+                                variant.sku
+                                  ?.toLowerCase()
+                                  .includes(searchLower) ||
+                                variant.color
+                                  ?.toLowerCase()
+                                  .includes(searchLower) ||
+                                variant.size
+                                  ?.toLowerCase()
+                                  .includes(searchLower) ||
+                                productName.toLowerCase().includes(searchLower)
+                              );
                             }
-                            
-                            // Filtro por termo de busca
-                            if (!variantSearchTerm) return true;
-                            const searchLower = variantSearchTerm.toLowerCase();
-                            // Lidar com produto como string ou objeto populado
-                            const productId = typeof variant.product === 'object' && variant.product !== null
-                              ? (variant.product as any)?._id || (variant.product as any)?.id
-                              : variant.product;
-                            const product = products.find(p => p._id === productId || p.id === productId);
-                            const productName = product?.name || 
-                              (typeof variant.product === 'object' && variant.product !== null 
-                                ? (variant.product as any)?.name 
-                                : "");
-                            return (
-                              variant.sku?.toLowerCase().includes(searchLower) ||
-                              variant.color?.toLowerCase().includes(searchLower) ||
-                              variant.size?.toLowerCase().includes(searchLower) ||
-                              productName.toLowerCase().includes(searchLower)
-                            );
-                          });
+                          );
 
                           // Paginação
-                          const totalVariantsPages = Math.ceil(filteredVariants.length / itemsPerPage);
+                          const totalVariantsPages = Math.ceil(
+                            filteredVariants.length / itemsPerPage
+                          );
                           const startIndex = (variantsPage - 1) * itemsPerPage;
                           const endIndex = startIndex + itemsPerPage;
-                          const paginatedVariants = filteredVariants.slice(startIndex, endIndex);
+                          const paginatedVariants = filteredVariants.slice(
+                            startIndex,
+                            endIndex
+                          );
 
                           return (
                             <>
                               {paginatedVariants.length === 0 ? (
                                 <div className="text-center py-12 text-muted-foreground">
-                                  {variantSearchTerm 
-                                    ? "Nenhuma variante encontrada" 
+                                  {variantSearchTerm
+                                    ? "Nenhuma variante encontrada"
                                     : "Nenhuma variante cadastrada"}
                                 </div>
                               ) : (
                                 paginatedVariants.map((variant) => {
                                   // Lidar com produto como string ou objeto populado
-                                  const productId = typeof variant.product === 'object' && variant.product !== null
-                                    ? (variant.product as any)?._id || (variant.product as any)?.id
-                                    : variant.product;
-                                  const product = products.find(p => p._id === productId || p.id === productId);
-                                  const productName = product?.name || 
-                                    (typeof variant.product === 'object' && variant.product !== null 
-                                      ? (variant.product as any)?.name 
+                                  const productId =
+                                    typeof variant.product === "object" &&
+                                    variant.product !== null
+                                      ? (variant.product as any)?._id ||
+                                        (variant.product as any)?.id
+                                      : variant.product;
+                                  const product = products.find(
+                                    (p) =>
+                                      p._id === productId || p.id === productId
+                                  );
+                                  const productName =
+                                    product?.name ||
+                                    (typeof variant.product === "object" &&
+                                    variant.product !== null
+                                      ? (variant.product as any)?.name
                                       : "Produto não encontrado");
 
-                                  const isVariantOutOfStock = (variant.stock || 0) <= 0;
-                                  
+                                  const isVariantOutOfStock =
+                                    (variant.stock || 0) <= 0;
+
                                   return (
                                     <div
                                       key={variant._id}
                                       className={`flex gap-3 sm:gap-4 p-3 sm:p-4 border rounded-lg transition-colors ${
-                                        isVariantOutOfStock 
-                                          ? "border-destructive/50 bg-destructive/5 hover:border-destructive" 
+                                        isVariantOutOfStock
+                                          ? "border-destructive/50 bg-destructive/5 hover:border-destructive"
                                           : "border-border hover:border-accent"
                                       }`}
                                     >
@@ -3743,11 +4298,36 @@ const AdminContent = () => {
                                         <div className="flex items-start justify-between gap-2 sm:gap-4 mb-2">
                                           <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-2 mb-1">
-                                              <h3 className="font-semibold text-sm sm:text-base text-foreground">
-                                                {variant.color} • {variant.size}
-                                              </h3>
+                                              {(() => {
+                                                const col = variant.color || "";
+                                                const name =
+                                                  hexToColorName(col);
+                                                const label = name
+                                                  ? name
+                                                  : col
+                                                      .replace("#", "")
+                                                      .toUpperCase();
+                                                return (
+                                                  <h3 className="font-semibold text-sm sm:text-base text-foreground flex items-center gap-2">
+                                                    <span
+                                                      className="w-3 h-3 rounded-full border"
+                                                      style={{
+                                                        backgroundColor: col,
+                                                      }}
+                                                      aria-hidden
+                                                    />
+                                                    <span className="text-muted-foreground">
+                                                      •
+                                                    </span>
+                                                    <span>{variant.size}</span>
+                                                  </h3>
+                                                );
+                                              })()}
                                               {isVariantOutOfStock && (
-                                                <Badge variant="destructive" className="text-xs flex items-center gap-1">
+                                                <Badge
+                                                  variant="destructive"
+                                                  className="text-xs flex items-center gap-1"
+                                                >
                                                   <AlertTriangle className="h-3 w-3" />
                                                   Fora de Estoque
                                                 </Badge>
@@ -3757,13 +4337,25 @@ const AdminContent = () => {
                                               SKU: {variant.sku}
                                             </p>
                                             <p className="text-xs sm:text-sm text-muted-foreground">
-                                              Produto: <span className="font-medium">{productName}</span>
+                                              Produto:{" "}
+                                              <span className="font-medium">
+                                                {productName}
+                                              </span>
                                             </p>
                                           </div>
                                           <div className="flex items-center gap-2">
-                                            <Badge 
-                                              variant={variant.stock && variant.stock > 0 ? "default" : "destructive"}
-                                              className={`text-xs flex items-center gap-1 ${isVariantOutOfStock ? "font-semibold" : ""}`}
+                                            <Badge
+                                              variant={
+                                                variant.stock &&
+                                                variant.stock > 0
+                                                  ? "default"
+                                                  : "destructive"
+                                              }
+                                              className={`text-xs flex items-center gap-1 ${
+                                                isVariantOutOfStock
+                                                  ? "font-semibold"
+                                                  : ""
+                                              }`}
                                             >
                                               <Package className="h-3 w-3" />
                                               Estoque: {variant.stock || 0}
@@ -3774,7 +4366,9 @@ const AdminContent = () => {
                                           <Button
                                             variant="outline"
                                             size="sm"
-                                            onClick={() => handleEditVariant(variant)}
+                                            onClick={() =>
+                                              handleEditVariant(variant)
+                                            }
                                             className="text-xs sm:text-sm"
                                           >
                                             <Pencil className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
@@ -3783,7 +4377,9 @@ const AdminContent = () => {
                                           <Button
                                             variant="destructive"
                                             size="sm"
-                                            onClick={() => handleDeleteVariant(variant)}
+                                            onClick={() =>
+                                              handleDeleteVariant(variant)
+                                            }
                                             className="text-xs sm:text-sm"
                                           >
                                             <Trash2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
@@ -3800,7 +4396,8 @@ const AdminContent = () => {
                               {filteredVariants.length > itemsPerPage && (
                                 <div className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 pt-4">
                                   <p className="text-xs sm:text-sm text-muted-foreground text-center sm:text-left">
-                                    Mostrando {(variantsPage - 1) * itemsPerPage + 1} a{" "}
+                                    Mostrando{" "}
+                                    {(variantsPage - 1) * itemsPerPage + 1} a{" "}
                                     {Math.min(
                                       variantsPage * itemsPerPage,
                                       filteredVariants.length
@@ -3812,7 +4409,9 @@ const AdminContent = () => {
                                       variant="outline"
                                       size="sm"
                                       onClick={() =>
-                                        setVariantsPage((p) => Math.max(1, p - 1))
+                                        setVariantsPage((p) =>
+                                          Math.max(1, p - 1)
+                                        )
                                       }
                                       disabled={variantsPage === 1}
                                       className="text-xs sm:text-sm"
@@ -3827,7 +4426,9 @@ const AdminContent = () => {
                                         <Button
                                           key={page}
                                           variant={
-                                            page === variantsPage ? "default" : "outline"
+                                            page === variantsPage
+                                              ? "default"
+                                              : "outline"
                                           }
                                           size="sm"
                                           onClick={() => setVariantsPage(page)}
@@ -3845,7 +4446,9 @@ const AdminContent = () => {
                                           Math.min(totalVariantsPages, p + 1)
                                         )
                                       }
-                                      disabled={variantsPage === totalVariantsPages}
+                                      disabled={
+                                        variantsPage === totalVariantsPages
+                                      }
                                       className="text-xs sm:text-sm"
                                     >
                                       Próxima
@@ -3869,9 +4472,12 @@ const AdminContent = () => {
                 <CardHeader className="p-4 sm:p-6">
                   <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                     <div>
-                      <CardTitle className="text-lg sm:text-xl">Comentários dos Clientes</CardTitle>
+                      <CardTitle className="text-lg sm:text-xl">
+                        Comentários dos Clientes
+                      </CardTitle>
                       <CardDescription className="text-xs sm:text-sm">
-                        {reviews.length} comentário{reviews.length !== 1 ? "s" : ""} no total
+                        {reviews.length} comentário
+                        {reviews.length !== 1 ? "s" : ""} no total
                       </CardDescription>
                     </div>
                     <div className="relative w-full md:w-64">
@@ -3902,11 +4508,15 @@ const AdminContent = () => {
                           const filteredReviews = reviews.filter((review) => {
                             if (!reviewSearchTerm) return true;
                             const searchLower = reviewSearchTerm.toLowerCase();
-                            const userName = typeof review.user === "object" 
-                              ? review.user?.name || "" 
-                              : "";
-                            const reviewText = review.review?.toLowerCase() || "";
-                            const productName = products.find(p => p._id === review.product)?.name || "";
+                            const userName =
+                              typeof review.user === "object"
+                                ? review.user?.name || ""
+                                : "";
+                            const reviewText =
+                              review.review?.toLowerCase() || "";
+                            const productName =
+                              products.find((p) => p._id === review.product)
+                                ?.name || "";
                             return (
                               userName.toLowerCase().includes(searchLower) ||
                               reviewText.includes(searchLower) ||
@@ -3915,28 +4525,38 @@ const AdminContent = () => {
                           });
 
                           // Paginação
-                          const totalReviewsPages = Math.ceil(filteredReviews.length / itemsPerPage);
+                          const totalReviewsPages = Math.ceil(
+                            filteredReviews.length / itemsPerPage
+                          );
                           const startIndex = (reviewsPage - 1) * itemsPerPage;
                           const endIndex = startIndex + itemsPerPage;
-                          const paginatedReviews = filteredReviews.slice(startIndex, endIndex);
+                          const paginatedReviews = filteredReviews.slice(
+                            startIndex,
+                            endIndex
+                          );
 
                           return (
                             <>
                               {paginatedReviews.length === 0 ? (
                                 <div className="text-center py-12 text-muted-foreground">
-                                  {reviewSearchTerm 
-                                    ? "Nenhum comentário encontrado" 
+                                  {reviewSearchTerm
+                                    ? "Nenhum comentário encontrado"
                                     : "Nenhum comentário ainda"}
                                 </div>
                               ) : (
                                 paginatedReviews.map((review) => {
-                                  const user = typeof review.user === "object" 
-                                    ? review.user 
-                                    : null;
-                                  const userName = user?.name || "Usuário Anônimo";
+                                  const user =
+                                    typeof review.user === "object"
+                                      ? review.user
+                                      : null;
+                                  const userName =
+                                    user?.name || "Usuário Anônimo";
                                   const userPhoto = user?.photo;
-                                  const product = products.find(p => p._id === review.product);
-                                  const productName = product?.name || "Produto não encontrado";
+                                  const product = products.find(
+                                    (p) => p._id === review.product
+                                  );
+                                  const productName =
+                                    product?.name || "Produto não encontrado";
 
                                   return (
                                     <div
@@ -3964,10 +4584,15 @@ const AdminContent = () => {
                                               </div>
                                             </div>
                                             <p className="text-xs sm:text-sm text-muted-foreground mb-2">
-                                              Produto: <span className="font-medium">{productName}</span>
+                                              Produto:{" "}
+                                              <span className="font-medium">
+                                                {productName}
+                                              </span>
                                             </p>
                                             <p className="text-xs sm:text-sm text-muted-foreground">
-                                              {new Date(review.createdAt).toLocaleDateString("pt-BR", {
+                                              {new Date(
+                                                review.createdAt
+                                              ).toLocaleDateString("pt-BR", {
                                                 day: "2-digit",
                                                 month: "2-digit",
                                                 year: "numeric",
@@ -3985,7 +4610,15 @@ const AdminContent = () => {
                                                 action: "deleteReview",
                                                 reviewId: review._id,
                                                 name: userName,
-                                                reviewText: review.review?.substring(0, 50) + (review.review && review.review.length > 50 ? "..." : ""),
+                                                reviewText:
+                                                  review.review?.substring(
+                                                    0,
+                                                    50
+                                                  ) +
+                                                  (review.review &&
+                                                  review.review.length > 50
+                                                    ? "..."
+                                                    : ""),
                                               });
                                             }}
                                             className="h-8 w-8 sm:h-10 sm:w-10 flex-shrink-0"
@@ -4006,7 +4639,8 @@ const AdminContent = () => {
                               {filteredReviews.length > itemsPerPage && (
                                 <div className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 pt-4">
                                   <p className="text-xs sm:text-sm text-muted-foreground text-center sm:text-left">
-                                    Mostrando {(reviewsPage - 1) * itemsPerPage + 1} a{" "}
+                                    Mostrando{" "}
+                                    {(reviewsPage - 1) * itemsPerPage + 1} a{" "}
                                     {Math.min(
                                       reviewsPage * itemsPerPage,
                                       filteredReviews.length
@@ -4018,7 +4652,9 @@ const AdminContent = () => {
                                       variant="outline"
                                       size="sm"
                                       onClick={() =>
-                                        setReviewsPage((p) => Math.max(1, p - 1))
+                                        setReviewsPage((p) =>
+                                          Math.max(1, p - 1)
+                                        )
                                       }
                                       disabled={reviewsPage === 1}
                                       className="text-xs sm:text-sm"
@@ -4033,7 +4669,9 @@ const AdminContent = () => {
                                         <Button
                                           key={page}
                                           variant={
-                                            page === reviewsPage ? "default" : "outline"
+                                            page === reviewsPage
+                                              ? "default"
+                                              : "outline"
                                           }
                                           size="sm"
                                           onClick={() => setReviewsPage(page)}
@@ -4051,7 +4689,9 @@ const AdminContent = () => {
                                           Math.min(totalReviewsPages, p + 1)
                                         )
                                       }
-                                      disabled={reviewsPage === totalReviewsPages}
+                                      disabled={
+                                        reviewsPage === totalReviewsPages
+                                      }
                                       className="text-xs sm:text-sm"
                                     >
                                       Próxima
@@ -4072,305 +4712,397 @@ const AdminContent = () => {
             {/* Coupons Tab - Apenas para admin */}
             {!isManager && (
               <TabsContent value="coupons" className="mt-6">
-              <Card>
-                <CardHeader className="p-4 sm:p-6">
-                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                    <div>
-                      <CardTitle className="text-lg sm:text-xl">Gestão de Cupons</CardTitle>
-                      <CardDescription className="text-xs sm:text-sm">
-                        {apiCoupons.length} cupom{apiCoupons.length !== 1 ? "s" : ""} cadastrado{apiCoupons.length !== 1 ? "s" : ""}
-                      </CardDescription>
-                    </div>
-                    <div className="flex flex-col sm:flex-row gap-2">
-                      <div className="relative flex-1 sm:w-64">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <Input
-                          placeholder="Buscar cupons..."
-                          value={couponSearchTerm}
-                          onChange={(e) => setCouponSearchTerm(e.target.value)}
-                          className="pl-10 text-sm"
-                        />
+                <Card>
+                  <CardHeader className="p-4 sm:p-6">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                      <div>
+                        <CardTitle className="text-lg sm:text-xl">
+                          Gestão de Cupons
+                        </CardTitle>
+                        <CardDescription className="text-xs sm:text-sm">
+                          {apiCoupons.length} cupom
+                          {apiCoupons.length !== 1 ? "s" : ""} cadastrado
+                          {apiCoupons.length !== 1 ? "s" : ""}
+                        </CardDescription>
                       </div>
-                      <Button
-                        onClick={() => {
-                          setCouponForm({
-                            code: "",
-                            discount: "",
-                            type: "percentage",
-                            expiresAt: "",
-                            minPurchaseAmount: "",
-                            maxDiscountAmount: "",
-                            usageLimit: "1",
-                            assignedTo: "",
-                          });
-                          setEditingCoupon(null);
-                          setIsCreateCouponDialogOpen(true);
-                        }}
-                        className="gap-2"
-                      >
-                        <Plus className="h-4 w-4" />
-                        <span className="hidden sm:inline">Novo Cupom</span>
-                        <span className="sm:hidden">Novo</span>
-                      </Button>
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <div className="relative flex-1 sm:w-64">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                          <Input
+                            placeholder="Buscar cupons..."
+                            value={couponSearchTerm}
+                            onChange={(e) =>
+                              setCouponSearchTerm(e.target.value)
+                            }
+                            className="pl-10 text-sm"
+                          />
+                        </div>
+                        <Button
+                          onClick={() => {
+                            setCouponForm({
+                              code: "",
+                              discount: "",
+                              type: "percentage",
+                              expiresAt: "",
+                              minPurchaseAmount: "",
+                              maxDiscountAmount: "",
+                              usageLimit: "1",
+                              assignedTo: "",
+                            });
+                            setEditingCoupon(null);
+                            setIsCreateCouponDialogOpen(true);
+                          }}
+                          className="gap-2"
+                        >
+                          <Plus className="h-4 w-4" />
+                          <span className="hidden sm:inline">Novo Cupom</span>
+                          <span className="sm:hidden">Novo</span>
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="p-4 sm:p-6">
-                  {couponLoading ? (
-                    <div className="text-center py-8 text-muted-foreground">
-                      Carregando cupons...
-                    </div>
-                  ) : (
-                    <>
-                      <div className="overflow-x-auto">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Código</TableHead>
-                              <TableHead>Tipo</TableHead>
-                              <TableHead className="text-right">Desconto</TableHead>
-                              <TableHead>Cliente</TableHead>
-                              <TableHead>Status</TableHead>
-                              <TableHead>Válido até</TableHead>
-                              <TableHead className="text-right">Usos</TableHead>
-                              <TableHead className="text-right">Ações</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {(() => {
-                              // Filtrar cupons por termo de busca
-                              const filteredCoupons = apiCoupons.filter((coupon) => {
-                                if (!couponSearchTerm) return true;
-                                const searchLower = couponSearchTerm.toLowerCase();
-                                return (
-                                  coupon.code.toLowerCase().includes(searchLower) ||
-                                  coupon.type.toLowerCase().includes(searchLower)
+                  </CardHeader>
+                  <CardContent className="p-4 sm:p-6">
+                    {couponLoading ? (
+                      <div className="text-center py-8 text-muted-foreground">
+                        Carregando cupons...
+                      </div>
+                    ) : (
+                      <>
+                        <div className="overflow-x-auto">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Código</TableHead>
+                                <TableHead>Tipo</TableHead>
+                                <TableHead className="text-right">
+                                  Desconto
+                                </TableHead>
+                                <TableHead>Cliente</TableHead>
+                                <TableHead>Status</TableHead>
+                                <TableHead>Válido até</TableHead>
+                                <TableHead className="text-right">
+                                  Usos
+                                </TableHead>
+                                <TableHead className="text-right">
+                                  Ações
+                                </TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {(() => {
+                                // Filtrar cupons por termo de busca
+                                const filteredCoupons = apiCoupons.filter(
+                                  (coupon) => {
+                                    if (!couponSearchTerm) return true;
+                                    const searchLower =
+                                      couponSearchTerm.toLowerCase();
+                                    return (
+                                      coupon.code
+                                        .toLowerCase()
+                                        .includes(searchLower) ||
+                                      coupon.type
+                                        .toLowerCase()
+                                        .includes(searchLower)
+                                    );
+                                  }
                                 );
-                              });
 
-                              // Paginação
-                              const totalCouponsPages = Math.ceil(filteredCoupons.length / itemsPerPage);
-                              const startIndex = (couponsPage - 1) * itemsPerPage;
-                              const endIndex = startIndex + itemsPerPage;
-                              const paginatedCoupons = filteredCoupons.slice(startIndex, endIndex);
+                                // Paginação
+                                const totalCouponsPages = Math.ceil(
+                                  filteredCoupons.length / itemsPerPage
+                                );
+                                const startIndex =
+                                  (couponsPage - 1) * itemsPerPage;
+                                const endIndex = startIndex + itemsPerPage;
+                                const paginatedCoupons = filteredCoupons.slice(
+                                  startIndex,
+                                  endIndex
+                                );
 
-                              return (
-                                <>
-                                  {paginatedCoupons.length === 0 ? (
-                                    <TableRow>
-                                      <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
-                                        {couponSearchTerm
-                                          ? "Nenhum cupom encontrado"
-                                          : "Nenhum cupom cadastrado"}
-                                      </TableCell>
-                                    </TableRow>
-                                  ) : (
-                                    paginatedCoupons.map((coupon) => {
-                                      const isExpired = new Date(coupon.expiresAt) < new Date();
-                                      const isUsed = !!coupon.usedAt;
-                                      const isActive = coupon.isActive && !isExpired;
+                                return (
+                                  <>
+                                    {paginatedCoupons.length === 0 ? (
+                                      <TableRow>
+                                        <TableCell
+                                          colSpan={8}
+                                          className="text-center text-muted-foreground py-8"
+                                        >
+                                          {couponSearchTerm
+                                            ? "Nenhum cupom encontrado"
+                                            : "Nenhum cupom cadastrado"}
+                                        </TableCell>
+                                      </TableRow>
+                                    ) : (
+                                      paginatedCoupons.map((coupon) => {
+                                        const isExpired =
+                                          new Date(coupon.expiresAt) <
+                                          new Date();
+                                        const isUsed = !!coupon.usedAt;
+                                        const isActive =
+                                          coupon.isActive && !isExpired;
 
-                                      return (
-                                        <TableRow key={coupon._id}>
-                                          <TableCell className="font-medium">
-                                            <div className="flex items-center gap-2">
-                                              <span>{coupon.code}</span>
-                                              <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-6 w-6"
-                                                onClick={() => {
-                                                  navigator.clipboard.writeText(coupon.code);
-                                                  toast({
-                                                    title: "Copiado!",
-                                                    description: `Código ${coupon.code} copiado`,
-                                                  });
-                                                }}
-                                              >
-                                                <Copy className="h-3 w-3" />
-                                              </Button>
-                                            </div>
-                                          </TableCell>
-                                          <TableCell>
-                                            <Badge variant="outline">
-                                              {coupon.type === "percentage" ? "Percentual" : "Fixo"}
-                                            </Badge>
-                                          </TableCell>
-                                          <TableCell className="text-right font-semibold">
-                                            {coupon.discount}
-                                            {coupon.type === "percentage" ? "%" : " MZN"}
-                                          </TableCell>
-                                          <TableCell>
-                                            {coupon.assignedTo ? (
-                                              (() => {
-                                                const assignedUser = users.find(
-                                                  (u) => u._id === coupon.assignedTo || u.userId === coupon.assignedTo
-                                                );
-                                                return assignedUser ? (
-                                                  <span className="text-xs sm:text-sm">
-                                                    {assignedUser.name}
-                                                  </span>
-                                                ) : (
-                                                  <span className="text-xs text-muted-foreground">
-                                                    ID: {coupon.assignedTo?.slice(-8)}
-                                                  </span>
-                                                );
-                                              })()
-                                            ) : (
-                                              <Badge variant="outline" className="text-xs">
-                                                Público
+                                        return (
+                                          <TableRow key={coupon._id}>
+                                            <TableCell className="font-medium">
+                                              <div className="flex items-center gap-2">
+                                                <span>{coupon.code}</span>
+                                                <Button
+                                                  variant="ghost"
+                                                  size="icon"
+                                                  className="h-6 w-6"
+                                                  onClick={() => {
+                                                    navigator.clipboard.writeText(
+                                                      coupon.code
+                                                    );
+                                                    toast({
+                                                      title: "Copiado!",
+                                                      description: `Código ${coupon.code} copiado`,
+                                                    });
+                                                  }}
+                                                >
+                                                  <Copy className="h-3 w-3" />
+                                                </Button>
+                                              </div>
+                                            </TableCell>
+                                            <TableCell>
+                                              <Badge variant="outline">
+                                                {coupon.type === "percentage"
+                                                  ? "Percentual"
+                                                  : "Fixo"}
                                               </Badge>
-                                            )}
-                                          </TableCell>
-                                          <TableCell>
-                                            <Badge
-                                              variant={
-                                                isActive
-                                                  ? "default"
+                                            </TableCell>
+                                            <TableCell className="text-right font-semibold">
+                                              {coupon.discount}
+                                              {coupon.type === "percentage"
+                                                ? "%"
+                                                : " MZN"}
+                                            </TableCell>
+                                            <TableCell>
+                                              {coupon.assignedTo ? (
+                                                (() => {
+                                                  const assignedUser =
+                                                    users.find(
+                                                      (u) =>
+                                                        u._id ===
+                                                          coupon.assignedTo ||
+                                                        u.userId ===
+                                                          coupon.assignedTo
+                                                    );
+                                                  return assignedUser ? (
+                                                    <span className="text-xs sm:text-sm">
+                                                      {assignedUser.name}
+                                                    </span>
+                                                  ) : (
+                                                    <span className="text-xs text-muted-foreground">
+                                                      ID:{" "}
+                                                      {coupon.assignedTo?.slice(
+                                                        -8
+                                                      )}
+                                                    </span>
+                                                  );
+                                                })()
+                                              ) : (
+                                                <Badge
+                                                  variant="outline"
+                                                  className="text-xs"
+                                                >
+                                                  Público
+                                                </Badge>
+                                              )}
+                                            </TableCell>
+                                            <TableCell>
+                                              <Badge
+                                                variant={
+                                                  isActive
+                                                    ? "default"
+                                                    : isUsed
+                                                    ? "secondary"
+                                                    : isExpired
+                                                    ? "destructive"
+                                                    : "outline"
+                                                }
+                                              >
+                                                {isActive
+                                                  ? "Ativo"
                                                   : isUsed
-                                                  ? "secondary"
+                                                  ? "Usado"
                                                   : isExpired
-                                                  ? "destructive"
-                                                  : "outline"
-                                              }
-                                            >
-                                              {isActive
-                                                ? "Ativo"
-                                                : isUsed
-                                                ? "Usado"
-                                                : isExpired
-                                                ? "Expirado"
-                                                : "Inativo"}
-                                            </Badge>
-                                          </TableCell>
-                                          <TableCell>
-                                            {new Date(coupon.expiresAt).toLocaleDateString("pt-BR")}
-                                          </TableCell>
-                                          <TableCell className="text-right">
-                                            {coupon.usageCount || 0} / {coupon.usageLimit || 1}
-                                          </TableCell>
-                                          <TableCell className="text-right">
-                                            <div className="flex items-center justify-end gap-2">
-                                              <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => {
-                                                  setEditingCoupon(coupon);
-                                                  setCouponForm({
-                                                    code: coupon.code,
-                                                    discount: String(coupon.discount),
-                                                    type: coupon.type,
-                                                    expiresAt: new Date(coupon.expiresAt).toISOString().split("T")[0],
-                                                    minPurchaseAmount: coupon.minPurchaseAmount
-                                                      ? String(coupon.minPurchaseAmount)
-                                                      : "",
-                                                    maxDiscountAmount: coupon.maxDiscountAmount
-                                                      ? String(coupon.maxDiscountAmount)
-                                                      : "",
-                                                    usageLimit: String(coupon.usageLimit || 1),
-                                                    assignedTo: coupon.assignedTo || "",
-                                                  });
-                                                  setIsEditCouponDialogOpen(true);
-                                                }}
-                                                className="gap-1"
-                                              >
-                                                <Pencil className="h-3 w-3" />
-                                                <span className="hidden sm:inline">Editar</span>
-                                              </Button>
-                                              <Button
-                                                variant="destructive"
-                                                size="sm"
-                                                onClick={() => {
-                                                  setConfirmDialog({
-                                                    open: true,
-                                                    action: "deleteCoupon",
-                                                    id: coupon._id,
-                                                    name: coupon.code,
-                                                  });
-                                                }}
-                                                className="gap-1"
-                                              >
-                                                <Trash2 className="h-3 w-3" />
-                                                <span className="hidden sm:inline">Excluir</span>
-                                              </Button>
-                                            </div>
-                                          </TableCell>
-                                        </TableRow>
-                                      );
-                                    })
-                                  )}
-                                </>
+                                                  ? "Expirado"
+                                                  : "Inativo"}
+                                              </Badge>
+                                            </TableCell>
+                                            <TableCell>
+                                              {new Date(
+                                                coupon.expiresAt
+                                              ).toLocaleDateString("pt-BR")}
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                              {coupon.usageCount || 0} /{" "}
+                                              {coupon.usageLimit || 1}
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                              <div className="flex items-center justify-end gap-2">
+                                                <Button
+                                                  variant="outline"
+                                                  size="sm"
+                                                  onClick={() => {
+                                                    setEditingCoupon(coupon);
+                                                    setCouponForm({
+                                                      code: coupon.code,
+                                                      discount: String(
+                                                        coupon.discount
+                                                      ),
+                                                      type: coupon.type,
+                                                      expiresAt: new Date(
+                                                        coupon.expiresAt
+                                                      )
+                                                        .toISOString()
+                                                        .split("T")[0],
+                                                      minPurchaseAmount:
+                                                        coupon.minPurchaseAmount
+                                                          ? String(
+                                                              coupon.minPurchaseAmount
+                                                            )
+                                                          : "",
+                                                      maxDiscountAmount:
+                                                        coupon.maxDiscountAmount
+                                                          ? String(
+                                                              coupon.maxDiscountAmount
+                                                            )
+                                                          : "",
+                                                      usageLimit: String(
+                                                        coupon.usageLimit || 1
+                                                      ),
+                                                      assignedTo:
+                                                        coupon.assignedTo || "",
+                                                    });
+                                                    setIsEditCouponDialogOpen(
+                                                      true
+                                                    );
+                                                  }}
+                                                  className="gap-1"
+                                                >
+                                                  <Pencil className="h-3 w-3" />
+                                                  <span className="hidden sm:inline">
+                                                    Editar
+                                                  </span>
+                                                </Button>
+                                                <Button
+                                                  variant="destructive"
+                                                  size="sm"
+                                                  onClick={() => {
+                                                    setConfirmDialog({
+                                                      open: true,
+                                                      action: "deleteCoupon",
+                                                      id: coupon._id,
+                                                      name: coupon.code,
+                                                    });
+                                                  }}
+                                                  className="gap-1"
+                                                >
+                                                  <Trash2 className="h-3 w-3" />
+                                                  <span className="hidden sm:inline">
+                                                    Excluir
+                                                  </span>
+                                                </Button>
+                                              </div>
+                                            </TableCell>
+                                          </TableRow>
+                                        );
+                                      })
+                                    )}
+                                  </>
+                                );
+                              })()}
+                            </TableBody>
+                          </Table>
+                        </div>
+
+                        {/* Pagination */}
+                        {(() => {
+                          const filteredCoupons = apiCoupons.filter(
+                            (coupon) => {
+                              if (!couponSearchTerm) return true;
+                              const searchLower =
+                                couponSearchTerm.toLowerCase();
+                              return (
+                                coupon.code
+                                  .toLowerCase()
+                                  .includes(searchLower) ||
+                                coupon.type.toLowerCase().includes(searchLower)
                               );
-                            })()}
-                          </TableBody>
-                        </Table>
-                      </div>
-
-                      {/* Pagination */}
-                      {(() => {
-                        const filteredCoupons = apiCoupons.filter((coupon) => {
-                          if (!couponSearchTerm) return true;
-                          const searchLower = couponSearchTerm.toLowerCase();
-                          return (
-                            coupon.code.toLowerCase().includes(searchLower) ||
-                            coupon.type.toLowerCase().includes(searchLower)
+                            }
                           );
-                        });
-                        const totalCouponsPages = Math.ceil(filteredCoupons.length / itemsPerPage);
+                          const totalCouponsPages = Math.ceil(
+                            filteredCoupons.length / itemsPerPage
+                          );
 
-                        return (
-                          totalCouponsPages > 1 && (
-                            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 pt-4">
-                              <p className="text-xs sm:text-sm text-muted-foreground text-center sm:text-left">
-                                Mostrando {(couponsPage - 1) * itemsPerPage + 1} a{" "}
-                                {Math.min(couponsPage * itemsPerPage, filteredCoupons.length)} de{" "}
-                                {filteredCoupons.length} cupons
-                              </p>
-                              <div className="flex items-center gap-1 sm:gap-2 flex-wrap justify-center">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => setCouponsPage((p) => Math.max(1, p - 1))}
-                                  disabled={couponsPage === 1}
-                                  className="text-xs sm:text-sm"
-                                >
-                                  Anterior
-                                </Button>
-                                <div className="flex items-center gap-1 overflow-x-auto">
-                                  {Array.from({ length: totalCouponsPages }, (_, i) => i + 1).map(
-                                    (page) => (
+                          return (
+                            totalCouponsPages > 1 && (
+                              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 pt-4">
+                                <p className="text-xs sm:text-sm text-muted-foreground text-center sm:text-left">
+                                  Mostrando{" "}
+                                  {(couponsPage - 1) * itemsPerPage + 1} a{" "}
+                                  {Math.min(
+                                    couponsPage * itemsPerPage,
+                                    filteredCoupons.length
+                                  )}{" "}
+                                  de {filteredCoupons.length} cupons
+                                </p>
+                                <div className="flex items-center gap-1 sm:gap-2 flex-wrap justify-center">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() =>
+                                      setCouponsPage((p) => Math.max(1, p - 1))
+                                    }
+                                    disabled={couponsPage === 1}
+                                    className="text-xs sm:text-sm"
+                                  >
+                                    Anterior
+                                  </Button>
+                                  <div className="flex items-center gap-1 overflow-x-auto">
+                                    {Array.from(
+                                      { length: totalCouponsPages },
+                                      (_, i) => i + 1
+                                    ).map((page) => (
                                       <Button
                                         key={page}
-                                        variant={page === couponsPage ? "default" : "outline"}
+                                        variant={
+                                          page === couponsPage
+                                            ? "default"
+                                            : "outline"
+                                        }
                                         size="sm"
                                         onClick={() => setCouponsPage(page)}
                                         className="w-8 h-8 sm:w-10 sm:h-10 text-xs sm:text-sm"
                                       >
                                         {page}
                                       </Button>
-                                    )
-                                  )}
+                                    ))}
+                                  </div>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() =>
+                                      setCouponsPage((p) =>
+                                        Math.min(totalCouponsPages, p + 1)
+                                      )
+                                    }
+                                    disabled={couponsPage === totalCouponsPages}
+                                    className="text-xs sm:text-sm"
+                                  >
+                                    Próxima
+                                  </Button>
                                 </div>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() =>
-                                    setCouponsPage((p) => Math.min(totalCouponsPages, p + 1))
-                                  }
-                                  disabled={couponsPage === totalCouponsPages}
-                                  className="text-xs sm:text-sm"
-                                >
-                                  Próxima
-                                </Button>
                               </div>
-                            </div>
-                          )
-                        );
-                      })()}
-                    </>
-                  )}
-                </CardContent>
-              </Card>
+                            )
+                          );
+                        })()}
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
               </TabsContent>
             )}
 
@@ -4378,16 +5110,24 @@ const AdminContent = () => {
             <TabsContent value="add-product" className="mt-6">
               <Card>
                 <CardHeader className="px-4 sm:px-6">
-                  <CardTitle className="text-xl sm:text-2xl">Cadastrar Novo Produto</CardTitle>
+                  <CardTitle className="text-xl sm:text-2xl">
+                    Cadastrar Novo Produto
+                  </CardTitle>
                   <CardDescription className="text-sm">
                     Adicione um novo produto ao catálogo
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="px-4 sm:px-6 pb-6">
-                  <form ref={productFormRef} onSubmit={handleAddProduct} className="space-y-4 sm:space-y-6">
+                  <form
+                    ref={productFormRef}
+                    onSubmit={handleAddProduct}
+                    className="space-y-4 sm:space-y-6"
+                  >
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div className="space-y-2">
-                        <Label htmlFor="name" className="text-sm font-medium">Nome do Produto *</Label>
+                        <Label htmlFor="name" className="text-sm font-medium">
+                          Nome do Produto *
+                        </Label>
                         <Input
                           id="name"
                           name="name"
@@ -4397,7 +5137,9 @@ const AdminContent = () => {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="price" className="text-sm font-medium">Preço (MZN) *</Label>
+                        <Label htmlFor="price" className="text-sm font-medium">
+                          Preço (MZN) *
+                        </Label>
                         <Input
                           id="price"
                           name="price"
@@ -4409,27 +5151,35 @@ const AdminContent = () => {
                         />
                       </div>
                     </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="stock" className="text-sm font-medium">Estoque Inicial *</Label>
-                        <Input
-                          id="stock"
-                          name="stock"
-                          type="number"
-                          min="0"
-                          step="1"
-                          placeholder="0"
-                          defaultValue="0"
-                          className="text-sm"
-                          required
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          Quantidade inicial em estoque (para produtos sem variantes)
-                        </p>
-                      </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="stock" className="text-sm font-medium">
+                        Estoque Inicial *
+                      </Label>
+                      <Input
+                        id="stock"
+                        name="stock"
+                        type="number"
+                        min="0"
+                        step="1"
+                        placeholder="0"
+                        defaultValue="0"
+                        className="text-sm"
+                        required
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Quantidade inicial em estoque (para produtos sem
+                        variantes)
+                      </p>
+                    </div>
 
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div className="space-y-2">
-                        <Label htmlFor="category" className="text-sm font-medium">Categoria *</Label>
+                        <Label
+                          htmlFor="category"
+                          className="text-sm font-medium"
+                        >
+                          Categoria *
+                        </Label>
                         <Select name="category" required>
                           <SelectTrigger className="text-sm">
                             <SelectValue placeholder="Selecione a categoria" />
@@ -4450,7 +5200,9 @@ const AdminContent = () => {
                         </Select>
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="gender" className="text-sm font-medium">Gênero *</Label>
+                        <Label htmlFor="gender" className="text-sm font-medium">
+                          Gênero *
+                        </Label>
                         <Select name="gender" required>
                           <SelectTrigger className="text-sm">
                             <SelectValue placeholder="Selecione o gênero" />
@@ -4465,7 +5217,12 @@ const AdminContent = () => {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="description" className="text-sm font-medium">Descrição *</Label>
+                      <Label
+                        htmlFor="description"
+                        className="text-sm font-medium"
+                      >
+                        Descrição *
+                      </Label>
                       <Textarea
                         id="description"
                         name="description"
@@ -4477,7 +5234,9 @@ const AdminContent = () => {
                     </div>
 
                     <div className="space-y-2">
-                      <Label className="text-sm font-medium">Imagem Principal do Produto *</Label>
+                      <Label className="text-sm font-medium">
+                        Imagem Principal do Produto *
+                      </Label>
                       {!productImage ? (
                         <div className="flex-1">
                           <label className="flex flex-col items-center justify-center w-full h-40 sm:h-48 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-accent transition-colors bg-muted/30">
@@ -4536,7 +5295,9 @@ const AdminContent = () => {
                                   className="w-full shadow-lg"
                                   onClick={(e) => {
                                     e.preventDefault();
-                                    const input = document.getElementById('replace-image-input') as HTMLInputElement;
+                                    const input = document.getElementById(
+                                      "replace-image-input"
+                                    ) as HTMLInputElement;
                                     input?.click();
                                   }}
                                 >
@@ -4547,15 +5308,19 @@ const AdminContent = () => {
                             </div>
                           </div>
                           <p className="text-xs text-muted-foreground mt-2 text-center">
-                            Imagem selecionada. Clique em "Trocar imagem" para substituir.
+                            Imagem selecionada. Clique em "Trocar imagem" para
+                            substituir.
                           </p>
                         </div>
                       )}
                     </div>
 
-
                     <div className="flex flex-col sm:flex-row gap-3 pt-2">
-                      <Button type="submit" size="lg" className="w-full sm:w-auto">
+                      <Button
+                        type="submit"
+                        size="lg"
+                        className="w-full sm:w-auto"
+                      >
                         <Plus className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
                         Cadastrar Produto
                       </Button>
@@ -4589,7 +5354,9 @@ const AdminContent = () => {
       >
         <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] sm:max-h-[80vh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader className="pb-4">
-            <DialogTitle className="text-lg sm:text-xl">Detalhes do Pedido #{selectedOrder?.slice(-8)}</DialogTitle>
+            <DialogTitle className="text-lg sm:text-xl">
+              Detalhes do Pedido #{selectedOrder?.slice(-8)}
+            </DialogTitle>
             <DialogDescription className="text-xs sm:text-sm">
               Confira os produtos do seu pedido
             </DialogDescription>
@@ -4625,7 +5392,9 @@ const AdminContent = () => {
                       </p>
                       <p className="font-semibold text-sm sm:text-base">
                         {order.createdAt
-                          ? new Date(order.createdAt).toLocaleDateString("pt-BR")
+                          ? new Date(order.createdAt).toLocaleDateString(
+                              "pt-BR"
+                            )
                           : order.date || "Data não disponível"}
                       </p>
                     </div>
@@ -4663,22 +5432,31 @@ const AdminContent = () => {
                             cancelado: [],
                           };
                           const list = transitions[order.status] || [];
-                          
+
                           // Obter clientConfirmed do pedido (pode estar em order.raw ou currentOrder)
                           const orderRaw = (order as any).raw || currentOrder;
-                          const clientConfirmed = orderRaw?.clientConfirmed || (order as any).clientConfirmed || false;
-                          
+                          const clientConfirmed =
+                            orderRaw?.clientConfirmed ||
+                            (order as any).clientConfirmed ||
+                            false;
+
                           return list.map((t) => {
                             // Se for "entregue", verificar se o cliente confirmou
                             const isDeliveredAction = t.value === "entregue";
-                            const canMarkAsDelivered = !isDeliveredAction || clientConfirmed;
-                            
+                            const canMarkAsDelivered =
+                              !isDeliveredAction || clientConfirmed;
+
                             return (
-                              <div key={t.value} className="flex flex-col gap-1">
+                              <div
+                                key={t.value}
+                                className="flex flex-col gap-1"
+                              >
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  disabled={isUpdatingStatus || !canMarkAsDelivered}
+                                  disabled={
+                                    isUpdatingStatus || !canMarkAsDelivered
+                                  }
                                   onClick={() => {
                                     if (t.value === "cancelado") {
                                       setConfirmDialog({
@@ -4687,7 +5465,10 @@ const AdminContent = () => {
                                         id: order.id,
                                       });
                                     } else {
-                                      handleChangeOrderStatus(order.id, t.value);
+                                      handleChangeOrderStatus(
+                                        order.id,
+                                        t.value
+                                      );
                                     }
                                   }}
                                   className="text-xs sm:text-sm"
@@ -4705,7 +5486,10 @@ const AdminContent = () => {
                                   </p>
                                 )}
                                 {isDeliveredAction && clientConfirmed && (
-                                  <Badge variant="secondary" className="text-[10px] w-fit mx-auto">
+                                  <Badge
+                                    variant="secondary"
+                                    className="text-[10px] w-fit mx-auto"
+                                  >
                                     Cliente confirmou
                                   </Badge>
                                 )}
@@ -4831,7 +5615,9 @@ const AdminContent = () => {
                   <Separator />
 
                   <div className="flex justify-between items-center pt-2">
-                    <span className="text-base sm:text-lg font-semibold">Total</span>
+                    <span className="text-base sm:text-lg font-semibold">
+                      Total
+                    </span>
                     <span className="text-xl sm:text-2xl font-bold text-accent">
                       {order.total.toFixed(2)} MZN
                     </span>
@@ -4865,8 +5651,10 @@ const AdminContent = () => {
             <DialogDescription className="text-xs sm:text-sm">
               {confirmDialog.action === "removeCustomer" ? (
                 <>
-                  Tem certeza que deseja desativar o cliente "{confirmDialog.name}
-                  "? O cliente não poderá mais fazer login, mas seus dados serão mantidos.
+                  Tem certeza que deseja desativar o cliente "
+                  {confirmDialog.name}
+                  "? O cliente não poderá mais fazer login, mas seus dados serão
+                  mantidos.
                 </>
               ) : confirmDialog.action === "deleteCoupon" ? (
                 <>
@@ -4875,12 +5663,13 @@ const AdminContent = () => {
                 </>
               ) : confirmDialog.action === "deleteProduct" ? (
                 <>
-                  Tem certeza que deseja excluir o produto "{confirmDialog.name}"?
-                  Esta ação não pode ser desfeita.
+                  Tem certeza que deseja excluir o produto "{confirmDialog.name}
+                  "? Esta ação não pode ser desfeita.
                 </>
               ) : confirmDialog.action === "deleteReview" ? (
                 <>
-                  Tem certeza que deseja excluir o comentário de "{confirmDialog.name}"?
+                  Tem certeza que deseja excluir o comentário de "
+                  {confirmDialog.name}"?
                   {confirmDialog.reviewText && (
                     <div className="mt-2 p-2 bg-muted rounded text-xs italic">
                       "{confirmDialog.reviewText}"
@@ -4892,15 +5681,18 @@ const AdminContent = () => {
                 </>
               ) : confirmDialog.action === "deleteVariant" ? (
                 <>
-                  Tem certeza que deseja excluir a variante "{confirmDialog.name}" (SKU: {confirmDialog.variantSku})?
+                  Tem certeza que deseja excluir a variante "
+                  {confirmDialog.name}" (SKU: {confirmDialog.variantSku})?
                   <div className="mt-2 text-destructive font-medium">
-                    A imagem da variante também será apagada. Esta ação não pode ser desfeita.
+                    A imagem da variante também será apagada. Esta ação não pode
+                    ser desfeita.
                   </div>
                 </>
               ) : (
                 <>
-                  Tem certeza que deseja cancelar o pedido #{confirmDialog.id?.slice(-8)}?
-                  Esta ação não pode ser desfeita.
+                  Tem certeza que deseja cancelar o pedido #
+                  {confirmDialog.id?.slice(-8)}? Esta ação não pode ser
+                  desfeita.
                 </>
               )}
             </DialogDescription>
@@ -4939,16 +5731,23 @@ const AdminContent = () => {
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="max-w-[95vw] sm:max-w-4xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader className="pb-4">
-            <DialogTitle className="text-lg sm:text-xl">Editar Produto</DialogTitle>
+            <DialogTitle className="text-lg sm:text-xl">
+              Editar Produto
+            </DialogTitle>
             <DialogDescription className="text-xs sm:text-sm">
               Atualize as informações do produto e suas variantes
             </DialogDescription>
           </DialogHeader>
           {editingProduct && (
-            <form onSubmit={handleUpdateProduct} className="space-y-4 sm:space-y-6">
+            <form
+              onSubmit={handleUpdateProduct}
+              className="space-y-4 sm:space-y-6"
+            >
               <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="edit-name" className="text-sm">Nome do Produto *</Label>
+                  <Label htmlFor="edit-name" className="text-sm">
+                    Nome do Produto *
+                  </Label>
                   <Input
                     id="edit-name"
                     name="name"
@@ -4958,7 +5757,9 @@ const AdminContent = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="edit-price" className="text-sm">Preço (MZN) *</Label>
+                  <Label htmlFor="edit-price" className="text-sm">
+                    Preço (MZN) *
+                  </Label>
                   <Input
                     id="edit-price"
                     name="price"
@@ -4970,7 +5771,9 @@ const AdminContent = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="edit-priceDiscount" className="text-sm">Preço com Desconto (MZN)</Label>
+                  <Label htmlFor="edit-priceDiscount" className="text-sm">
+                    Preço com Desconto (MZN)
+                  </Label>
                   <Input
                     id="edit-priceDiscount"
                     name="priceDiscount"
@@ -4986,31 +5789,38 @@ const AdminContent = () => {
                   </p>
                 </div>
                 {/* Mostrar campo de estoque apenas se o produto não tiver variantes */}
-                {(!editingProduct.variants || editingProduct.variants.length === 0) &&
-                 (!editingProduct.variations || editingProduct.variations.length === 0) &&
-                 (!editingProduct.colors || editingProduct.colors.length === 0) && (
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-stock" className="text-sm">Estoque *</Label>
-                    <Input
-                      id="edit-stock"
-                      name="stock"
-                      type="number"
-                      min="0"
-                      step="1"
-                      defaultValue={editingProduct.stock || 0}
-                      required
-                      className="text-sm"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Estoque para produtos sem variantes
-                    </p>
-                  </div>
-                )}
+                {(!editingProduct.variants ||
+                  editingProduct.variants.length === 0) &&
+                  (!editingProduct.variations ||
+                    editingProduct.variations.length === 0) &&
+                  (!editingProduct.colors ||
+                    editingProduct.colors.length === 0) && (
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-stock" className="text-sm">
+                        Estoque *
+                      </Label>
+                      <Input
+                        id="edit-stock"
+                        name="stock"
+                        type="number"
+                        min="0"
+                        step="1"
+                        defaultValue={editingProduct.stock || 0}
+                        required
+                        className="text-sm"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Estoque para produtos sem variantes
+                      </p>
+                    </div>
+                  )}
               </div>
 
               <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="edit-category" className="text-sm">Categoria *</Label>
+                  <Label htmlFor="edit-category" className="text-sm">
+                    Categoria *
+                  </Label>
                   <Select
                     name="category"
                     defaultValue={editingProduct.category as string}
@@ -5034,7 +5844,9 @@ const AdminContent = () => {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="edit-gender" className="text-sm">Gênero *</Label>
+                  <Label htmlFor="edit-gender" className="text-sm">
+                    Gênero *
+                  </Label>
                   <Select
                     name="gender"
                     defaultValue={editingProduct.gender as string}
@@ -5109,7 +5921,9 @@ const AdminContent = () => {
                             className="w-full shadow-lg"
                             onClick={(e) => {
                               e.preventDefault();
-                              const input = document.getElementById('replace-edit-image-input') as HTMLInputElement;
+                              const input = document.getElementById(
+                                "replace-edit-image-input"
+                              ) as HTMLInputElement;
                               input?.click();
                             }}
                           >
@@ -5120,7 +5934,8 @@ const AdminContent = () => {
                       </div>
                     </div>
                     <p className="text-xs text-muted-foreground mt-2 text-center">
-                      Imagem selecionada. Clique em "Trocar imagem" para substituir.
+                      Imagem selecionada. Clique em "Trocar imagem" para
+                      substituir.
                     </p>
                   </div>
                 )}
@@ -5251,40 +6066,51 @@ const AdminContent = () => {
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        
-                        const productId = activeTab === "variants" 
-                          ? selectedProductForVariant 
-                          : (editingProduct?._id || (editingProduct as { id?: string })?.id);
-                        
+
+                        const productId =
+                          activeTab === "variants"
+                            ? selectedProductForVariant
+                            : editingProduct?._id ||
+                              (editingProduct as { id?: string })?.id;
+
                         if (!productId) {
                           toast({
                             title: "Selecione um produto",
-                            description: "Selecione um produto antes de gerar o SKU.",
+                            description:
+                              "Selecione um produto antes de gerar o SKU.",
                             variant: "destructive",
                           });
                           return;
                         }
-                        
+
                         if (!variantForm.size) {
                           toast({
                             title: "Preencha o tamanho",
-                            description: "Preencha o tamanho antes de gerar o SKU.",
+                            description:
+                              "Preencha o tamanho antes de gerar o SKU.",
                             variant: "destructive",
                           });
                           return;
                         }
-                        
-                        const product = products.find(p => p._id === productId || p.id === productId);
+
+                        const product = products.find(
+                          (p) => p._id === productId || p.id === productId
+                        );
                         if (!product) {
                           toast({
                             title: "Produto não encontrado",
-                            description: "Não foi possível encontrar o produto selecionado.",
+                            description:
+                              "Não foi possível encontrar o produto selecionado.",
                             variant: "destructive",
                           });
                           return;
                         }
-                        
-                        const autoSKU = generateSKU(product.name, variantForm.color, variantForm.size);
+
+                        const autoSKU = generateSKU(
+                          product.name,
+                          variantForm.color,
+                          variantForm.size
+                        );
                         if (autoSKU) {
                           skuManuallyEdited.current = false; // Resetar flag ao gerar automaticamente
                           setVariantForm((prev) => ({
@@ -5298,7 +6124,8 @@ const AdminContent = () => {
                         } else {
                           toast({
                             title: "Erro ao gerar SKU",
-                            description: "Não foi possível gerar o SKU. Verifique se o produto e tamanho estão preenchidos.",
+                            description:
+                              "Não foi possível gerar o SKU. Verifique se o produto e tamanho estão preenchidos.",
                             variant: "destructive",
                           });
                         }
@@ -5311,7 +6138,9 @@ const AdminContent = () => {
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {!isEditVariantMode ? "SKU gerado automaticamente. Você pode editar se necessário." : "Edite o SKU se necessário."}
+                  {!isEditVariantMode
+                    ? "SKU gerado automaticamente. Você pode editar se necessário."
+                    : "Edite o SKU se necessário."}
                 </p>
               </div>
             </div>
@@ -5397,7 +6226,9 @@ const AdminContent = () => {
                           className="w-full shadow-lg"
                           onClick={(e) => {
                             e.preventDefault();
-                            const input = document.getElementById('replace-variant-image-input') as HTMLInputElement;
+                            const input = document.getElementById(
+                              "replace-variant-image-input"
+                            ) as HTMLInputElement;
                             input?.click();
                           }}
                         >
@@ -5408,7 +6239,8 @@ const AdminContent = () => {
                     </div>
                   </div>
                   <p className="text-xs text-muted-foreground mt-2 text-center">
-                    Imagem selecionada. Clique em "Trocar imagem" para substituir.
+                    Imagem selecionada. Clique em "Trocar imagem" para
+                    substituir.
                   </p>
                 </div>
               )}
@@ -5418,7 +6250,11 @@ const AdminContent = () => {
               <Button
                 type="button"
                 variant="outline"
-                onClick={isEditVariantMode ? handleCancelEditVariant : resetVariantFormState}
+                onClick={
+                  isEditVariantMode
+                    ? handleCancelEditVariant
+                    : resetVariantFormState
+                }
                 disabled={variantLoading}
                 className="w-full sm:w-auto text-sm"
               >
@@ -5615,9 +6451,14 @@ const AdminContent = () => {
                   min="0"
                   value={couponForm.discount}
                   onChange={(e) =>
-                    setCouponForm((prev) => ({ ...prev, discount: e.target.value }))
+                    setCouponForm((prev) => ({
+                      ...prev,
+                      discount: e.target.value,
+                    }))
                   }
-                  placeholder={couponForm.type === "percentage" ? "Ex: 20" : "Ex: 50"}
+                  placeholder={
+                    couponForm.type === "percentage" ? "Ex: 20" : "Ex: 50"
+                  }
                   className="text-sm"
                   required
                 />
@@ -5638,7 +6479,10 @@ const AdminContent = () => {
                   min={getMinDate()}
                   value={couponForm.expiresAt}
                   onChange={(e) =>
-                    setCouponForm((prev) => ({ ...prev, expiresAt: e.target.value }))
+                    setCouponForm((prev) => ({
+                      ...prev,
+                      expiresAt: e.target.value,
+                    }))
                   }
                   className="text-sm"
                   required
@@ -5678,7 +6522,10 @@ const AdminContent = () => {
                   min="1"
                   value={couponForm.usageLimit}
                   onChange={(e) =>
-                    setCouponForm((prev) => ({ ...prev, usageLimit: e.target.value }))
+                    setCouponForm((prev) => ({
+                      ...prev,
+                      usageLimit: e.target.value,
+                    }))
                   }
                   placeholder="1"
                   className="text-sm"
@@ -5708,7 +6555,8 @@ const AdminContent = () => {
                   className="text-sm"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Limite máximo de desconto em MZN (apenas para cupons percentuais)
+                  Limite máximo de desconto em MZN (apenas para cupons
+                  percentuais)
                 </p>
               </div>
             )}
@@ -5753,15 +6601,20 @@ const AdminContent = () => {
       </Dialog>
 
       {/* Modal de Seleção de Produto para Filtro */}
-      <Dialog open={isProductSelectModalOpen} onOpenChange={setIsProductSelectModalOpen}>
+      <Dialog
+        open={isProductSelectModalOpen}
+        onOpenChange={setIsProductSelectModalOpen}
+      >
         <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col p-0 gap-0">
           <DialogHeader className="px-6 pt-6 pb-4 border-b">
-            <DialogTitle className="text-xl font-semibold">Selecionar Produto</DialogTitle>
+            <DialogTitle className="text-xl font-semibold">
+              Selecionar Produto
+            </DialogTitle>
             <DialogDescription className="text-sm mt-1">
               Pesquise e selecione um produto para filtrar as variantes
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="flex-1 overflow-hidden flex flex-col gap-4 px-6 pt-4">
             {/* Input de Pesquisa */}
             <div className="relative">
@@ -5781,13 +6634,20 @@ const AdminContent = () => {
             <div className="flex-1 overflow-y-auto rounded-lg border bg-card">
               {(() => {
                 // Filtrar produtos por termo de busca
-                const filteredProducts = products.filter((product) =>
-                  product.name.toLowerCase().includes(productSearchTerm.toLowerCase()) ||
-                  product.category?.toLowerCase().includes(productSearchTerm.toLowerCase())
+                const filteredProducts = products.filter(
+                  (product) =>
+                    product.name
+                      .toLowerCase()
+                      .includes(productSearchTerm.toLowerCase()) ||
+                    product.category
+                      ?.toLowerCase()
+                      .includes(productSearchTerm.toLowerCase())
                 );
 
                 // Calcular paginação
-                const totalPages = Math.ceil(filteredProducts.length / productSelectItemsPerPage);
+                const totalPages = Math.ceil(
+                  filteredProducts.length / productSelectItemsPerPage
+                );
                 const paginatedProducts = filteredProducts.slice(
                   (productSelectPage - 1) * productSelectItemsPerPage,
                   productSelectPage * productSelectItemsPerPage
@@ -5798,7 +6658,9 @@ const AdminContent = () => {
                     {paginatedProducts.length === 0 && productSearchTerm ? (
                       <div className="p-12 text-center">
                         <Package className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
-                        <p className="text-muted-foreground font-medium">Nenhum produto encontrado</p>
+                        <p className="text-muted-foreground font-medium">
+                          Nenhum produto encontrado
+                        </p>
                         <p className="text-sm text-muted-foreground mt-1">
                           Tente pesquisar com outros termos
                         </p>
@@ -5816,21 +6678,25 @@ const AdminContent = () => {
                             setProductSelectPage(1);
                           }}
                           className={`w-full p-4 text-left hover:bg-accent/50 transition-all duration-200 ${
-                            variantProductFilter === "all" 
-                              ? "bg-primary/10 border-l-4 border-l-primary" 
+                            variantProductFilter === "all"
+                              ? "bg-primary/10 border-l-4 border-l-primary"
                               : "hover:border-l-4 hover:border-l-primary/30"
                           }`}
                         >
                           <div className="flex items-center gap-4">
-                            <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
-                              variantProductFilter === "all" 
-                                ? "bg-primary text-primary-foreground" 
-                                : "bg-muted text-muted-foreground"
-                            }`}>
+                            <div
+                              className={`w-12 h-12 rounded-lg flex items-center justify-center ${
+                                variantProductFilter === "all"
+                                  ? "bg-primary text-primary-foreground"
+                                  : "bg-muted text-muted-foreground"
+                              }`}
+                            >
                               <Package className="h-6 w-6" />
                             </div>
                             <div className="flex-1">
-                              <div className="font-semibold text-base">Todos os produtos</div>
+                              <div className="font-semibold text-base">
+                                Todos os produtos
+                              </div>
                               <div className="text-sm text-muted-foreground mt-0.5">
                                 Mostrar todas as variantes cadastradas
                               </div>
@@ -5856,8 +6722,8 @@ const AdminContent = () => {
                               setProductSelectPage(1);
                             }}
                             className={`w-full p-4 text-left hover:bg-accent/50 transition-all duration-200 ${
-                              variantProductFilter === product._id 
-                                ? "bg-primary/10 border-l-4 border-l-primary" 
+                              variantProductFilter === product._id
+                                ? "bg-primary/10 border-l-4 border-l-primary"
                                 : "hover:border-l-4 hover:border-l-primary/30"
                             }`}
                           >
@@ -5869,7 +6735,9 @@ const AdminContent = () => {
                                     alt={product.name}
                                     className="w-full h-full object-cover"
                                     onError={(e) => {
-                                      (e.target as HTMLImageElement).style.display = "none";
+                                      (
+                                        e.target as HTMLImageElement
+                                      ).style.display = "none";
                                     }}
                                   />
                                 </div>
@@ -5879,14 +6747,21 @@ const AdminContent = () => {
                                 </div>
                               )}
                               <div className="flex-1 min-w-0">
-                                <div className="font-semibold text-base truncate">{product.name}</div>
+                                <div className="font-semibold text-base truncate">
+                                  {product.name}
+                                </div>
                                 <div className="flex items-center gap-2 mt-1">
                                   {product.category ? (
-                                    <Badge variant="secondary" className="text-xs">
+                                    <Badge
+                                      variant="secondary"
+                                      className="text-xs"
+                                    >
                                       {product.category}
                                     </Badge>
                                   ) : (
-                                    <span className="text-xs text-muted-foreground">Sem categoria</span>
+                                    <span className="text-xs text-muted-foreground">
+                                      Sem categoria
+                                    </span>
                                   )}
                                 </div>
                               </div>
@@ -5903,60 +6778,89 @@ const AdminContent = () => {
 
                     {/* Paginação */}
                     {(() => {
-                      const filteredProducts = products.filter((product) =>
-                        product.name.toLowerCase().includes(productSearchTerm.toLowerCase()) ||
-                        product.category?.toLowerCase().includes(productSearchTerm.toLowerCase())
+                      const filteredProducts = products.filter(
+                        (product) =>
+                          product.name
+                            .toLowerCase()
+                            .includes(productSearchTerm.toLowerCase()) ||
+                          product.category
+                            ?.toLowerCase()
+                            .includes(productSearchTerm.toLowerCase())
                       );
-                      const totalPages = Math.ceil(filteredProducts.length / productSelectItemsPerPage);
-                      
+                      const totalPages = Math.ceil(
+                        filteredProducts.length / productSelectItemsPerPage
+                      );
+
                       if (totalPages <= 1) return null;
-                      
+
                       return (
                         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 pb-2 border-t">
                           <div className="text-sm text-muted-foreground">
-                            <span className="font-medium">{filteredProducts.length}</span> produto(s) encontrado(s) • 
-                            Página <span className="font-medium">{productSelectPage}</span> de <span className="font-medium">{totalPages}</span>
+                            <span className="font-medium">
+                              {filteredProducts.length}
+                            </span>{" "}
+                            produto(s) encontrado(s) • Página{" "}
+                            <span className="font-medium">
+                              {productSelectPage}
+                            </span>{" "}
+                            de <span className="font-medium">{totalPages}</span>
                           </div>
                           <div className="flex items-center gap-2">
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => setProductSelectPage((p) => Math.max(1, p - 1))}
+                              onClick={() =>
+                                setProductSelectPage((p) => Math.max(1, p - 1))
+                              }
                               disabled={productSelectPage === 1}
                               className="h-9"
                             >
                               Anterior
                             </Button>
                             <div className="flex gap-1">
-                              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                                let pageNum;
-                                if (totalPages <= 5) {
-                                  pageNum = i + 1;
-                                } else if (productSelectPage <= 3) {
-                                  pageNum = i + 1;
-                                } else if (productSelectPage >= totalPages - 2) {
-                                  pageNum = totalPages - 4 + i;
-                                } else {
-                                  pageNum = productSelectPage - 2 + i;
+                              {Array.from(
+                                { length: Math.min(5, totalPages) },
+                                (_, i) => {
+                                  let pageNum;
+                                  if (totalPages <= 5) {
+                                    pageNum = i + 1;
+                                  } else if (productSelectPage <= 3) {
+                                    pageNum = i + 1;
+                                  } else if (
+                                    productSelectPage >=
+                                    totalPages - 2
+                                  ) {
+                                    pageNum = totalPages - 4 + i;
+                                  } else {
+                                    pageNum = productSelectPage - 2 + i;
+                                  }
+                                  return (
+                                    <Button
+                                      key={pageNum}
+                                      variant={
+                                        productSelectPage === pageNum
+                                          ? "default"
+                                          : "outline"
+                                      }
+                                      size="sm"
+                                      onClick={() =>
+                                        setProductSelectPage(pageNum)
+                                      }
+                                      className="w-9 h-9 p-0"
+                                    >
+                                      {pageNum}
+                                    </Button>
+                                  );
                                 }
-                                return (
-                                  <Button
-                                    key={pageNum}
-                                    variant={productSelectPage === pageNum ? "default" : "outline"}
-                                    size="sm"
-                                    onClick={() => setProductSelectPage(pageNum)}
-                                    className="w-9 h-9 p-0"
-                                  >
-                                    {pageNum}
-                                  </Button>
-                                );
-                              })}
+                              )}
                             </div>
                             <Button
                               variant="outline"
                               size="sm"
                               onClick={() =>
-                                setProductSelectPage((p) => Math.min(totalPages, p + 1))
+                                setProductSelectPage((p) =>
+                                  Math.min(totalPages, p + 1)
+                                )
                               }
                               disabled={productSelectPage === totalPages}
                               className="h-9"
@@ -5995,11 +6899,10 @@ const AdminContent = () => {
 // Wrapper que faz as verificações de segurança ANTES de renderizar o conteúdo
 // Isso garante que todos os hooks sejam sempre executados na mesma ordem
 const Admin = () => {
-  const {
-    user: currentUser,
-    isAuthenticated,
-  } = useAppSelector((state) => state.user);
-  
+  const { user: currentUser, isAuthenticated } = useAppSelector(
+    (state) => state.user
+  );
+
   const isManager = currentUser?.role === "manager";
   const isAdmin = currentUser?.role === "admin";
 
@@ -6021,4 +6924,3 @@ const Admin = () => {
 };
 
 export default Admin;
-
