@@ -44,7 +44,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
 
   // Verificar se o produto está nos favoritos
   const productId = product.id ?? product._id;
-  const isFavorite = useAppSelector((state) => 
+  const isFavorite = useAppSelector((state) =>
     productId ? selectIsFavorite(productId)(state) : false
   );
 
@@ -116,12 +116,13 @@ export const ProductCard = ({ product }: ProductCardProps) => {
     }
     // Verificar se o clique veio de um botão, link ou elemento interativo
     const target = e.target as HTMLElement;
-    const isInteractiveElement = target.closest('button') || 
-                                 target.closest('[role="button"]') || 
-                                 target.closest('a') ||
-                                 target.closest('[data-radix-portal]') ||
-                                 target.closest('[data-state]');
-    
+    const isInteractiveElement =
+      target.closest("button") ||
+      target.closest('[role="button"]') ||
+      target.closest("a") ||
+      target.closest("[data-radix-portal]") ||
+      target.closest("[data-state]");
+
     if (isInteractiveElement) {
       e.preventDefault();
       e.stopPropagation();
@@ -134,7 +135,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
   const availableColors = useMemo(() => {
     const colorsSet = new Set<string>();
     const variants = product.variants || product.variations || [];
-    
+
     if (selectedSize) {
       // Se há tamanho selecionado, mostrar apenas cores que têm esse tamanho E têm estoque
       variants.forEach((v) => {
@@ -142,7 +143,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
           colorsSet.add(v.color);
         }
       });
-      
+
       // Verificar também em product.colors
       if (product.colors) {
         product.colors.forEach((c) => {
@@ -154,7 +155,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
     } else {
       // Se não há tamanho selecionado, mostrar apenas cores que têm pelo menos uma variante com estoque
       const colorStockMap = new Map<string, number>();
-      
+
       variants.forEach((v) => {
         if (v.color) {
           const currentStock = colorStockMap.get(v.color) || 0;
@@ -165,14 +166,14 @@ export const ProductCard = ({ product }: ProductCardProps) => {
           }
         }
       });
-      
+
       // Adicionar apenas cores com estoque > 0
       colorStockMap.forEach((stock, color) => {
         if (stock > 0) {
           colorsSet.add(color);
         }
       });
-      
+
       // Também verificar em product.colors (assumir que têm estoque se não especificado)
       if (product.colors) {
         product.colors.forEach((c) => {
@@ -180,7 +181,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
         });
       }
     }
-    
+
     return Array.from(colorsSet);
   }, [product, selectedSize]);
 
@@ -210,8 +211,12 @@ export const ProductCard = ({ product }: ProductCardProps) => {
   // Verificar se o produto tem variantes (cores ou tamanhos)
   const hasVariants = useMemo(() => {
     const variants = product.variants || product.variations || [];
-    const hasColors = variants.some((v) => v.color) || (product.colors && product.colors.length > 0);
-    const hasSizes = variants.some((v) => v.size) || (product.sizes && product.sizes.length > 0);
+    const hasColors =
+      variants.some((v) => v.color) ||
+      (product.colors && product.colors.length > 0);
+    const hasSizes =
+      variants.some((v) => v.size) ||
+      (product.sizes && product.sizes.length > 0);
     return hasColors || hasSizes;
   }, [product]);
 
@@ -219,7 +224,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
   const availableSizes = useMemo(() => {
     const sizesSet = new Set<string>();
     const variants = product.variants || product.variations || [];
-    
+
     if (selectedColor) {
       // Se há cor selecionada, mostrar apenas tamanhos que têm essa cor E têm estoque
       variants.forEach((v) => {
@@ -227,7 +232,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
           sizesSet.add(v.size);
         }
       });
-      
+
       // Verificar também em product.colors
       if (product.colors) {
         product.colors.forEach((c) => {
@@ -239,7 +244,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
     } else {
       // Se não há cor selecionada, mostrar apenas tamanhos que têm pelo menos uma variante com estoque
       const sizeStockMap = new Map<string, number>();
-      
+
       variants.forEach((v) => {
         if (v.size) {
           const currentStock = sizeStockMap.get(v.size) || 0;
@@ -250,14 +255,14 @@ export const ProductCard = ({ product }: ProductCardProps) => {
           }
         }
       });
-      
+
       // Adicionar apenas tamanhos com estoque > 0
       sizeStockMap.forEach((stock, size) => {
         if (stock > 0) {
           sizesSet.add(size);
         }
       });
-      
+
       // Também verificar em product.colors e product.sizes (assumir que têm estoque se não especificado)
       if (product.colors) {
         product.colors.forEach((c) => {
@@ -276,20 +281,20 @@ export const ProductCard = ({ product }: ProductCardProps) => {
   useEffect(() => {
     if (selectedColor && selectedSize) {
       let sizeAvailableForColor = false;
-      
+
       // Verificar em variants/variations
       const variants = product.variants || product.variations || [];
       sizeAvailableForColor = variants.some(
         (v) => v.color === selectedColor && v.size === selectedSize
       );
-      
+
       // Se não encontrou, verificar em product.colors
       if (!sizeAvailableForColor && product.colors) {
         sizeAvailableForColor = product.colors.some(
           (c) => c.color === selectedColor && c.size === selectedSize
         );
       }
-      
+
       if (!sizeAvailableForColor) {
         setSelectedSize("");
       }
@@ -299,13 +304,13 @@ export const ProductCard = ({ product }: ProductCardProps) => {
   // Obter preço e imagem da variante selecionada
   const selectedVariant = useMemo(() => {
     if (!selectedColor || !selectedSize) return null;
-    
+
     // Primeiro tentar em variants/variations
     const variants = product.variants || product.variations || [];
     let variant = variants.find(
       (v) => v.color === selectedColor && v.size === selectedSize
     );
-    
+
     // Se não encontrou, tentar em product.colors
     if (!variant && product.colors) {
       const colorVariant = product.colors.find(
@@ -321,7 +326,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
         } as any;
       }
     }
-    
+
     return variant;
   }, [selectedColor, selectedSize, product]);
 
@@ -356,15 +361,15 @@ export const ProductCard = ({ product }: ProductCardProps) => {
         });
         return;
       }
-      
+
       const productId = product.id || product._id;
       if (!productId) return;
-      
+
       addItem({
         id: productId,
         name: product.name,
         price: product.priceDiscount || product.price,
-        image: product.imageCover 
+        image: product.imageCover
           ? `${productionUrl}/img/products/${product.imageCover}`
           : "",
       });
@@ -381,7 +386,8 @@ export const ProductCard = ({ product }: ProductCardProps) => {
       if (availableColors.length > 0 && !selectedColor) {
         toast({
           title: "Selecione uma cor",
-          description: "Por favor, escolha uma cor antes de adicionar ao carrinho.",
+          description:
+            "Por favor, escolha uma cor antes de adicionar ao carrinho.",
           variant: "destructive",
         });
         return;
@@ -391,7 +397,8 @@ export const ProductCard = ({ product }: ProductCardProps) => {
       if (selectedColor && availableSizes.length > 0 && !selectedSize) {
         toast({
           title: "Selecione um tamanho",
-          description: "Por favor, escolha um tamanho antes de adicionar ao carrinho.",
+          description:
+            "Por favor, escolha um tamanho antes de adicionar ao carrinho.",
           variant: "destructive",
         });
         return;
@@ -400,7 +407,8 @@ export const ProductCard = ({ product }: ProductCardProps) => {
       if (!selectedColor && allAvailableSizes.length > 0 && !selectedSize) {
         toast({
           title: "Selecione um tamanho",
-          description: "Por favor, escolha um tamanho antes de adicionar ao carrinho.",
+          description:
+            "Por favor, escolha um tamanho antes de adicionar ao carrinho.",
           variant: "destructive",
         });
         return;
@@ -430,11 +438,11 @@ export const ProductCard = ({ product }: ProductCardProps) => {
         // Se há seleção mas não encontrou variante, verificar estoque em todas as variantes
         const variants = product.variants || product.variations || [];
         const matchingVariant = variants.find(
-          (v) => 
+          (v) =>
             (!selectedColor || v.color === selectedColor) &&
             (!selectedSize || v.size === selectedSize)
         );
-        
+
         if (matchingVariant && (matchingVariant.stock ?? 0) <= 0) {
           toast({
             title: "Produto fora de estoque",
@@ -459,7 +467,8 @@ export const ProductCard = ({ product }: ProductCardProps) => {
     }
 
     // Usar preço e imagem da variante se disponível, senão usar do produto
-    const price = selectedVariant?.price || product.priceDiscount || product.price;
+    const price =
+      selectedVariant?.price || product.priceDiscount || product.price;
     let image = "";
     if (selectedVariant?.image) {
       // Se tem variante com imagem, construir URL completa
@@ -469,17 +478,20 @@ export const ProductCard = ({ product }: ProductCardProps) => {
       image = `${productionUrl}/img/products/${product.imageCover}`;
     }
     const productId = product.id || product._id;
-    
+
     if (!productId) return;
 
-    addItem({
-      id: productId,
-      name: product.name,
-      price: price,
-      image: image,
-      color: selectedColor || undefined,
-      size: selectedSize || undefined,
-    }, quantity);
+    addItem(
+      {
+        id: productId,
+        name: product.name,
+        price: price,
+        image: image,
+        color: selectedColor || undefined,
+        size: selectedSize || undefined,
+      },
+      quantity
+    );
 
     toast({
       title: "Adicionado ao carrinho!",
@@ -501,7 +513,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
   }, [product.colors]);
 
   return (
-    <div 
+    <div
       className="group relative bg-card rounded-lg overflow-hidden shadow-card hover:shadow-card-hover transition-all duration-300 cursor-pointer"
       onClick={handleCardClick}
       onMouseDown={(e) => {
@@ -555,7 +567,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
               (loading || isLoading) && "animate-pulse",
               isFavorite && "fill-current"
             )}
-            style={isFavorite ? { color: '#0DA2E7' } : undefined}
+            style={isFavorite ? { color: "#0DA2E7" } : undefined}
           />
         </button>
 
@@ -624,8 +636,8 @@ export const ProductCard = ({ product }: ProductCardProps) => {
       </div>
 
       {/* Modal de Seleção de Variantes */}
-      <Dialog 
-        open={isVariantDialogOpen} 
+      <Dialog
+        open={isVariantDialogOpen}
         onOpenChange={(open) => {
           setIsVariantDialogOpen(open);
           if (!open) {
@@ -636,13 +648,13 @@ export const ProductCard = ({ product }: ProductCardProps) => {
         }}
         modal={true}
       >
-        <DialogContent 
+        <DialogContent
           className="sm:max-w-md max-h-[90vh] flex flex-col p-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
           onClick={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}
         >
           {/* Header Fixo */}
-          <DialogHeader 
+          <DialogHeader
             className="px-6 pt-6 pb-4 flex-shrink-0 border-b"
             onClick={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
@@ -660,7 +672,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
           </DialogHeader>
 
           {/* Conteúdo com Scroll */}
-          <div 
+          <div
             className="flex-1 overflow-y-auto px-6 py-4 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
             onClick={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
@@ -680,9 +692,10 @@ export const ProductCard = ({ product }: ProductCardProps) => {
                   <div className="flex flex-wrap gap-3">
                     {availableColors.map((color) => {
                       // Verificar se esta cor tem estoque disponível para o tamanho selecionado (se houver)
-                      const variants = product.variants || product.variations || [];
+                      const variants =
+                        product.variants || product.variations || [];
                       let hasStock = true;
-                      
+
                       if (selectedSize) {
                         // Se há tamanho selecionado, verificar se esta cor tem estoque para esse tamanho
                         const colorVariant = variants.find(
@@ -691,11 +704,15 @@ export const ProductCard = ({ product }: ProductCardProps) => {
                         hasStock = (colorVariant?.stock ?? 0) > 0;
                       } else {
                         // Se não há tamanho selecionado, verificar se a cor tem ALGUM estoque em qualquer variante
-                        const colorVariants = variants.filter((v) => v.color === color);
+                        const colorVariants = variants.filter(
+                          (v) => v.color === color
+                        );
                         // Verificar se existe pelo menos uma variante com estoque > 0
-                        hasStock = colorVariants.length > 0 && colorVariants.some((v) => (v.stock ?? 0) > 0);
+                        hasStock =
+                          colorVariants.length > 0 &&
+                          colorVariants.some((v) => (v.stock ?? 0) > 0);
                       }
-                      
+
                       return (
                         <button
                           key={color}
@@ -715,7 +732,8 @@ export const ProductCard = ({ product }: ProductCardProps) => {
                               // Se há tamanho selecionado, verificar se é compatível com a nova cor
                               if (selectedSize) {
                                 const isCompatible = variants.some(
-                                  (v) => v.color === color && v.size === selectedSize
+                                  (v) =>
+                                    v.color === color && v.size === selectedSize
                                 );
                                 if (!isCompatible) {
                                   setSelectedSize("");
@@ -760,10 +778,11 @@ export const ProductCard = ({ product }: ProductCardProps) => {
                   <div className="flex flex-wrap gap-2">
                     {availableSizes.map((size) => {
                       // Verificar estoque para esta combinação de cor e tamanho
-                      const variants = product.variants || product.variations || [];
+                      const variants =
+                        product.variants || product.variations || [];
                       let variantForSize;
                       let stock = 0;
-                      
+
                       if (selectedColor) {
                         // Se há cor selecionada, buscar variante com cor e tamanho
                         variantForSize = variants.find(
@@ -772,9 +791,13 @@ export const ProductCard = ({ product }: ProductCardProps) => {
                         stock = variantForSize?.stock ?? 0;
                       } else {
                         // Se não há cor selecionada, verificar se existe ALGUMA variante com estoque para este tamanho
-                        const variantsWithSize = variants.filter((v) => v.size === size);
+                        const variantsWithSize = variants.filter(
+                          (v) => v.size === size
+                        );
                         // Encontrar a primeira variante com estoque disponível
-                        variantForSize = variantsWithSize.find((v) => (v.stock ?? 0) > 0);
+                        variantForSize = variantsWithSize.find(
+                          (v) => (v.stock ?? 0) > 0
+                        );
                         // Se encontrou uma com estoque, usar seu estoque; senão, verificar se todas estão sem estoque
                         if (variantForSize) {
                           stock = variantForSize.stock ?? 0;
@@ -786,63 +809,69 @@ export const ProductCard = ({ product }: ProductCardProps) => {
                           stock = 0;
                         }
                       }
-                      
+
                       const isOutOfStock = stock <= 0;
 
-                          return (
-                            <button
-                              key={size}
-                              type="button"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                if (!isOutOfStock) {
-                                  // Se já tinha um tamanho selecionado e está selecionando o mesmo, desselecionar
-                                  if (selectedSize === size) {
-                                    setSelectedSize("");
-                                    // Se não há cor selecionada, manter cor vazia
-                                    if (!selectedColor) {
-                                      setSelectedColor("");
-                                    }
-                                  } else {
-                                    setSelectedSize(size);
-                                    // Se a cor selecionada não é compatível com este tamanho, limpar cor
-                                    const variants = product.variants || product.variations || [];
-                                    const hasColorForThisSize = variants.some(
-                                      (v) => v.size === size && v.color === selectedColor
-                                    );
-                                    if (selectedColor && !hasColorForThisSize) {
-                                      setSelectedColor("");
-                                    }
-                                  }
+                      return (
+                        <button
+                          key={size}
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (!isOutOfStock) {
+                              // Se já tinha um tamanho selecionado e está selecionando o mesmo, desselecionar
+                              if (selectedSize === size) {
+                                setSelectedSize("");
+                                // Se não há cor selecionada, manter cor vazia
+                                if (!selectedColor) {
+                                  setSelectedColor("");
                                 }
-                              }}
-                              onMouseDown={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                              }}
-                              disabled={isOutOfStock}
-                              className={cn(
-                                "px-4 py-2 rounded-md border-2 transition-all text-sm font-medium relative",
-                                isOutOfStock
-                                  ? "border-muted bg-muted text-muted-foreground cursor-not-allowed opacity-50"
-                                  : selectedSize === size
-                                  ? "border-primary bg-primary text-primary-foreground"
-                                  : "border-border hover:border-primary/50"
-                              )}
-                              title={isOutOfStock ? "Fora de estoque" : `${stock} disponível(eis)`}
-                            >
-                              {size}
-                              {isOutOfStock && (
-                                <span className="absolute -top-1 -right-1 text-[10px] bg-destructive text-destructive-foreground rounded-full w-4 h-4 flex items-center justify-center">
-                                  ×
-                                </span>
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
+                              } else {
+                                setSelectedSize(size);
+                                // Se a cor selecionada não é compatível com este tamanho, limpar cor
+                                const variants =
+                                  product.variants || product.variations || [];
+                                const hasColorForThisSize = variants.some(
+                                  (v) =>
+                                    v.size === size && v.color === selectedColor
+                                );
+                                if (selectedColor && !hasColorForThisSize) {
+                                  setSelectedColor("");
+                                }
+                              }
+                            }
+                          }}
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                          }}
+                          disabled={isOutOfStock}
+                          className={cn(
+                            "px-4 py-2 rounded-md border-2 transition-all text-sm font-medium relative",
+                            isOutOfStock
+                              ? "border-muted bg-muted text-muted-foreground cursor-not-allowed opacity-50"
+                              : selectedSize === size
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "border-border hover:border-primary/50"
+                          )}
+                          title={
+                            isOutOfStock
+                              ? "Fora de estoque"
+                              : `${stock} disponível(eis)`
+                          }
+                        >
+                          {size}
+                          {isOutOfStock && (
+                            <span className="absolute -top-1 -right-1 text-[10px] bg-destructive text-destructive-foreground rounded-full w-4 h-4 flex items-center justify-center">
+                              ×
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               )}
 
               {/* Seleção de Quantidade */}
@@ -864,7 +893,9 @@ export const ProductCard = ({ product }: ProductCardProps) => {
                           setQuantity(quantity - 1);
                         }
                       }}
-                      disabled={quantity <= 1 || (hasVariants && !selectedVariant)}
+                      disabled={
+                        quantity <= 1 || (hasVariants && !selectedVariant)
+                      }
                     >
                       <span className="text-lg">−</span>
                     </Button>
@@ -872,11 +903,17 @@ export const ProductCard = ({ product }: ProductCardProps) => {
                       id="quantity"
                       type="number"
                       min="1"
-                      max={hasVariants ? (selectedVariant?.stock ?? 999) : (product.stock ?? 999)}
+                      max={
+                        hasVariants
+                          ? selectedVariant?.stock ?? 999
+                          : product.stock ?? 999
+                      }
                       value={quantity}
                       onChange={(e) => {
                         const value = parseInt(e.target.value) || 1;
-                        const maxStock = hasVariants ? (selectedVariant?.stock ?? 999) : (product.stock ?? 999);
+                        const maxStock = hasVariants
+                          ? selectedVariant?.stock ?? 999
+                          : product.stock ?? 999;
                         if (value >= 1 && value <= maxStock) {
                           setQuantity(value);
                         }
@@ -894,14 +931,19 @@ export const ProductCard = ({ product }: ProductCardProps) => {
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        const maxStock = hasVariants ? (selectedVariant?.stock ?? 999) : (product.stock ?? 999);
+                        const maxStock = hasVariants
+                          ? selectedVariant?.stock ?? 999
+                          : product.stock ?? 999;
                         if (quantity < maxStock) {
                           setQuantity(quantity + 1);
                         }
                       }}
                       disabled={
                         (hasVariants && !selectedVariant) ||
-                        quantity >= (hasVariants ? (selectedVariant?.stock ?? 999) : (product.stock ?? 999))
+                        quantity >=
+                          (hasVariants
+                            ? selectedVariant?.stock ?? 999
+                            : product.stock ?? 999)
                       }
                     >
                       <span className="text-lg">+</span>
@@ -912,32 +954,51 @@ export const ProductCard = ({ product }: ProductCardProps) => {
                 {/* Preview do Preço e Estoque */}
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Preço:</span>
+                    <span className="text-sm text-muted-foreground">
+                      Preço:
+                    </span>
                     <span className="text-lg font-bold">
-                      {(selectedVariant?.price || product.priceDiscount || product.price).toFixed(2)} MZN
+                      {(
+                        selectedVariant?.price ||
+                        product.priceDiscount ||
+                        product.price
+                      ).toFixed(2)}{" "}
+                      MZN
                     </span>
                   </div>
                   {/* Mostrar estoque apenas quando uma variante foi selecionada OU quando o produto não tem variantes */}
                   {selectedVariant ? (
                     <div className="flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">Estoque:</span>
-                      <span className={cn(
-                        "text-sm font-medium",
-                        (selectedVariant.stock ?? 0) > 0 ? "text-green-600" : "text-destructive"
-                      )}>
-                        {(selectedVariant.stock ?? 0) > 0 
+                      <span className="text-sm text-muted-foreground">
+                        Estoque:
+                      </span>
+                      <span
+                        className={cn(
+                          "text-sm font-medium",
+                          (selectedVariant.stock ?? 0) > 0
+                            ? "text-green-600"
+                            : "text-destructive"
+                        )}
+                      >
+                        {(selectedVariant.stock ?? 0) > 0
                           ? `${selectedVariant.stock} disponível(eis)`
                           : "Fora de estoque"}
                       </span>
                     </div>
                   ) : !hasVariants && product.stock !== undefined ? (
                     <div className="flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">Estoque:</span>
-                      <span className={cn(
-                        "text-sm font-medium",
-                        (product.stock ?? 0) > 0 ? "text-green-600" : "text-destructive"
-                      )}>
-                        {(product.stock ?? 0) > 0 
+                      <span className="text-sm text-muted-foreground">
+                        Estoque:
+                      </span>
+                      <span
+                        className={cn(
+                          "text-sm font-medium",
+                          (product.stock ?? 0) > 0
+                            ? "text-green-600"
+                            : "text-destructive"
+                        )}
+                      >
+                        {(product.stock ?? 0) > 0
                           ? `${product.stock} disponível(eis)`
                           : "Fora de estoque"}
                       </span>
@@ -949,7 +1010,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
           </div>
 
           {/* Footer Fixo */}
-          <DialogFooter 
+          <DialogFooter
             className="px-6 pb-6 pt-4 flex-shrink-0 border-t"
             onClick={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
@@ -970,7 +1031,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
             >
               Cancelar
             </Button>
-            <Button 
+            <Button
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -983,14 +1044,18 @@ export const ProductCard = ({ product }: ProductCardProps) => {
               disabled={
                 (hasVariants && !selectedVariant) ||
                 (selectedVariant && (selectedVariant.stock ?? 0) <= 0) ||
-                (!hasVariants && product.stock !== undefined && (product.stock ?? 0) <= 0)
+                (!hasVariants &&
+                  product.stock !== undefined &&
+                  (product.stock ?? 0) <= 0)
               }
             >
               {hasVariants && !selectedVariant
                 ? "Selecione as opções"
                 : selectedVariant && (selectedVariant.stock ?? 0) <= 0
                 ? "Fora de Estoque"
-                : !hasVariants && product.stock !== undefined && (product.stock ?? 0) <= 0
+                : !hasVariants &&
+                  product.stock !== undefined &&
+                  (product.stock ?? 0) <= 0
                 ? "Fora de Estoque"
                 : "Adicionar ao Carrinho"}
             </Button>

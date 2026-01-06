@@ -1,5 +1,5 @@
 import { FilterSidebar, type Filters } from "@/components/FilterSidebar";
-import  Header  from "../components/Header";
+import Header from "../components/Header";
 import { ProductCard } from "@/components/ProductCard";
 import { Button } from "@/components/ui/button";
 import { SlidersHorizontal } from "lucide-react";
@@ -32,6 +32,7 @@ const Index = () => {
   );
   const { user, isAuthenticated } = useAppSelector((state) => state.user);
 
+  console.log("Your items are: ", products);
 
   const maxPrice =
     products.length > 0
@@ -74,13 +75,13 @@ const Index = () => {
   useEffect(() => {
     const prevCategories = prevCategoriesRef.current;
     const currentCategories = filters.categories;
-    
+
     // Verifica se a categoria realmente mudou (comparando arrays)
-    const categoriesChanged = 
+    const categoriesChanged =
       prevCategories.length !== currentCategories.length ||
       prevCategories.some((cat) => !currentCategories.includes(cat)) ||
       currentCategories.some((cat) => !prevCategories.includes(cat));
-    
+
     // Se a categoria mudou e há cores selecionadas, resetar cores
     if (categoriesChanged && filters.colors.length > 0) {
       setFilters((prevFilters) => ({
@@ -88,10 +89,25 @@ const Index = () => {
         colors: [],
       }));
     }
-    
+
     // Atualizar a referência para a próxima comparação
     prevCategoriesRef.current = [...currentCategories];
   }, [filters.categories]);
+
+  // Ensure priceRange covers available products after they load
+  useEffect(() => {
+    if (products && products.length > 0) {
+      const newMax = Math.max(...products.map((p) => p.price));
+      setFilters((prev) => {
+        // If the current upper bound is the initial fallback (200)
+        // or smaller than the new max, expand it so products are visible.
+        if (prev.priceRange[1] === 200 || prev.priceRange[1] < newMax) {
+          return { ...prev, priceRange: [0, newMax] };
+        }
+        return prev;
+      });
+    }
+  }, [products]);
 
   // Show error toast if there's an error
   useEffect(() => {
@@ -172,35 +188,10 @@ const Index = () => {
         if (!meetsRating) return false;
       }
 
-      // Filter out products with stock 0
-      // Verificar se o produto tem variantes (variants, variations ou colors)
-      const hasVariants = 
-        (product.variants && product.variants.length > 0) ||
-        (product.variations && product.variations.length > 0) ||
-        (product.colors && product.colors.length > 0);
-      
-      if (!hasVariants) {
-        // Para produtos sem variantes, verificar stock direto
-        const productStock = product.stock ?? 0;
-        if (productStock <= 0) return false;
-      } else {
-        // Para produtos com variantes, verificar se pelo menos uma variante tem stock > 0
-        // Verificar em variants
-        const hasStockInVariants = product.variants?.some((variant) => (variant.stock ?? 0) > 0) || false;
-        // Verificar em variations
-        const hasStockInVariations = product.variations?.some((variant) => (variant.stock ?? 0) > 0) || false;
-        // Verificar em colors (que também são variantes populadas)
-        const hasStockInColors = product.colors?.some((color) => {
-          // colors pode ser um array de Color ou ProductVariation
-          const stock = (color as any).stock ?? 0;
-          return stock > 0;
-        }) || false;
-        
-        // Se nenhuma variante tem stock, excluir o produto
-        if (!hasStockInVariants && !hasStockInVariations && !hasStockInColors) {
-          return false;
-        }
-      }
+      // NOTE: removed automatic exclusion of out-of-stock products
+      // Previously the UI filtered out products with zero stock here.
+      // Keep all products visible by default; provide an explicit
+      // filter/toggle later if needed.
 
       return true;
     });
@@ -238,7 +229,7 @@ const Index = () => {
     return (
       <div className="min-h-screen bg-background">
         <Header />
-        
+
         {/* Breadcrumb Skeleton */}
         <div className="container px-3 sm:px-4 md:px-6 py-3 sm:py-4">
           <div className="flex items-center gap-2">
@@ -289,20 +280,20 @@ const Index = () => {
                   >
                     {/* Product Image Skeleton */}
                     <Skeleton className="aspect-square w-full" />
-                    
+
                     <div className="p-4 space-y-3">
                       {/* Product Name Skeleton */}
                       <Skeleton className="h-5 w-3/4" />
-                      
+
                       {/* Category Skeleton */}
                       <Skeleton className="h-4 w-1/2" />
-                      
+
                       {/* Price Skeleton */}
                       <div className="flex items-center gap-2">
                         <Skeleton className="h-6 w-24" />
                         <Skeleton className="h-5 w-20" />
                       </div>
-                      
+
                       {/* Rating Skeleton */}
                       <div className="flex items-center gap-2">
                         <div className="flex gap-1">
@@ -312,7 +303,7 @@ const Index = () => {
                         </div>
                         <Skeleton className="h-4 w-16" />
                       </div>
-                      
+
                       {/* Button Skeleton */}
                       <Skeleton className="h-10 w-full rounded-md" />
                     </div>
