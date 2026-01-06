@@ -352,7 +352,7 @@ const Index = () => {
             E-commerce
           </span>
           <span>/</span>
-          <span className="text-foreground font-medium">Produtos</span>
+          <span className="text-foreground font-medium">Itens disponíveis</span>
         </div>
       </div>
 
@@ -369,11 +369,11 @@ const Index = () => {
             <div className="flex items-center justify-between mb-8">
               <div>
                 <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2">
-                  Produtos
+                  Itens Disponíveis
                 </h1>
                 <p className="text-muted-foreground">
                   Exibindo {appliedFiltersProducts.length} de {products.length}{" "}
-                  produtos
+                  Itens disponíveis
                 </p>
               </div>
 
@@ -385,7 +385,10 @@ const Index = () => {
                     Filtro
                   </Button>
                 </SheetTrigger>
-                <SheetContent side="left" className="w-80 p-0 overflow-hidden flex flex-col max-h-screen">
+                <SheetContent
+                  side="left"
+                  className="w-80 p-0 overflow-hidden flex flex-col max-h-screen"
+                >
                   <div className="flex-1 overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-transparent">
                     <FilterSidebar
                       filters={filters}

@@ -1443,6 +1443,7 @@ const AdminContent = () => {
     const category = formData.get("category") as string;
     const gender = formData.get("gender") as string;
     const stock = formData.get("stock") as string;
+    const description = formData.get("description") as string;
 
     payload.append("name", name);
     payload.append("price", price);
@@ -1453,6 +1454,11 @@ const AdminContent = () => {
     payload.append("category", category);
     payload.append("gender", gender);
     payload.append("stock", stock || "0");
+
+    // Adicionar descrição se preenchida
+    if (description && description.trim() !== "") {
+      payload.append("description", description);
+    }
 
     if (editProductImageFile) {
       payload.append("imageCover", editProductImageFile);
@@ -1475,6 +1481,15 @@ const AdminContent = () => {
       });
 
       setEditingProduct(updated);
+      // Recarregar lista de produtos para garantir que todas as views
+      // (aba de produtos, seleção de produto para variantes, etc.) sejam atualizadas
+      // sem que o usuário precise recarregar a página.
+      try {
+        await dispatch(fetchAllProductsForAdmin());
+      } catch (err) {
+        // Não bloquear o fluxo principal se o fetch falhar
+        console.warn("Falha ao recarregar produtos após atualização:", err);
+      }
       setIsEditDialogOpen(false);
       setEditProductImageFile(null);
       setEditProductImagePreview("");
@@ -1596,6 +1611,16 @@ const AdminContent = () => {
     formData.append("product", productIdToUse);
     if (variantForm.imageFile) {
       formData.append("image", variantForm.imageFile);
+    }
+
+    // If editing and a new image was provided, inform the backend to
+    // remove the previous image file (so it can be deleted from
+    // public/variants) and include the previous filename when present.
+    if (isEditVariantMode && editingVariant && variantForm.imageFile) {
+      formData.append("deletePreviousImage", "true");
+      if (editingVariant.image) {
+        formData.append("previousImage", String(editingVariant.image));
+      }
     }
 
     try {
@@ -5861,6 +5886,18 @@ const AdminContent = () => {
                       <SelectItem value="Unissex">Unissex</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="edit-description" className="text-sm">
+                    Descrição
+                  </Label>
+                  <Textarea
+                    id="edit-description"
+                    name="description"
+                    rows={4}
+                    defaultValue={(editingProduct.description as string) || ""}
+                    className="text-sm resize-none"
+                  />
                 </div>
               </div>
 

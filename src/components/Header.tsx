@@ -346,7 +346,7 @@ const Header = () => {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 type="search"
-                placeholder="Search products..."
+                placeholder="Pesquisar por itens disponíveis"
                 className="pl-10 bg-background"
                 value={searchValue}
                 onChange={(e) => handleSearch(e.target.value)}
@@ -375,10 +375,7 @@ const Header = () => {
             <>
               <NavLink to="/auth" className="hidden md:block">
                 {({ isActive }) => (
-                  <Button
-                    variant={isActive ? "default" : "outline"}
-                    size="sm"
-                  >
+                  <Button variant={isActive ? "default" : "outline"} size="sm">
                     Login
                   </Button>
                 )}
@@ -438,7 +435,10 @@ const Header = () => {
               )}
 
               {/* Notifications Dropdown */}
-              <DropdownMenu open={notificationsOpen} onOpenChange={setNotificationsOpen}>
+              <DropdownMenu
+                open={notificationsOpen}
+                onOpenChange={setNotificationsOpen}
+              >
                 <DropdownMenuTrigger asChild>
                   <button className="p-2 hover:bg-muted rounded-full transition-colors relative">
                     <Bell className="h-5 w-5 text-foreground" />
@@ -497,7 +497,9 @@ const Header = () => {
                                 ? "border-b border-border/50"
                                 : ""
                             }`}
-                            onClick={() => handleNotificationClick(notification)}
+                            onClick={() =>
+                              handleNotificationClick(notification)
+                            }
                           >
                             <div
                               className={`flex-shrink-0 w-9 h-9 sm:w-10 sm:h-10 rounded-full ${iconStyles.iconBg} flex items-center justify-center`}

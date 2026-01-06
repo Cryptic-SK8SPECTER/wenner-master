@@ -128,10 +128,10 @@ const productSlice = createSlice({
       .addCase(createProduct.rejected, (state, action) => {
         state.loading = false;
         // action.payload pode ser um objeto com message ou uma string
-        const errorMessage = 
-          typeof action.payload === 'object' && action.payload?.message
+        const errorMessage =
+          typeof action.payload === "object" && action.payload?.message
             ? action.payload.message
-            : typeof action.payload === 'string'
+            : typeof action.payload === "string"
             ? action.payload
             : "Erro ao criar produto";
         state.error = errorMessage;
@@ -146,16 +146,26 @@ const productSlice = createSlice({
         state.error = null;
         const updated = action.payload;
 
-        state.products = state.products.map((product) =>
-          product._id === updated._id ? updated : product
-        );
+        // Normalizar ID do produto atualizado (algumas responses usam `id`, outras `_id`)
+        const updatedId = (updated as any)._id || (updated as any).id;
 
-        state.filteredProducts = state.filteredProducts.map((product) =>
-          product._id === updated._id ? updated : product
-        );
+        state.products = state.products.map((product) => {
+          const pid = (product as any)._id || (product as any).id;
+          return pid === updatedId ? { ...product, ...updated } : product;
+        });
 
-        if (state.currentProduct && state.currentProduct._id === updated._id) {
-          state.currentProduct = updated;
+        state.filteredProducts = state.filteredProducts.map((product) => {
+          const pid = (product as any)._id || (product as any).id;
+          return pid === updatedId ? { ...product, ...updated } : product;
+        });
+
+        if (state.currentProduct) {
+          const currentId =
+            (state.currentProduct as any)._id ||
+            (state.currentProduct as any).id;
+          if (currentId === updatedId) {
+            state.currentProduct = { ...state.currentProduct, ...updated };
+          }
         }
       })
       .addCase(updateProduct.rejected, (state, action) => {
