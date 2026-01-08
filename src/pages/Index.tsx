@@ -32,8 +32,6 @@ const Index = () => {
   );
   const { user, isAuthenticated } = useAppSelector((state) => state.user);
 
-  console.log("Your items are: ", products);
-
   const maxPrice =
     products.length > 0
       ? Math.max(...products.map((product) => product.price))

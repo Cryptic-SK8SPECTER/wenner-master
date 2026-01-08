@@ -103,7 +103,7 @@ export const FilterSidebar = ({
       gender: [],
       categories: [],
       colors: [],
-      priceRange: [0, 200],
+      priceRange: [0, 100000],
       rating: [],
     });
   };

@@ -360,8 +360,6 @@ const AdminContent = () => {
     error: reportError,
   } = useAppSelector((state) => state.report as any);
 
-  console.log("check it  ", totalRevenue, averageTicket);
-
   // Agora TODOS os useEffect vêm depois de todos os useAppSelector
   // Atualizar clients quando topClients mudar
   useEffect(() => {

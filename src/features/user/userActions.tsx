@@ -119,9 +119,6 @@ export const loginUser = createAsyncThunk<User, LoginPayload>(
     } catch (err: unknown) {
       // Retorna o erro para o thunk
       const message = getErrorMessage(err);
-
-      console.log("Resposta   ", err);
-
       // Return a structured error so frontend can read `error.message` when using unwrap()
       return rejectWithValue({ message });
     }
