@@ -5213,7 +5213,6 @@ const AdminContent = () => {
                             <SelectItem value="Casacos">Casacos</SelectItem>
                             <SelectItem value="Calças">Calças</SelectItem>
                             <SelectItem value="Blazers">Blazers</SelectItem>
-                            <SelectItem value="Sapatos">Sapatos</SelectItem>
                             <SelectItem value="Carteiras">Carteiras</SelectItem>
                             <SelectItem value="Calçados">Calçados</SelectItem>
                             <SelectItem value="Jaquetas">Jaquetas</SelectItem>

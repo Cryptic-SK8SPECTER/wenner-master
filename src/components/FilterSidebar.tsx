@@ -36,7 +36,11 @@ const filterSections: FilterSection[] = [
       "Casacos",
       "Calças",
       "Blazers",
-      "Sapatos",
+      "Calçados",
+      "Carteiras",
+      "Jaquetas",
+      "Saias",
+      "Moletons",
     ],
   },
   {
