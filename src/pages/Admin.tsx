@@ -5537,11 +5537,7 @@ const AdminContent = () => {
                           className="flex gap-3 sm:gap-4 p-3 sm:p-4 border border-border rounded-lg"
                         >
                           <img
-                            src={
-                              product.imageCover ||
-                              product.images?.[0] ||
-                              "https://i.pinimg.com/1200x/a7/2f/db/a72fdbea7e86c3fb70a17c166a36407b.jpg"
-                            }
+                            src={`${productionUrl}/img/products/${product.imageCover}`}
                             alt={product.name}
                             className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-md flex-shrink-0"
                             onError={(e) => {
